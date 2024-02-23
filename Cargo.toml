@@ -1,0 +1,13 @@
+[package]
+name = "wanderer-tales"
+version = "0.1.0"
+edition = "2021"
+
+
+[profile.release]
+panic = 'abort'
+
+[dependencies]
+auto-impl-ops = "0.2.1"
+bevy = "0.13.0"
+rand = "0.8.5"
