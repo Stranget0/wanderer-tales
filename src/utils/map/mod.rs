@@ -2,7 +2,6 @@ pub mod hex_map_item;
 pub mod layout_orientation;
 
 use bevy::{
-    math::vec2,
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
@@ -23,17 +22,20 @@ pub struct HexLayout {
 }
 
 pub fn hex_to_pixel(layout: &HexLayout, h: &HexVector) -> Vec2 {
-    let matrix: Mat2 = layout.orientation.hex_to_pixel;
+    let matrix = &layout.orientation;
 
-    matrix.mul_vec2(layout.size) * vec2(h.0.into(), h.1.into()) + layout.origin
+    let x = (matrix.f0 * h.0 as f32 + matrix.f1 * h.1 as f32) * layout.size.x;
+    let y = (matrix.f2 * h.0 as f32 + matrix.f3 * h.1 as f32) * layout.size.y;
+    println!("{:?} -> x:{} y:{}", h, x, y);
+    Vec2::from_array([x, y])
 }
 
-pub fn pixel_to_hex(layout: &mut HexLayout, point: Vec2) -> HexVector {
-    let matrix: Mat2 = layout.orientation.pixel_to_hex();
-    let vec = matrix.mul_vec2(point - layout.origin) / layout.size;
+// pub fn pixel_to_hex(layout: &mut HexLayout, point: Vec2) -> HexVector {
+//     let matrix: Mat2 = layout.orientation.pixel_to_hex();
+//     let vec = matrix.mul_vec2(point - layout.origin) / layout.size;
 
-    FractionalHexVector::from(vec).into()
-}
+//     FractionalHexVector::from(vec).into()
+// }
 
 impl HexLayout {
     fn ring_from(hex: &HexVector, radius: i16, f: fn(&HexVector)) {}
@@ -80,10 +82,13 @@ impl PaintHex for HexMapItem {
             }
         };
 
+        let mut transform = Transform::from_xyz(pos.x, pos.y, 0.0);
+        transform.rotate_z(layout.orientation.starting_angle.into());
+
         let bundle = MaterialMesh2dBundle {
-            mesh: Mesh2dHandle(meshes.add(RegularPolygon::new(50.0, 6))),
+            mesh: Mesh2dHandle(meshes.add(RegularPolygon::new(layout.size.x, 6))),
             material: materials.add(color),
-            transform: Transform::from_xyz(pos.x, pos.y, 0.0),
+            transform,
             ..Default::default()
         };
         let text_style: TextStyle = TextStyle {

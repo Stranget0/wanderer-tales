@@ -76,6 +76,9 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
             range if range > 0 && range <= range_end => match self.ring_iterator.next() {
                 Some(hex) => Some(hex),
                 None => {
+                    if self.range_current == range_end {
+                        return None;
+                    }
                     self.range_current += 1;
                     self.ring_iterator = HexVectorRing::new(self.origin, self.range_current)
                         .take((self.range_current * 6).into());
@@ -126,6 +129,7 @@ mod tests {
             println!("{}", v.distance_to(&origin));
         }
         todo!();
+
         // assert_eq!(iterator.next().unwrap(), origin);
         // for range in 1..=range_end {
         //     let i_max = range * 6;
