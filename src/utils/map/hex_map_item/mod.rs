@@ -124,19 +124,16 @@ mod tests {
         let origin = HexVector::new(3, 2, -5);
         let range_end = 3;
         let mut iterator = HexVectorSpiral::new(&origin, range_end);
+				let mut i = 0;
 
-        for v in iterator {
-            println!("{}", v.distance_to(&origin));
+
+        assert_eq!(iterator.next().unwrap(), origin);
+        for range in 1..=range_end {
+            let i_max = range * 6;
+            for _ in 0..i_max {
+                assert_eq!(iterator.next().unwrap().distance_to(&origin), range);
+            }
         }
-        todo!();
-
-        // assert_eq!(iterator.next().unwrap(), origin);
-        // for range in 1..=range_end {
-        //     let i_max = range * 6;
-        //     for _ in 0..i_max {
-        //         assert_eq!(iterator.next().unwrap().distance_to(&origin), 1)
-        //     }
-        // }
-        // assert_eq!(iterator.next(), None);
+        assert_eq!(iterator.next(), None);
     }
 }

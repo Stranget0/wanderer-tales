@@ -43,26 +43,26 @@ impl<'a, 'b> Add<&'a HexVector> for &'b HexVector {
     type Output = HexVector;
 
     fn add(self, other: &HexVector) -> Self::Output {
-        add_vectors(self, other)
+        add_int_vectors(self, other)
     }
 }
 impl Add<&HexVector> for HexVector {
     type Output = HexVector;
     fn add(self, rhs: &Self) -> Self::Output {
-        add_vectors(&self, rhs)
+        add_int_vectors(&self, rhs)
     }
 }
 impl Add<HexVector> for &HexVector {
     type Output = HexVector;
     fn add(self, rhs: HexVector) -> Self::Output {
-        add_vectors(self, &rhs)
+        add_int_vectors(self, &rhs)
     }
 }
 impl Add for HexVector {
     type Output = HexVector;
 
     fn add(self, other: HexVector) -> Self::Output {
-        add_vectors(&self, &other)
+        add_int_vectors(&self, &other)
     }
 }
 impl<'a, 'b> Sub<&'a HexVector> for &'b HexVector {
@@ -148,8 +148,21 @@ impl From<Vec2> for FractionalHexVector {
     }
 }
 
-fn add_vectors(lhs: &HexVector, rhs: &HexVector) -> HexVector {
+fn add_int_vectors(lhs: &HexVector, rhs: &HexVector) -> HexVector {
     HexVector(lhs.0 + rhs.0, lhs.1 + rhs.1, lhs.2 + rhs.2)
+}
+fn add_mixed_vectors(lhs: &FractionalHexVector, rhs: &HexVector) -> FractionalHexVector {
+    let q: f32 = lhs.0 + f32::from(rhs.0);
+    let r: f32 = lhs.1 + f32::from(rhs.1);
+    let s: f32 = -q - r;
+
+    FractionalHexVector(q, r, s)
+}
+fn add_fractional_vectors(
+    lhs: &FractionalHexVector,
+    rhs: &FractionalHexVector,
+) -> FractionalHexVector {
+    FractionalHexVector(lhs.0 + rhs.0, lhs.1 + rhs.1, lhs.2 + rhs.2)
 }
 fn sub_vectors(lhs: &HexVector, rhs: &HexVector) -> HexVector {
     HexVector(lhs.0 - rhs.0, lhs.1 - rhs.1, lhs.2 - rhs.2)
@@ -220,15 +233,15 @@ mod tests {
 
     #[test]
     fn hex_length() {
-        let a = HexVector::new(2, 2, -4);
+        let a = HexVector::new(4, 0, -4);
 
         assert_eq!(a.length(), 4)
     }
 
     #[test]
     fn hex_distance() {
-        let a = HexVector::new(1, 2, -3);
-        let b = HexVector::new(3, 2, -5);
+        let a = HexVector::new(0, 0, 0);
+        let b = HexVector::new(0, -4, 4);
 
         assert_eq!(a.distance_to(&b), 4);
     }

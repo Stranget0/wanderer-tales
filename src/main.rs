@@ -8,7 +8,7 @@ use utils::map::{
         hex_vector::{HexVector, HEX_DIRECTIONS},
         HexMapItem, HexVectorRing, HexVectorSpiral,
     },
-    layout_orientation::POINTY_TOP_ORIENTATION,
+    layout_orientation::{POINTY_TOP_ORIENTATION,FLAT_TOP_ORIENTATION},
     HexLayout, PaintHex,
 };
 
@@ -28,7 +28,7 @@ fn setup(
 ) {
     commands.spawn(Camera2dBundle::default());
     let layout = HexLayout {
-        orientation: POINTY_TOP_ORIENTATION,
+        orientation: FLAT_TOP_ORIENTATION,
         size: vec2(32.0, 32.0),
         origin: vec2(0.0, 0.0),
     };

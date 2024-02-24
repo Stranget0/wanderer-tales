@@ -26,14 +26,14 @@ pub const POINTY_TOP_ORIENTATION: HexLayoutOrientation = HexLayoutOrientation {
     starting_angle: 0,
 };
 
-// pub const FLAT_TOP_ORIENTATION: HexLayoutOrientation = HexLayoutOrientation {
-//     f0: 3.0 / 2.0,
-//     f1: 0.0,
-//     f2: SQRT_3 / 2.0,
-//     f3: SQRT_3,
-//     b0: 2.0 / 3.0,
-//     b1: 0.0,
-//     b2: -1.0 / 3.0,
-//     b3: SQRT_3 / 3.0,
-//     starting_angle: -30,
-// };
+pub const FLAT_TOP_ORIENTATION: HexLayoutOrientation = HexLayoutOrientation {
+    f0: 3.0 / 2.0,
+    f1: 0.0,
+    f2: SQRT_3 / 2.0,
+    f3: SQRT_3,
+    b0: 2.0 / 3.0,
+    b1: 0.0,
+    b2: -1.0 / 3.0,
+    b3: SQRT_3 / 3.0,
+    starting_angle: -50,
+};

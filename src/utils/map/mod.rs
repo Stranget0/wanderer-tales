@@ -26,7 +26,6 @@ pub fn hex_to_pixel(layout: &HexLayout, h: &HexVector) -> Vec2 {
 
     let x = (matrix.f0 * h.0 as f32 + matrix.f1 * h.1 as f32) * layout.size.x;
     let y = (matrix.f2 * h.0 as f32 + matrix.f3 * h.1 as f32) * layout.size.y;
-    println!("{:?} -> x:{} y:{}", h, x, y);
     Vec2::from_array([x, y])
 }
 
@@ -112,5 +111,65 @@ impl PaintHex for HexMapItem {
         commands.spawn(bundle);
         commands.spawn(debug_bundles[0].clone());
         commands.spawn(debug_bundles[1].clone());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::POINTY_TOP_ORIENTATION;
+    use bevy::math::vec2;
+
+    #[test]
+    fn hex_to_pixel_test() {
+        let input_output = vec![
+            (HexVector::new(0, 0, 0), vec2(0.0, 0.0)),
+            (HexVector::new(-1, 0, 1), vec2(-55.425625, 0.0)),
+            (HexVector::new(0, -1, 1), vec2(-27.712812, -48.0)),
+            (HexVector::new(1, -1, 0), vec2(27.712812, -48.0)),
+            (HexVector::new(1, 0, -1), vec2(55.425625, 0.0)),
+            (HexVector::new(0, 1, -1), vec2(27.712812, 48.0)),
+            (HexVector::new(-1, 1, 0), vec2(-27.712812, 48.0)),
+            (HexVector::new(-2, 1, 1), vec2(-83.138435, 48.0)),
+            (HexVector::new(-2, 0, 2), vec2(-110.85125, 0.0)),
+            (HexVector::new(-1, -1, 2), vec2(-83.138435, -48.0)),
+            (HexVector::new(0, -2, 2), vec2(-55.425625, -96.0)),
+            (HexVector::new(1, -2, 1), vec2(0.0, -96.0)),
+            (HexVector::new(2, -2, 0), vec2(55.425625, -96.0)),
+            (HexVector::new(2, -1, -1), vec2(83.138435, -48.0)),
+            (HexVector::new(2, 0, -2), vec2(110.85125, 0.0)),
+            (HexVector::new(1, 1, -2), vec2(83.138435, 48.0)),
+            (HexVector::new(0, 2, -2), vec2(55.425625, 96.0)),
+            (HexVector::new(-1, 2, -1), vec2(0.0, 96.0)),
+            (HexVector::new(-2, 2, 0), vec2(-55.425625, 96.0)),
+            (HexVector::new(-3, 2, 1), vec2(-110.85124, 96.0)),
+            (HexVector::new(-3, 1, 2), vec2(-138.56406, 48.0)),
+            (HexVector::new(-3, 0, 3), vec2(-166.27687, 0.0)),
+            (HexVector::new(-2, -1, 3), vec2(-138.56406, -48.0)),
+            (HexVector::new(-1, -2, 3), vec2(-110.85125, -96.0)),
+            (HexVector::new(0, -3, 3), vec2(-83.138435, -144.0)),
+            (HexVector::new(1, -3, 2), vec2(-27.71281, -144.0)),
+            (HexVector::new(2, -3, 1), vec2(27.712814, -144.0)),
+            (HexVector::new(3, -3, 0), vec2(83.138435, -144.0)),
+            (HexVector::new(3, -2, -1), vec2(110.85124, -96.0)),
+            (HexVector::new(3, -1, -2), vec2(138.56406, -48.0)),
+            (HexVector::new(3, 0, -3), vec2(166.27687, 0.0)),
+            (HexVector::new(2, 1, -3), vec2(138.56406, 48.0)),
+            (HexVector::new(1, 2, -3), vec2(110.85125, 96.0)),
+            (HexVector::new(0, 3, -3), vec2(83.138435, 144.0)),
+            (HexVector::new(-1, 3, -2), vec2(27.71281, 144.0)),
+            (HexVector::new(-2, 3, -1), vec2(-27.712814, 144.0)),
+            (HexVector::new(-3, 3, 0), vec2(-83.138435, 144.0)),
+        ];
+        let layout = HexLayout {
+            orientation: POINTY_TOP_ORIENTATION,
+            size: vec2(32.0, 32.0),
+            origin: vec2(0.0, 0.0),
+        };
+
+        for (hex, pos) in input_output {
+            let result = hex_to_pixel(&layout, &hex);
+            assert_eq!(result, pos);
+        }
     }
 }
