@@ -3,12 +3,14 @@ use bevy::{
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
+use bevy_editor_pls::{egui, prelude::*};
+use bevy_editor_pls_core::editor_window::{EditorWindow, EditorWindowContext};
 use utils::map::{
     hex_map_item::{
         hex_vector::{HexVector, HEX_DIRECTIONS},
         HexMapItem, HexVectorRing, HexVectorSpiral,
     },
-    layout_orientation::{POINTY_TOP_ORIENTATION,FLAT_TOP_ORIENTATION},
+    layout_orientation::{FLAT_TOP_ORIENTATION, POINTY_TOP_ORIENTATION},
     HexLayout, PaintHex,
 };
 
@@ -16,7 +18,7 @@ mod utils;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((DefaultPlugins, EditorPlugin::default()))
         .add_systems(Startup, setup)
         .run();
 }
@@ -40,9 +42,3 @@ fn setup(
         item.paint(&layout, &mut commands, &mut meshes, &mut materials);
     }
 }
-
-#[derive(Component)]
-struct Person;
-
-#[derive(Component)]
-struct Name(String);

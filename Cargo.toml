@@ -8,6 +8,7 @@ panic = 'abort'
 
 [dependencies]
 auto-impl-ops = "0.2.1"
+bevy_editor_pls = "0.8.0"
 rand = "0.8.5"
 
 [dependencies.bevy]
@@ -34,4 +35,5 @@ features = [
 	"tonemapping_luts",
 	"default_font",
 	"webgl2",
+	"dynamic_linking",
 ]
