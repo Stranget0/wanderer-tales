@@ -11,7 +11,7 @@ pub struct HexLayoutOrientation {
     pub b1: f32,
     pub b2: f32,
     pub b3: f32,
-    pub starting_angle: i16,
+    pub starting_angle: f32,
 }
 
 pub const POINTY_TOP_ORIENTATION: HexLayoutOrientation = HexLayoutOrientation {
@@ -23,7 +23,7 @@ pub const POINTY_TOP_ORIENTATION: HexLayoutOrientation = HexLayoutOrientation {
     b1: -1.0 / 3.0,
     b2: 0.0,
     b3: 2.0 / 3.0,
-    starting_angle: 0,
+    starting_angle: 0.0,
 };
 
 pub const FLAT_TOP_ORIENTATION: HexLayoutOrientation = HexLayoutOrientation {
@@ -35,5 +35,5 @@ pub const FLAT_TOP_ORIENTATION: HexLayoutOrientation = HexLayoutOrientation {
     b1: 0.0,
     b2: -1.0 / 3.0,
     b3: SQRT_3 / 3.0,
-    starting_angle: -50,
+    starting_angle: 0.5,
 };

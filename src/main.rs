@@ -3,8 +3,11 @@ use bevy::{
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
-use bevy_editor_pls::{egui, prelude::*};
-use bevy_editor_pls_core::editor_window::{EditorWindow, EditorWindowContext};
+use bevy_editor_pls::{
+    editor_window::{EditorWindow, EditorWindowContext},
+    egui,
+    prelude::*,
+};
 use utils::map::{
     hex_map_item::{
         hex_vector::{HexVector, HEX_DIRECTIONS},
@@ -30,7 +33,7 @@ fn setup(
 ) {
     commands.spawn(Camera2dBundle::default());
     let layout = HexLayout {
-        orientation: FLAT_TOP_ORIENTATION,
+        orientation: POINTY_TOP_ORIENTATION,
         size: vec2(32.0, 32.0),
         origin: vec2(0.0, 0.0),
     };

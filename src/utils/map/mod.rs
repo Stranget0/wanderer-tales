@@ -82,7 +82,7 @@ impl PaintHex for HexMapItem {
         };
 
         let mut transform = Transform::from_xyz(pos.x, pos.y, 0.0);
-        transform.rotate_z(layout.orientation.starting_angle.into());
+        transform.rotate_z(layout.orientation.starting_angle);
 
         let bundle = MaterialMesh2dBundle {
             mesh: Mesh2dHandle(meshes.add(RegularPolygon::new(layout.size.x, 6))),
