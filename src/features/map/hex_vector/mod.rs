@@ -1,6 +1,8 @@
 use std::ops::{Add, Mul, Sub};
 
-use bevy::math::Vec2;
+use bevy::{ecs::component::Component, math::Vec2};
+
+pub mod iterators;
 
 pub const HEX_DIRECTIONS: [HexVector; 6] = [
     HexVector::new(0, -1, 1),
@@ -11,8 +13,10 @@ pub const HEX_DIRECTIONS: [HexVector; 6] = [
     HexVector::new(-1, 0, 1),
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Component)]
 pub struct HexVector(pub i16, pub i16, pub i16);
+
+#[derive(Debug, Clone, Component)]
 pub struct FractionalHexVector(pub f32, pub f32, pub f32);
 
 impl HexVector {
@@ -172,7 +176,7 @@ fn mul_vector(lhs: &HexVector, rhs: i16) -> HexVector {
 }
 #[cfg(test)]
 mod tests {
-    use crate::utils::map::hex_map_item::hex_vector::HEX_DIRECTIONS;
+    use crate::features::map::hex_map_item::hex_vector::HEX_DIRECTIONS;
 
     use super::HexVector;
 

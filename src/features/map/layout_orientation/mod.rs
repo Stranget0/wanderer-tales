@@ -1,7 +1,6 @@
-use bevy::{math::vec2, prelude::*};
-
 const SQRT_3: f32 = 1.7320508;
 
+#[derive(Debug)]
 pub struct HexLayoutOrientation {
     pub f0: f32,
     pub f1: f32,

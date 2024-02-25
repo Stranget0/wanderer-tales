@@ -1,21 +1,6 @@
 use std::iter::Take;
 
-use bevy::prelude::*;
-
-use self::hex_vector::{HexVector, HEX_DIRECTIONS};
-
-pub mod hex_vector;
-
-#[derive(Component)]
-pub struct HexMapItem {
-    pub pos: HexVector,
-}
-
-enum Biome {
-    Grass,
-    Forest,
-    Mountain,
-}
+use super::{HexVector, HEX_DIRECTIONS};
 
 pub struct HexVectorRing {
     current: HexVector,
@@ -93,7 +78,7 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::map::hex_map_item::{hex_vector::HEX_DIRECTIONS, HexVectorRing};
+    use crate::features::map::hex_map_item::{hex_vector::HEX_DIRECTIONS, HexVectorRing};
 
     use super::{HexVector, HexVectorSpiral};
 
@@ -124,8 +109,7 @@ mod tests {
         let origin = HexVector::new(3, 2, -5);
         let range_end = 3;
         let mut iterator = HexVectorSpiral::new(&origin, range_end);
-				let mut i = 0;
-
+        let mut i = 0;
 
         assert_eq!(iterator.next().unwrap(), origin);
         for range in 1..=range_end {
