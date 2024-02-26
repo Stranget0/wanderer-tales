@@ -23,10 +23,8 @@ pub fn render_map(
     query: Query<&HexMapItemBundle>,
 ) {
     let layout = layout_q.single();
-    info!("running renderer");
 
     for hex in query.iter() {
-        info!("rendering hex map");
         let bundle = create_hex_bundle(
             layout,
             hex,

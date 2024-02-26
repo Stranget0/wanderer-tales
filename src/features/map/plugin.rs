@@ -38,13 +38,11 @@ fn spawn_layout(mut commands: Commands) {
     };
 
     commands.spawn(layout);
-    info!("layout has spawned");
 }
 
 fn spawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
     let origin_hex = HexVector(0, 0, 0);
     commands.entity(layout.single()).with_children(|parent| {
-        info!("Spawn hex data");
         for v in HexVectorSpiral::new(&origin_hex, 3) {
             let bundle = HexMapItemBundle {
                 biome: get_biome(&v),
