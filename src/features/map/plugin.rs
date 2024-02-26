@@ -48,13 +48,17 @@ fn spawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>
         for v in HexVectorSpiral::new(&origin_hex, 3) {
             let bundle = HexMapItemBundle {
                 biome: get_biome(&v),
-                height: Height(50),
+                height: get_height(&v),
                 pos: v,
             };
 
             parent.spawn(bundle);
         }
     });
+}
+
+fn get_height(_hex: &HexVector) -> Height {
+    Height(50)
 }
 
 fn get_biome(_hex: &HexVector) -> Biome {
