@@ -8,7 +8,7 @@ use super::{
     hex_map_item::{Biome, Height, HexMapItemBundle},
     hex_vector::{iterators::HexVectorSpiral, HexVector},
     layout_orientation::POINTY_TOP_ORIENTATION,
-    renderer::rendered_2d::{render_map, spawn_camera},
+    renderer::rendered_2d::render_map,
 };
 
 impl Plugin for MapPlugin {
@@ -17,10 +17,7 @@ impl Plugin for MapPlugin {
             .add_systems(
                 // OnEnter(SceneState::Menu),
                 Startup,
-                (
-                    (spawn_layout, spawn_map_data, render_map).chain(),
-                    spawn_camera,
-                ),
+                ((spawn_layout, spawn_map_data, render_map).chain(),),
             )
             .add_systems(OnExit(SceneState::Menu), despawn_map_data);
     }
@@ -61,7 +58,9 @@ fn spawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>
 }
 
 fn get_height(_hex: &HexVector) -> Height {
-    Height(50)
+    let mut rng = rand::thread_rng();
+    let x: f32 = rng.gen();
+    Height((x * 50.0) as u8)
 }
 
 fn get_biome(_hex: &HexVector) -> Biome {

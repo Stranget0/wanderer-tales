@@ -11,10 +11,6 @@ use crate::features::{
     theme::constants::COLORS,
 };
 
-pub fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
-}
-
 pub fn render_map(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
