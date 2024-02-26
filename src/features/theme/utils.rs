@@ -1,6 +1,6 @@
 use bevy::render::color::Color;
 
-pub struct ColorTheme {
+pub struct ColorRange {
     pub l50: Color,
     pub l100: Color,
     pub l200: Color,
@@ -13,7 +13,7 @@ pub struct ColorTheme {
     pub l900: Color,
 }
 
-impl ColorTheme {
+impl ColorRange {
     pub const fn from_array(value: [(f32, f32, f32); 10]) -> Self {
         Self {
             l50: Color::rgb(value[0].0, value[0].1, value[0].2),
@@ -28,8 +28,11 @@ impl ColorTheme {
             l900: Color::rgb(value[9].0, value[9].1, value[9].2),
         }
     }
-}
-pub struct ColorThemeIterator {
-    last: usize,
-    theme: ColorTheme,
+
+    pub fn to_array(&self) -> [Color; 10] {
+        [
+            self.l50, self.l100, self.l200, self.l300, self.l400, self.l500, self.l600, self.l700,
+            self.l800, self.l900,
+        ]
+    }
 }

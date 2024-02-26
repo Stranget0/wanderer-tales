@@ -1,15 +1,15 @@
-use super::utils::ColorTheme;
+use super::utils::ColorRange;
 
 pub struct Theme {
-    pub gray: ColorTheme,
-    pub primary: ColorTheme,
-    pub accent: ColorTheme,
-    pub green: ColorTheme,
-    pub blue: ColorTheme,
+    pub gray: ColorRange,
+    pub primary: ColorRange,
+    pub accent: ColorRange,
+    pub green: ColorRange,
+    pub blue: ColorRange,
 }
 
 pub const COLORS: Theme = Theme {
-    primary: ColorTheme::from_array([
+    primary: ColorRange::from_array([
         // https://oklch-palette.vercel.app/#85.57,0.07,66.51,100
         // rgb(255, 243, 231),
         (1.0, 0.952941, 0.905882),
@@ -32,7 +32,7 @@ pub const COLORS: Theme = Theme {
         // rgb(38, 19, 0),
         (0.14902, 0.07451, 0.0),
     ]),
-    accent: ColorTheme::from_array([
+    accent: ColorRange::from_array([
         // https://oklch-palette.vercel.app/#85.57,0.07,29.295,100
         // rgb(255, 242, 239),
         (1.0, 0.94902, 0.937255),
@@ -55,7 +55,7 @@ pub const COLORS: Theme = Theme {
         // rgb(54, 0, 0),
         (0.211765, 0.0, 0.0),
     ]),
-    green: ColorTheme::from_array([
+    green: ColorRange::from_array([
         // https://oklch-palette.vercel.app/#85.57,0.07,130.68,100
         // rgb(2, 255, 209),
         (0.901961, 1.0, 0.819608),
@@ -78,7 +78,7 @@ pub const COLORS: Theme = Theme {
         // rgb(15, 29, 0),
         (0.058824, 0.113725, 0.0),
     ]),
-    blue: ColorTheme::from_array([
+    blue: ColorRange::from_array([
         // https://oklch-palette.vercel.app/#85.57,0.07,235.89,100
         // rgb(235, 247, 255),
         (0.921569, 0.968627, 1.0),
@@ -101,7 +101,7 @@ pub const COLORS: Theme = Theme {
         // rgb(0, 27, 42),
         (0.0, 0.105882, 0.164706),
     ]),
-    gray: ColorTheme::from_array([
+    gray: ColorRange::from_array([
         // https://oklch-palette.vercel.app/#85.57,0.07,235.89,100
         // rgb(247, 244, 243),
         (0.968627, 0.956863, 0.952941),

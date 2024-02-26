@@ -1,46 +1,71 @@
-use bevy::{math::vec2, prelude::*};
+use bevy::{math::vec2, prelude::*, utils::HashMap};
+use rand::Rng;
 
 use crate::global_state::SceneState;
 
 use super::{
     hex_layout::HexLayout,
+    hex_map_item::{Biome, Height, HexMapItemBundle},
     hex_vector::{iterators::HexVectorSpiral, HexVector},
     layout_orientation::POINTY_TOP_ORIENTATION,
+    renderer::rendered_2d::{render_map, spawn_camera},
 };
-
-pub struct MapPlugin;
-
-#[derive(Resource)]
-struct MapData {
-    layout_entity: Entity,
-}
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<SceneState>().add_systems(
-            OnEnter(SceneState::Menu),
-            setup.run_if(in_state(SceneState::Menu)),
-        );
+        app.init_state::<SceneState>()
+            .add_systems(
+                // OnEnter(SceneState::Menu),
+                Startup,
+                (
+                    (spawn_layout, spawn_map_data, render_map).chain(),
+                    spawn_camera,
+                ),
+            )
+            .add_systems(OnExit(SceneState::Menu), despawn_map_data);
     }
 }
+pub struct MapPlugin;
 
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    commands.spawn(Camera2dBundle::default());
-    let layout = HexLayout {
+#[derive(Resource)]
+struct MapHexData(HashMap<HexVector, HexMapItemBundle>);
+
+fn spawn_layout(mut commands: Commands) {
+    let layout: HexLayout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
         size: vec2(32.0, 32.0),
         origin: vec2(0.0, 0.0),
     };
 
+    commands.spawn(layout);
+    info!("layout has spawned");
+}
+
+fn spawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
     let origin_hex = HexVector(0, 0, 0);
+    commands.entity(layout.single()).with_children(|parent| {
+        info!("Spawn hex data");
+        for v in HexVectorSpiral::new(&origin_hex, 3) {
+            let bundle = HexMapItemBundle {
+                biome: get_biome(&v),
+                height: Height(50),
+                pos: v,
+            };
 
-    for v in HexVectorSpiral::new(&origin_hex, 3) {
+            parent.spawn(bundle);
+        }
+    });
+}
 
-        // let item = HexMapItem { pos: v };
-        // item.paint(&layout, &mut commands, &mut meshes, &mut materials);
+fn get_biome(_hex: &HexVector) -> Biome {
+    let mut rng = rand::thread_rng();
+    let x: f32 = rng.gen();
+    match x.round() as u8 {
+        0 => Biome::Forest,
+        _ => Biome::Grass,
     }
+}
+
+fn despawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
+    commands.entity(layout.single()).despawn_recursive();
 }
