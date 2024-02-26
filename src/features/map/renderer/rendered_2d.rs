@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::features::{
-    map::{
+    map::utils::{
         hex_layout::HexLayout,
         hex_map_item::{Biome, HexMapItemBundle},
     },
