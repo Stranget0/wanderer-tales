@@ -37,7 +37,12 @@ fn spawn_layout(mut commands: Commands) {
         origin: vec2(0.0, 0.0),
     };
 
-    commands.spawn(layout);
+    commands.spawn((
+        layout,
+        SpatialBundle {
+            ..Default::default()
+        },
+    ));
 }
 
 fn spawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
