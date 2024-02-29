@@ -8,8 +8,9 @@ pub struct HexVectorRing {
     i: u16,
 }
 pub struct HexVectorSpiral<'a> {
-    range_current: u16,
+    current_step: u16,
     range_end: u16,
+    step: i8,
     ring_iterator: Take<HexVectorRing>,
     origin: &'a HexVector,
 }
@@ -26,12 +27,14 @@ impl HexVectorRing {
 }
 
 impl<'a> HexVectorSpiral<'a> {
-    pub fn new(origin: &'a HexVector, range_end: u16) -> Self {
+    pub fn new(origin: &'a HexVector, from: u16, to: u16) -> Self {
+        let next_range = 1.max(from);
         Self {
             origin,
-            range_end,
-            range_current: 0,
-            ring_iterator: HexVectorRing::new(origin, 1).take(6),
+            current_step: from,
+            range_end: to,
+            step: if to > from { 1 } else { -1 },
+            ring_iterator: HexVectorRing::new(origin, next_range).take((next_range * 6).into()),
         }
     }
 }
@@ -53,24 +56,39 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let range_end = self.range_end;
-        match self.range_current {
+        let next_step_option: Option<u16> = (i32::from(self.current_step) + i32::from(self.step))
+            .try_into()
+            .ok();
+        println!(
+            "{} >= {} = {}",
+            range_end.max(self.current_step),
+            self.current_step.min(range_end),
+            self.current_step.min(range_end) <= range_end.max(self.current_step)
+        );
+        match self.current_step {
             0 => {
-                self.range_current += 1;
+                self.current_step = next_step_option.unwrap();
                 Some(self.origin.clone())
             }
-            range if range > 0 && range <= range_end => match self.ring_iterator.next() {
-                Some(hex) => Some(hex),
-                None => {
-                    if self.range_current == range_end {
-                        return None;
-                    }
-                    self.range_current += 1;
-                    self.ring_iterator = HexVectorRing::new(self.origin, self.range_current)
-                        .take((self.range_current * 6).into());
+            range if range.min(range_end) <= range_end.max(range) => {
+                match self.ring_iterator.next() {
+                    Some(hex) => Some(hex),
+                    None => {
+                        if self.current_step == range_end {
+                            return if self.step > 0 {
+                                None
+                            } else {
+                                Some(self.origin.clone())
+                            };
+                        };
+                        self.current_step = next_step_option.unwrap();
+                        self.ring_iterator = HexVectorRing::new(self.origin, self.current_step)
+                            .take((self.current_step * 6).into());
 
-                    self.ring_iterator.next()
+                        self.ring_iterator.next()
+                    }
                 }
-            },
+            }
             _ => None,
         }
     }
@@ -78,7 +96,9 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::features::map::hex_map_item::{hex_vector::HEX_DIRECTIONS, HexVectorRing};
+    use crate::features::map::utils::{
+        hex_vector::iterators::HexVectorRing, hex_vector::HEX_DIRECTIONS,
+    };
 
     use super::{HexVector, HexVectorSpiral};
 
@@ -108,14 +128,31 @@ mod tests {
     fn hex_ring() {
         let origin = HexVector::new(3, 2, -5);
         let range_end = 3;
-        let mut iterator = HexVectorSpiral::new(&origin, range_end);
-        let mut i = 0;
+        let mut iterator = HexVectorSpiral::new(&origin, 0, range_end);
 
         assert_eq!(iterator.next().unwrap(), origin);
         for range in 1..=range_end {
             let i_max = range * 6;
             for _ in 0..i_max {
-                assert_eq!(iterator.next().unwrap().distance_to(&origin), range);
+                let distance = iterator.next().unwrap().distance_to(&origin);
+                assert_eq!(distance, range);
+            }
+        }
+        assert_eq!(iterator.next(), None);
+    }
+
+    #[test]
+    fn hex_ring_backwards() {
+        let origin = HexVector::new(3, 2, -5);
+        let range_start = 3;
+        let mut iterator = HexVectorSpiral::new(&origin, range_start, 0);
+
+        for range in 0..=range_start {
+            let range_inv = range_start - range;
+            let i_max = range_inv * 6;
+            for _ in 0..i_max {
+                let distance = iterator.next().unwrap().distance_to(&origin);
+                assert_eq!(distance, range_inv);
             }
         }
         assert_eq!(iterator.next(), None);
