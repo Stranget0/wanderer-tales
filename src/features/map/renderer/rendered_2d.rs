@@ -4,9 +4,13 @@ use bevy::{
 };
 
 use crate::features::{
-    map::utils::{
-        hex_layout::HexLayout,
-        hex_map_item::{Biome, HexMapItemBundle},
+    map::{
+        events::MapAddEvent,
+        utils::{
+            hex_layout::HexLayout,
+            hex_map_item::{Biome, Height, HexMapItemBundle},
+            hex_vector::HexVector,
+        },
     },
     theme::constants::COLORS,
 };
@@ -15,23 +19,29 @@ pub fn render_map(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    layout_entity_q: Query<Entity, With<HexLayout>>,
-    layout_q: Query<&HexLayout>,
-    query: Query<&HexMapItemBundle>,
+    layout_query: Query<(Entity, &HexLayout), With<HexLayout>>,
+    map_data_query: Query<(&HexVector, &Biome, &Height)>,
+    mut render_event: EventReader<MapAddEvent>,
 ) {
-    let layout = layout_q.single();
-    let layout_entity = layout_entity_q.single();
+    for event in render_event.read() {
+        let (layout_entity, layout) = layout_query.single();
 
-    for hex in query.iter() {
-        let hex_bundle = create_hex_bundle(
-            layout,
-            hex,
-            Mesh2dHandle(meshes.add(RegularPolygon::new(layout.size.x, 6))),
-            &mut materials,
-        );
-        let hex_entity = commands.spawn(hex_bundle).id();
+        for hex_entity in event.0.iter() {
+            let (pos, biome, height) = map_data_query.get(*hex_entity).unwrap();
+            let hex_bundle = create_hex_bundle(
+                layout,
+                &HexMapItemBundle {
+                    biome: *biome,
+                    height: *height,
+                    pos: pos.clone(),
+                },
+                Mesh2dHandle(meshes.add(RegularPolygon::new(layout.size.x, 6))),
+                &mut materials,
+            );
+            let hex_entity = commands.spawn(hex_bundle).id();
 
-        commands.entity(layout_entity).add_child(hex_entity);
+            commands.entity(layout_entity).add_child(hex_entity);
+        }
     }
 }
 

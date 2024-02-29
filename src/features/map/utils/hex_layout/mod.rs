@@ -1,9 +1,6 @@
 use bevy::{ecs::component::Component, math::Vec2};
 
-use super::{
-    hex_vector::{FractionalHexVector, HexVector},
-    layout_orientation::HexLayoutOrientation,
-};
+use super::{hex_vector::HexVector, layout_orientation::HexLayoutOrientation};
 
 #[derive(Component, Debug)]
 pub struct HexLayout {
@@ -23,9 +20,13 @@ impl HexLayout {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::POINTY_TOP_ORIENTATION;
     use bevy::math::vec2;
+
+    use crate::features::map::utils::{
+        hex_vector::HexVector, layout_orientation::POINTY_TOP_ORIENTATION,
+    };
+
+    use super::HexLayout;
 
     #[test]
     fn hex_to_pixel_test() {
@@ -75,7 +76,7 @@ mod tests {
         };
 
         for (hex, pos) in input_output {
-            let result = hex_to_pixel(&layout, &hex);
+            let result = layout.hex_to_pixel(&hex);
             assert_eq!(result, pos);
         }
     }

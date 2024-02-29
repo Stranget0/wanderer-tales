@@ -176,7 +176,8 @@ fn mul_vector(lhs: &HexVector, rhs: i16) -> HexVector {
 }
 #[cfg(test)]
 mod tests {
-    use crate::features::map::hex_map_item::hex_vector::HEX_DIRECTIONS;
+
+    use crate::features::map::utils::hex_vector::HEX_DIRECTIONS;
 
     use super::HexVector;
 

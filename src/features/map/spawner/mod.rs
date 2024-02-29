@@ -1,6 +1,7 @@
 use bevy::{
     ecs::{
         entity::Entity,
+        event::{EventReader, EventWriter},
         query::With,
         system::{Commands, Query},
     },
@@ -10,11 +11,14 @@ use bevy::{
 };
 use rand::Rng;
 
-use super::utils::{
-    hex_layout::HexLayout,
-    hex_map_item::{Biome, Height, HexMapItemBundle},
-    hex_vector::{iterators::HexVectorSpiral, HexVector},
-    layout_orientation::POINTY_TOP_ORIENTATION,
+use super::{
+    events::{MapAddEvent, MoveMapOriginEvent},
+    utils::{
+        hex_layout::HexLayout,
+        hex_map_item::{Biome, Height, HexMapItemBundle},
+        hex_vector::{iterators::HexVectorSpiral, HexVector},
+        layout_orientation::POINTY_TOP_ORIENTATION,
+    },
 };
 
 pub fn spawn_layout(mut commands: Commands) {
@@ -32,18 +36,34 @@ pub fn spawn_layout(mut commands: Commands) {
     ));
 }
 
-pub fn spawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
-    let origin_hex = HexVector(0, 0, 0);
-    let layout_entity = layout.single();
-    for v in HexVectorSpiral::new(&origin_hex, 3) {
-        let bundle = HexMapItemBundle {
-            biome: get_biome(&v),
-            height: get_height(&v),
-            pos: v,
-        };
-        let hex_entity = commands.spawn(bundle).id();
-        let mut layout_controls = commands.entity(layout_entity);
-        layout_controls.add_child(hex_entity);
+pub fn spawn_map_data(
+    mut commands: Commands,
+    layout_query: Query<Entity>,
+    hexes_query: Query<&HexVector, With<Biome>>,
+    mut origin_event: EventReader<MoveMapOriginEvent>,
+    mut render_event: EventWriter<MapAddEvent>,
+) {
+    for move_map_event in origin_event.read() {
+        let current_hexes: Vec<&HexVector> = hexes_query.iter().collect();
+        let mut hexes: Vec<Entity> = vec![];
+        let layout_entity = layout_query.iter().next().unwrap();
+        let new_origin = &move_map_event.0;
+        for v in HexVectorSpiral::new(new_origin, 3, 0) {
+            if current_hexes.contains(&&v) {
+                continue;
+            };
+            println!("RENDER AT {:?}", v);
+            let bundle = HexMapItemBundle {
+                biome: get_biome(&v),
+                height: get_height(&v),
+                pos: v,
+            };
+            let hex_entity = commands.spawn(bundle.clone()).id();
+            let mut layout_controls = commands.entity(layout_entity);
+            layout_controls.add_child(hex_entity);
+            hexes.push(hex_entity);
+        }
+        render_event.send(MapAddEvent(hexes));
     }
 }
 
