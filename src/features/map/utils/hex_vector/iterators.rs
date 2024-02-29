@@ -59,33 +59,35 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
         let next_step_option: Option<u16> = (i32::from(self.current_step) + i32::from(self.step))
             .try_into()
             .ok();
-        println!(
-            "{} >= {} = {}",
-            range_end.max(self.current_step),
-            self.current_step.min(range_end),
-            self.current_step.min(range_end) <= range_end.max(self.current_step)
-        );
         match self.current_step {
-            0 => {
-                self.current_step = next_step_option.unwrap();
-                Some(self.origin.clone())
-            }
+            0 => match next_step_option {
+                Some(next) => {
+                    self.current_step = next;
+                    Some(self.origin.clone())
+                }
+                None => None,
+            },
             range if range.min(range_end) <= range_end.max(range) => {
                 match self.ring_iterator.next() {
                     Some(hex) => Some(hex),
                     None => {
-                        if self.current_step == range_end {
-                            return if self.step > 0 {
-                                None
-                            } else {
-                                Some(self.origin.clone())
-                            };
+                        if self.current_step == range_end && self.step > 0 {
+                            return None;
                         };
                         self.current_step = next_step_option.unwrap();
                         self.ring_iterator = HexVectorRing::new(self.origin, self.current_step)
                             .take((self.current_step * 6).into());
 
-                        self.ring_iterator.next()
+                        match self.ring_iterator.next() {
+                            Some(hex) => Some(hex),
+                            None => {
+                                if self.step > 0 {
+                                    None
+                                } else {
+                                    Some(self.origin.clone())
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -155,6 +157,7 @@ mod tests {
                 assert_eq!(distance, range_inv);
             }
         }
+        assert_eq!(iterator.next(), Some(origin.clone()));
         assert_eq!(iterator.next(), None);
     }
 }
