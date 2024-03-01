@@ -27,20 +27,27 @@ pub fn render_map(
         let (layout_entity, layout) = layout_query.single();
 
         for hex_entity in event.0.iter() {
-            let (pos, biome, height) = map_data_query.get(*hex_entity).unwrap();
-            let hex_bundle = create_hex_bundle(
-                layout,
-                &HexMapItemBundle {
-                    biome: *biome,
-                    height: *height,
-                    pos: pos.clone(),
-                },
-                Mesh2dHandle(meshes.add(RegularPolygon::new(layout.size.x, 6))),
-                &mut materials,
-            );
-            let hex_entity = commands.spawn(hex_bundle).id();
+            match map_data_query.get(*hex_entity) {
+                Ok((pos, biome, height)) => {
+                    let hex_bundle = create_hex_bundle(
+                        layout,
+                        &HexMapItemBundle {
+                            biome: *biome,
+                            height: *height,
+                            pos: pos.clone(),
+                        },
+                        Mesh2dHandle(meshes.add(RegularPolygon::new(layout.size.x, 6))),
+                        &mut materials,
+                    );
+                    let hex_entity = commands.spawn(hex_bundle).id();
 
-            commands.entity(layout_entity).add_child(hex_entity);
+                    commands.entity(layout_entity).add_child(hex_entity);
+                }
+                Err(err) => {
+                    error!("{}", err);
+                    continue;
+                }
+            };
         }
     }
 }
