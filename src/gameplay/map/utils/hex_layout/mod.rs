@@ -1,6 +1,9 @@
 use bevy::{ecs::component::Component, math::Vec2};
 
-use super::{hex_vector::HexVector, layout_orientation::HexLayoutOrientation};
+use super::{
+    hex_vector::{FractionalHexVector, HexVector},
+    layout_orientation::HexLayoutOrientation,
+};
 
 #[derive(Component, Debug)]
 pub struct HexLayout {
@@ -15,6 +18,19 @@ impl HexLayout {
         let x = (matrix.f0 * h.0 as f32 + matrix.f1 * h.1 as f32) * self.size.x;
         let y = (matrix.f2 * h.0 as f32 + matrix.f3 * h.1 as f32) * self.size.y;
         Vec2::from_array([x, y])
+    }
+
+    pub fn pixel_to_hex(&self, p: Vec2) -> FractionalHexVector {
+        let matrix = &self.orientation;
+        let pt = Vec2::new(
+            (p.x - self.origin.x) / self.size.x,
+            (p.y - self.origin.y) / self.size.y,
+        );
+
+        let q: f32 = matrix.b0 * pt.x + matrix.b1 * pt.y;
+        let r: f32 = matrix.b2 * pt.x + matrix.b3 * pt.y;
+
+        FractionalHexVector(q, r, -q - r)
     }
 }
 
