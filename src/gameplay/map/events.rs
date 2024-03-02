@@ -1,8 +1,6 @@
 use bevy::ecs::{entity::Entity, event::Event};
 
-use crate::features::map::utils::hex_vector::HexVector;
-
-use super::utils::hex_map_item::HexMapItemBundle;
+use super::utils::hex_vector::HexVector;
 
 #[derive(Event)]
 pub struct MoveMapOriginEvent(pub HexVector);

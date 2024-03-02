@@ -1,17 +1,16 @@
 use bevy::prelude::*;
 
-use crate::global_state::SceneState;
+use crate::{gameplay::map::utils::hex_vector::HexVector, global_state::SceneState};
 
-use super::{
+use super::map::{
     events::{MapAddEvent, MoveMapOriginEvent},
     renderer::rendered_2d::render_map,
     spawner::{despawn_map_data, spawn_layout, spawn_map_data},
-    utils::hex_vector::HexVector,
 };
 
-pub struct MapPlugin;
+pub struct GameplayPlugin;
 
-impl Plugin for MapPlugin {
+impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<SceneState>()
             .add_event::<MoveMapOriginEvent>()

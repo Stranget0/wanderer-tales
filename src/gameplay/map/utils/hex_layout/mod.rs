@@ -22,7 +22,7 @@ impl HexLayout {
 mod tests {
     use bevy::math::vec2;
 
-    use crate::features::map::utils::{
+    use crate::gameplay::map::utils::{
         hex_vector::HexVector, layout_orientation::POINTY_TOP_ORIENTATION,
     };
 

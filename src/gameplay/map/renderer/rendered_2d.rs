@@ -3,7 +3,7 @@ use bevy::{
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
 
-use crate::features::{
+use crate::gameplay::{
     map::{
         events::MapAddEvent,
         utils::{

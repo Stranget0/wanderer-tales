@@ -98,7 +98,7 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::features::map::utils::{
+    use crate::gameplay::map::utils::{
         hex_vector::iterators::HexVectorRing, hex_vector::HEX_DIRECTIONS,
     };
 
