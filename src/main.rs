@@ -1,11 +1,6 @@
 use bevy::prelude::*;
-use bevy_editor_pls::prelude::*;
-use debug::fps_counter::FPSPlugin;
-use gameplay::plugin::GameplayPlugin;
-
-pub mod debug;
-mod gameplay;
-pub mod global_state;
+use bevy_editor_pls::EditorPlugin;
+use wanderer_tales::{debug::fps_counter::FPSPlugin, gameplay::plugin::GameplayPlugin};
 
 fn main() {
     App::new()
