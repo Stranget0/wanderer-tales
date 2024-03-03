@@ -43,30 +43,52 @@ impl HexVector {
     }
 }
 
+impl FractionalHexVector {
+    pub fn new(q: f32, r: f32, s: f32) -> Self {
+        assert!(q + r + s == 0.0, "s != -r -s");
+
+        Self(q, r, s)
+    }
+
+    pub fn length(&self) -> f32 {
+        (self.0.abs() + self.1.abs() + self.2.abs()) / 2.0
+    }
+
+    pub fn distance_to(&self, other: &Self) -> f32 {
+        Self::length(&(self - other))
+    }
+
+    pub fn get_sibling(&self, num: usize) -> HexVector {
+        let direction = &HEX_DIRECTIONS[num];
+
+        (self + direction).into()
+    }
+}
+
 impl<'a, 'b> Add<&'a HexVector> for &'b HexVector {
     type Output = HexVector;
 
     fn add(self, other: &HexVector) -> Self::Output {
-        add_int_vectors(self, other)
+        add_vectors(self, other)
     }
 }
 impl Add<&HexVector> for HexVector {
     type Output = HexVector;
     fn add(self, rhs: &Self) -> Self::Output {
-        add_int_vectors(&self, rhs)
+        add_vectors(&self, rhs)
     }
 }
 impl Add<HexVector> for &HexVector {
     type Output = HexVector;
     fn add(self, rhs: HexVector) -> Self::Output {
-        add_int_vectors(self, &rhs)
+        add_vectors(self, &rhs)
     }
 }
 impl Add for HexVector {
     type Output = HexVector;
 
     fn add(self, other: HexVector) -> Self::Output {
-        add_int_vectors(&self, &other)
+        add_vectors(&self, &other)
     }
 }
 impl<'a, 'b> Sub<&'a HexVector> for &'b HexVector {
@@ -120,6 +142,169 @@ impl PartialEq for HexVector {
     }
 }
 
+impl<'a, 'b> Add<&'a FractionalHexVector> for &'b FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn add(self, other: &FractionalHexVector) -> Self::Output {
+        add_f_vectors(self, other)
+    }
+}
+impl Add<&FractionalHexVector> for FractionalHexVector {
+    type Output = FractionalHexVector;
+    fn add(self, rhs: &Self) -> Self::Output {
+        add_f_vectors(&self, rhs)
+    }
+}
+impl Add<FractionalHexVector> for &FractionalHexVector {
+    type Output = FractionalHexVector;
+    fn add(self, rhs: FractionalHexVector) -> Self::Output {
+        add_f_vectors(self, &rhs)
+    }
+}
+impl Add for FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn add(self, other: FractionalHexVector) -> Self::Output {
+        add_f_vectors(&self, &other)
+    }
+}
+impl<'a, 'b> Sub<&'a FractionalHexVector> for &'b FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: &FractionalHexVector) -> Self::Output {
+        sub_f_vectors(self, other)
+    }
+}
+
+impl Sub<&FractionalHexVector> for FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: &Self) -> Self {
+        sub_f_vectors(&self, other)
+    }
+}
+impl Sub<FractionalHexVector> for &FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: FractionalHexVector) -> FractionalHexVector {
+        sub_f_vectors(self, &other)
+    }
+}
+impl Sub for FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: Self) -> Self {
+        sub_f_vectors(&self, &other)
+    }
+}
+
+impl Mul<f32> for &FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn mul(self, rhs: f32) -> FractionalHexVector {
+        mul_f_vector(self, rhs)
+    }
+}
+impl Mul<f32> for FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn mul(self, rhs: f32) -> FractionalHexVector {
+        mul_f_vector(&self, rhs)
+    }
+}
+
+impl PartialEq for FractionalHexVector {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1 && self.2 == other.2
+    }
+}
+
+impl<'a, 'b> Add<&'a FractionalHexVector> for &'b HexVector {
+    type Output = FractionalHexVector;
+
+    fn add(self, other: &FractionalHexVector) -> Self::Output {
+        add_mixed_vectors(other, self)
+    }
+}
+impl Add<&FractionalHexVector> for HexVector {
+    type Output = FractionalHexVector;
+    fn add(self, rhs: &FractionalHexVector) -> Self::Output {
+        add_mixed_vectors(rhs, &self)
+    }
+}
+impl Add<FractionalHexVector> for &HexVector {
+    type Output = FractionalHexVector;
+    fn add(self, rhs: FractionalHexVector) -> Self::Output {
+        add_mixed_vectors(&rhs, self)
+    }
+}
+
+impl<'a, 'b> Sub<&'a FractionalHexVector> for &'b HexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: &FractionalHexVector) -> Self::Output {
+        sub_mixed_vectors(other, self)
+    }
+}
+
+impl Sub<&FractionalHexVector> for HexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: &FractionalHexVector) -> Self::Output {
+        sub_mixed_vectors(other, &self)
+    }
+}
+impl Sub<FractionalHexVector> for &HexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: FractionalHexVector) -> FractionalHexVector {
+        sub_mixed_vectors(&other, self)
+    }
+}
+
+impl<'a, 'b> Add<&'a HexVector> for &'b FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn add(self, other: &HexVector) -> Self::Output {
+        add_mixed_vectors(self, other)
+    }
+}
+impl Add<&HexVector> for FractionalHexVector {
+    type Output = FractionalHexVector;
+    fn add(self, rhs: &HexVector) -> Self::Output {
+        add_mixed_vectors(&self, rhs)
+    }
+}
+impl Add<HexVector> for &FractionalHexVector {
+    type Output = FractionalHexVector;
+    fn add(self, rhs: HexVector) -> Self::Output {
+        add_mixed_vectors(self, &rhs)
+    }
+}
+
+impl<'a, 'b> Sub<&'a HexVector> for &'b FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: &HexVector) -> Self::Output {
+        sub_mixed_vectors(self, other)
+    }
+}
+
+impl Sub<&HexVector> for FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: &HexVector) -> Self::Output {
+        sub_mixed_vectors(&self, other)
+    }
+}
+impl Sub<HexVector> for &FractionalHexVector {
+    type Output = FractionalHexVector;
+
+    fn sub(self, other: HexVector) -> FractionalHexVector {
+        sub_mixed_vectors(self, &other)
+    }
+}
+
 impl From<FractionalHexVector> for HexVector {
     fn from(val: FractionalHexVector) -> Self {
         let mut q = val.0.round();
@@ -138,7 +323,13 @@ impl From<FractionalHexVector> for HexVector {
             s = -q - r;
         };
 
-        HexVector(q as i16, r as i16, s as i16)
+        HexVector::new(q as i16, r as i16, s as i16)
+    }
+}
+
+impl From<HexVector> for FractionalHexVector {
+    fn from(value: HexVector) -> Self {
+        FractionalHexVector::new(value.0 as f32, value.1 as f32, value.2 as f32)
     }
 }
 
@@ -152,7 +343,7 @@ impl From<Vec2> for FractionalHexVector {
     }
 }
 
-fn add_int_vectors(lhs: &HexVector, rhs: &HexVector) -> HexVector {
+fn add_vectors(lhs: &HexVector, rhs: &HexVector) -> HexVector {
     HexVector(lhs.0 + rhs.0, lhs.1 + rhs.1, lhs.2 + rhs.2)
 }
 fn add_mixed_vectors(lhs: &FractionalHexVector, rhs: &HexVector) -> FractionalHexVector {
@@ -162,10 +353,7 @@ fn add_mixed_vectors(lhs: &FractionalHexVector, rhs: &HexVector) -> FractionalHe
 
     FractionalHexVector(q, r, s)
 }
-fn add_fractional_vectors(
-    lhs: &FractionalHexVector,
-    rhs: &FractionalHexVector,
-) -> FractionalHexVector {
+fn add_f_vectors(lhs: &FractionalHexVector, rhs: &FractionalHexVector) -> FractionalHexVector {
     FractionalHexVector(lhs.0 + rhs.0, lhs.1 + rhs.1, lhs.2 + rhs.2)
 }
 fn sub_vectors(lhs: &HexVector, rhs: &HexVector) -> HexVector {
@@ -173,6 +361,19 @@ fn sub_vectors(lhs: &HexVector, rhs: &HexVector) -> HexVector {
 }
 fn mul_vector(lhs: &HexVector, rhs: i16) -> HexVector {
     HexVector(lhs.0 * rhs, lhs.1 * rhs, lhs.2 * rhs)
+}
+fn sub_f_vectors(lhs: &FractionalHexVector, rhs: &FractionalHexVector) -> FractionalHexVector {
+    FractionalHexVector(lhs.0 - rhs.0, lhs.1 - rhs.1, lhs.2 - rhs.2)
+}
+fn sub_mixed_vectors(lhs: &FractionalHexVector, rhs: &HexVector) -> FractionalHexVector {
+    FractionalHexVector(
+        lhs.0 - f32::from(rhs.0),
+        lhs.1 - f32::from(rhs.1),
+        lhs.2 - f32::from(rhs.2),
+    )
+}
+fn mul_f_vector(lhs: &FractionalHexVector, rhs: f32) -> FractionalHexVector {
+    FractionalHexVector(lhs.0 * rhs, lhs.1 * rhs, lhs.2 * rhs)
 }
 #[cfg(test)]
 mod tests {
