@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*};
 
 use crate::global_state::SceneState;
 
@@ -19,7 +19,14 @@ pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
+        // #[cfg(debug_assertions)]
+        // {
+        //     use bevy::diagnostic::LogDiagnosticsPlugin;
+        //     app.add_plugins(LogDiagnosticsPlugin::default());
+        // }
+
         app.init_state::<SceneState>()
+            .add_plugins(FrameTimeDiagnosticsPlugin)
             .add_event::<MoveSightEvent>()
             .add_event::<RenderPointEvent>()
             .add_event::<WSADEvent>()
