@@ -19,7 +19,7 @@ use super::{
 pub fn spawn_layout(mut commands: Commands) {
     let layout: HexLayout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
-        size: vec2(32.0, 32.0),
+        size: vec2(5.0, 5.0),
         origin: vec2(0.0, 0.0),
     };
 

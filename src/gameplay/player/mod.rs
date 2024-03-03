@@ -27,11 +27,12 @@ pub fn spawn_player(
     layout_query: Query<Entity, With<HexLayout>>,
 ) {
     let layout = layout_query.single();
+    let sight = 20;
     let player_entity = commands
         .spawn((
             WSADSteerable,
-            MapSpeed(1.0),
-            Sight(5),
+            MapSpeed(2.0),
+            Sight(sight),
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, 0.0, 2.0),
                 ..default()
@@ -42,7 +43,7 @@ pub fn spawn_player(
     commands.entity(layout).add_child(player_entity);
 
     map_origin_event.send(MoveSightEvent {
-        sight: 5,
+        sight,
         force_render: true,
         ..default()
     });
