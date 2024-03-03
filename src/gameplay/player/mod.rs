@@ -4,9 +4,7 @@ use self::events::WSADEvent;
 
 use super::{
     map::{
-        events::MoveMapOriginEvent,
-        renderer::events::RenderPointEvent,
-        utils::{hex_layout::HexLayout, hex_vector::HexVector},
+        events::MoveSightEvent, renderer::events::RenderPointEvent, utils::hex_layout::HexLayout,
     },
     theme::constants::COLORS,
 };
@@ -20,12 +18,12 @@ pub struct WSADSteerable;
 pub struct MapSpeed(pub f32);
 
 #[derive(Component)]
-pub struct Sight(pub u8);
+pub struct Sight(pub u16);
 
 pub fn spawn_player(
     mut commands: Commands,
     mut render_character_event: EventWriter<RenderPointEvent>,
-    mut map_origin_event: EventWriter<MoveMapOriginEvent>,
+    mut map_origin_event: EventWriter<MoveSightEvent>,
     layout_query: Query<Entity, With<HexLayout>>,
 ) {
     let layout = layout_query.single();
@@ -34,17 +32,24 @@ pub fn spawn_player(
             WSADSteerable,
             MapSpeed(1.0),
             Sight(5),
-            Transform::from_xyz(0.0, 0.0, 2.0),
+            SpatialBundle {
+                transform: Transform::from_xyz(0.0, 0.0, 2.0),
+                ..default()
+            },
         ))
         .id();
 
     commands.entity(layout).add_child(player_entity);
 
-    map_origin_event.send(MoveMapOriginEvent(HexVector::new(0, 0, 0)));
+    map_origin_event.send(MoveSightEvent {
+        sight: 5,
+        force_render: true,
+        ..default()
+    });
 
     render_character_event.send(RenderPointEvent {
         parent: player_entity,
-        color: COLORS.blue.l300,
+        color: Color::YELLOW,
         size: 8.0,
     });
 }
@@ -54,7 +59,7 @@ pub fn move_interaction(
     mut wsad_event: EventWriter<WSADEvent>,
 ) {
     let is_left = keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft);
-    let is_right = keyboard.pressed(KeyCode::KeyB) || keyboard.pressed(KeyCode::ArrowRight);
+    let is_right = keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight);
     let is_up = keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp);
     let is_down = keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown);
     if is_left || is_right || is_up || is_down {
@@ -67,21 +72,23 @@ pub fn move_interaction(
 }
 
 pub fn move_2d_handle(
-    layout_query: Query<&HexLayout>,
     mut items_to_move: Query<(&mut Transform, &MapSpeed, Option<&Sight>), With<WSADSteerable>>,
     mut wsad_event: EventReader<WSADEvent>,
-    mut map_origin_event: EventWriter<MoveMapOriginEvent>,
+    mut map_origin_event: EventWriter<MoveSightEvent>,
 ) {
-    let layout = layout_query.single();
     for direction in wsad_event.read() {
         for (mut transform, speed, sight) in items_to_move.iter_mut() {
-            let vec2 = direction.0 * speed.0;
-            let vec3 = Vec3::new(vec2.x, vec2.y, 0.0);
-            transform.translation += vec3;
+            let delta_pos = direction.0 * speed.0;
+            transform.translation += Vec3::new(delta_pos.x, delta_pos.y, 0.0);
 
             if sight.is_some() {
-                let origin = layout.pixel_to_hex(vec2);
-                map_origin_event.send(MoveMapOriginEvent(origin.into()));
+                let pos = Vec2::new(transform.translation.x, transform.translation.y);
+                map_origin_event.send(MoveSightEvent {
+                    pos,
+                    delta_pos,
+                    sight: sight.unwrap().0,
+                    ..default()
+                });
             }
         }
     }
