@@ -1,4 +1,4 @@
-use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, utils::HashMap};
+use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*};
 
 use crate::global_state::SceneState;
 
@@ -7,8 +7,11 @@ use super::{
     map::{
         events::{MapAddEvent, MoveSightEvent},
         renderer::{
-            events::RenderPointEvent,
-            rendered_2d::{render_map, render_point},
+            events::RenderCharacter,
+            renderer_2d::{
+                render_map, render_point,
+                stores::{init_materials_store, init_meshes_store, MaterialStore, MeshesStore},
+            },
         },
         spawner::{despawn_map_data, spawn_layout, spawn_map_data, MapData},
     },
@@ -19,25 +22,25 @@ pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
-        // #[cfg(debug_assertions)]
-        // {
-        //     use bevy::diagnostic::LogDiagnosticsPlugin;
-        //     app.add_plugins(LogDiagnosticsPlugin::default());
-        // }
-
         app.init_state::<SceneState>()
             .add_plugins(FrameTimeDiagnosticsPlugin)
             .add_event::<MoveSightEvent>()
-            .add_event::<RenderPointEvent>()
+            .add_event::<RenderCharacter>()
             .add_event::<WSADEvent>()
             .add_event::<MapAddEvent>()
-            .insert_resource(MapData {
-                hex_to_entity: HashMap::new(),
-            })
+            .insert_resource(MapData::default())
+            .insert_resource(MeshesStore::default())
+            .insert_resource(MaterialStore::default())
             .add_systems(
                 // OnEnter(SceneState::Menu),
                 Startup,
-                (spawn_layout, spawn_player.after(spawn_layout), spawn_camera),
+                (
+                    spawn_layout,
+                    spawn_player.after(spawn_layout),
+                    init_meshes_store.after(spawn_layout),
+                    init_materials_store,
+                    spawn_camera,
+                ),
             )
             .add_systems(
                 Update,

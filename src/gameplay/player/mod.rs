@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use self::events::WSADEvent;
 
 use super::map::{
-    events::MoveSightEvent, renderer::events::RenderPointEvent, utils::hex_layout::HexLayout,
+    events::MoveSightEvent,
+    renderer::{events::RenderCharacter, renderer_2d::stores::MaterialKey},
+    utils::hex_layout::HexLayout,
 };
 
 pub mod events;
@@ -19,7 +21,7 @@ pub struct Sight(pub u16);
 
 pub fn spawn_player(
     mut commands: Commands,
-    mut render_character_event: EventWriter<RenderPointEvent>,
+    mut render_character_event: EventWriter<RenderCharacter>,
     mut map_origin_event: EventWriter<MoveSightEvent>,
     layout_query: Query<Entity, With<HexLayout>>,
 ) {
@@ -45,10 +47,9 @@ pub fn spawn_player(
         ..default()
     });
 
-    render_character_event.send(RenderPointEvent {
-        parent: player_entity,
-        color: Color::YELLOW,
-        size: 8.0,
+    render_character_event.send(RenderCharacter {
+        entity: player_entity,
+        material_key: MaterialKey::Player,
     });
 }
 

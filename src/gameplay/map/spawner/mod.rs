@@ -21,6 +21,14 @@ pub struct MapData {
     pub hex_to_entity: HashMap<HexVector, Entity>,
 }
 
+impl Default for MapData {
+    fn default() -> Self {
+        Self {
+            hex_to_entity: HashMap::new(),
+        }
+    }
+}
+
 pub fn spawn_layout(mut commands: Commands) {
     let layout: HexLayout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,

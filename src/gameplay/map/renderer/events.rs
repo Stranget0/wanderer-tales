@@ -1,14 +1,9 @@
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+use bevy::prelude::*;
+
+use super::renderer_2d::stores::MaterialKey;
 
 #[derive(Event)]
-pub struct RenderPointEvent {
-    pub parent: Entity,
-    pub color: Color,
-    pub size: f32,
-}
-
-#[derive(Event)]
-pub struct RenderHexEvent {
+pub struct RenderCharacter {
     pub entity: Entity,
-    pub bundle: MaterialMesh2dBundle<ColorMaterial>,
+    pub material_key: MaterialKey,
 }
