@@ -63,7 +63,7 @@ pub fn spawn_map_data(
 
         let from: u16 = move_map_event.sight;
         let to: u16 = move_map_event.sight - distance;
-        for hex in HexVectorSpiral::new(&origin, from, to) {
+        for hex in HexVectorSpiral::new(&new_origin, from, to) {
             if map_data.hex_to_entity.contains_key(&hex) {
                 continue;
             }
@@ -87,6 +87,49 @@ pub fn spawn_map_data(
     }
 }
 
+pub fn despawn_map_data(
+    mut commands: Commands,
+    layout_query: Query<(Entity, &HexLayout)>,
+    mut map_data: ResMut<MapData>,
+    mut origin_event: EventReader<MoveSightEvent>,
+) {
+    let layout_res = layout_query.get_single();
+    if layout_res.is_err() {
+        return;
+    };
+    let (layout_entity, layout) = layout_res.unwrap();
+
+    for move_map_event in origin_event.read() {
+        let origin = origin_from_event(layout, move_map_event);
+        let new_origin: HexVector = new_origin_from_event(layout, move_map_event);
+        let distance = origin.distance_to(&new_origin);
+
+        if distance < 1 {
+            continue;
+        }
+
+        let mut substractive_hexes: Vec<Entity> = vec![];
+
+        let from: u16 = move_map_event.sight;
+        let to: u16 = move_map_event.sight - distance;
+        for hex in HexVectorSpiral::new(&origin, from, to) {
+            if hex.distance_to(&new_origin) > move_map_event.sight {
+                let value = map_data.hex_to_entity.remove(&hex);
+                if let Some(hex_entity) = value {
+                    substractive_hexes.push(hex_entity);
+                }
+            }
+        }
+        commands
+            .entity(layout_entity)
+            .remove_children(&substractive_hexes);
+
+        for e in substractive_hexes {
+            commands.entity(e).despawn();
+        }
+    }
+}
+
 fn get_is_unnecessary(distance: u16, move_map_event: &MoveSightEvent) -> bool {
     distance < 1 && !move_map_event.force_render
 }
@@ -102,7 +145,7 @@ fn origin_from_event(layout: &HexLayout, move_map_event: &MoveSightEvent) -> Hex
     origin
 }
 
-pub fn despawn_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
+pub fn clear_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
     let controls = commands.entity(layout.single());
     controls.despawn_recursive();
 }

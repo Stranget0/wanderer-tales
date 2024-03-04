@@ -44,6 +44,7 @@ impl Plugin for GameplayPlugin {
                 (
                     spawn_map_data,
                     render_map.after(spawn_map_data),
+                    despawn_map_data,
                     render_point,
                     move_interaction,
                     move_2d_handle,
