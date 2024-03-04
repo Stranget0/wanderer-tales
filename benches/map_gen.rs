@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use bevy::{app::ScheduleRunnerPlugin, prelude::*};
+use bevy::{app::ScheduleRunnerPlugin, prelude::*, utils::HashMap};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use wanderer_tales::gameplay::map::{
     events::{MapAddEvent, MoveSightEvent},
     renderer::rendered_2d::render_map,
-    spawner::{spawn_layout, spawn_map_data},
+    spawner::{spawn_layout, spawn_map_data, MapData},
 };
 
 criterion_group!(benches, map_bench);
@@ -26,6 +26,9 @@ fn map_init_render(sight: u16) {
 
     app.add_event::<MoveSightEvent>()
         .add_event::<MapAddEvent>()
+        .insert_resource(MapData {
+            hex_to_entity: HashMap::new(),
+        })
         .add_systems(Startup, spawn_layout)
         .add_systems(Update, spawn_map_data);
 

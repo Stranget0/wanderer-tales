@@ -1,4 +1,4 @@
-use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*};
+use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, utils::HashMap};
 
 use crate::global_state::SceneState;
 
@@ -10,7 +10,7 @@ use super::{
             events::RenderPointEvent,
             rendered_2d::{render_map, render_point},
         },
-        spawner::{despawn_map_data, spawn_layout, spawn_map_data},
+        spawner::{despawn_map_data, spawn_layout, spawn_map_data, MapData},
     },
     player::{events::WSADEvent, move_2d_handle, move_interaction, spawn_player},
 };
@@ -31,6 +31,9 @@ impl Plugin for GameplayPlugin {
             .add_event::<RenderPointEvent>()
             .add_event::<WSADEvent>()
             .add_event::<MapAddEvent>()
+            .insert_resource(MapData {
+                hex_to_entity: HashMap::new(),
+            })
             .add_systems(
                 // OnEnter(SceneState::Menu),
                 Startup,

@@ -2,11 +2,8 @@ use bevy::prelude::*;
 
 use self::events::WSADEvent;
 
-use super::{
-    map::{
-        events::MoveSightEvent, renderer::events::RenderPointEvent, utils::hex_layout::HexLayout,
-    },
-    theme::constants::COLORS,
+use super::map::{
+    events::MoveSightEvent, renderer::events::RenderPointEvent, utils::hex_layout::HexLayout,
 };
 
 pub mod events;

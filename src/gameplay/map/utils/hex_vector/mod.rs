@@ -1,5 +1,8 @@
 use float_cmp::*;
-use std::ops::{Add, Mul, Sub};
+use std::{
+    hash::{Hash, Hasher},
+    ops::{Add, Mul, Sub},
+};
 
 use bevy::{ecs::component::Component, math::Vec2};
 
@@ -16,7 +19,7 @@ pub const HEX_DIRECTIONS: [HexVector; 6] = [
     HexVector::new(-1, 0, 1),
 ];
 
-#[derive(Debug, Clone, Component)]
+#[derive(Debug, Clone, Component, Eq)]
 pub struct HexVector(pub i16, pub i16, pub i16);
 
 #[derive(Debug, Clone, Component)]
@@ -65,6 +68,13 @@ impl FractionalHexVector {
         let direction = &HEX_DIRECTIONS[num];
 
         (self + direction).into()
+    }
+}
+
+impl Hash for HexVector {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+        self.1.hash(state);
     }
 }
 
