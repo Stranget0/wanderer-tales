@@ -30,7 +30,7 @@ pub fn spawn_player(
     let player_entity = commands
         .spawn((
             WSADSteerable,
-            MapSpeed(2.0),
+            MapSpeed(15.0),
             Sight(sight),
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, 0.0, 2.0),
