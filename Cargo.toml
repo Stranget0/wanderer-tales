@@ -52,3 +52,7 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 [[bench]]
 name = "map_gen"
 harness = false
+
+[[bench]]
+name = "hex_spiral"
+harness = false

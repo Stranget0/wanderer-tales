@@ -4,7 +4,7 @@ use bevy::{app::ScheduleRunnerPlugin, prelude::*, utils::HashMap};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use wanderer_tales::gameplay::map::{
     events::{MapAddEvent, MoveSightEvent},
-    renderer::rendered_2d::render_map,
+    renderer::renderer_2d::render_map,
     spawner::{spawn_layout, spawn_map_data, MapData},
 };
 
@@ -12,7 +12,7 @@ criterion_group!(benches, map_bench);
 criterion_main!(benches);
 
 pub fn map_bench(c: &mut Criterion) {
-    let mut group = c.benchmark_group("map_init_render");
+    let mut group = c.benchmark_group("initial map render");
 
     for sight in [10, 20, 50] {
         group.bench_with_input(BenchmarkId::from_parameter(sight), &sight, |b, sight| {
