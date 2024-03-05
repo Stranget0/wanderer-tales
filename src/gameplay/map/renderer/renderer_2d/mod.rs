@@ -12,6 +12,7 @@ use bevy::{
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
+use rand::Rng;
 
 pub mod stores;
 
@@ -42,7 +43,7 @@ pub fn render_map(
                     commands.entity(*hex_entity).insert(render_bundle);
                 }
                 Err(err) => {
-                    error!("{}", err);
+                    error!("[renderer] entity get error: {}", err);
                     continue;
                 }
             };
@@ -97,25 +98,26 @@ fn get_hex_transform(layout: &HexLayout, hex: &HexVector) -> Transform {
 
 fn get_hex_material(map: &MaterialStore, height: &Height, biome: &Biome) -> Handle<ColorMaterial> {
     {
-        let handle = match height.0 {
-            height if height < 100 => map
+        let mut rng = rand::thread_rng();
+        let x: f32 = rng.gen();
+
+        let handle = match (x * 4.0).floor() as u8 {
+            0 => map
                 .0
                 .get(&MaterialKey::Water)
                 .expect("failed getting water material"),
-            height if height > 200 => map
+            1 => map
                 .0
                 .get(&MaterialKey::Mountain)
                 .expect("failed getting mountain material"),
-            _height => match biome {
-                Biome::Grass => map
-                    .0
-                    .get(&MaterialKey::Grass)
-                    .expect("failed getting grass material"),
-                Biome::Forest => map
-                    .0
-                    .get(&MaterialKey::Forest)
-                    .expect("failed getting forest material"),
-            },
+            2 => map
+                .0
+                .get(&MaterialKey::Grass)
+                .expect("failed getting grass material"),
+            _ => map
+                .0
+                .get(&MaterialKey::Forest)
+                .expect("failed getting forest material"),
         };
 
         handle.clone()
