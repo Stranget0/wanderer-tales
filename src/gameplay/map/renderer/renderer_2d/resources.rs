@@ -39,6 +39,7 @@ pub fn init_meshes_store(
 // #region Material
 #[derive(Debug, Hash, Eq, PartialEq)]
 pub enum MaterialKey {
+    Beach,
     Mountain,
     Water,
     Grass,
@@ -60,8 +61,9 @@ pub fn init_materials_store(
     mut material_map: ResMut<MaterialStore>,
 ) {
     let colors = [
-        (MaterialKey::Forest, Color::hex("#686900")),
-        (MaterialKey::Grass, Color::hex("#B7B90B")),
+        (MaterialKey::Beach, Color::hex("#e1d76a")),
+        (MaterialKey::Grass, Color::hex("#36b90b")),
+        (MaterialKey::Forest, Color::hex("#054303")),
         (MaterialKey::Mountain, Color::hex("#302c2a")),
         (MaterialKey::Water, Color::hex("#0E499A")),
         (MaterialKey::Player, Color::hex("#f7f1d8")),

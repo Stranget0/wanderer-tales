@@ -1,4 +1,4 @@
-use self::stores::{MaterialKey, MaterialStore, MeshKey, MeshesStore};
+use self::resources::{MaterialKey, MaterialStore, MeshKey, MeshesStore};
 use super::events::RenderCharacter;
 use crate::gameplay::map::{
     events::MapAddEvent,
@@ -14,7 +14,7 @@ use bevy::{
 };
 use rand::Rng;
 
-pub mod stores;
+pub mod resources;
 
 pub fn render_map(
     mut commands: Commands,
@@ -104,32 +104,16 @@ fn get_hex_material(
     biome: &Biome,
 ) -> Handle<ColorMaterial> {
     {
-        let mut rng = rand::thread_rng();
-        let x: f32 = rng.gen();
-
-        let handle = match /*(x * 4.0).floor() as u8*/1 {
-            0 => materials_map
-                .0
-                .get(&MaterialKey::Water)
-                .expect("failed getting water material"),
-            1 => materials_map
-                .0
-                .get(&MaterialKey::Mountain)
-                .expect("failed getting mountain material"),
-            2 => materials_map
-                .0
-                .get(&MaterialKey::Grass)
-                .expect("failed getting grass material"),
-            _ => materials_map
-                .0
-                .get(&MaterialKey::Forest)
-                .expect("failed getting forest material"),
-        };
+        let material_key = height.get_material();
+        let handle = materials_map
+            .0
+            .get(&material_key)
+            .expect("failed getting mountain material");
 
         let color = materials.get(handle).unwrap().color;
 
-        let mut l: f32 = f32::from(height.0);
-        l = (l.floor() / 255.) * 0.6 + 0.2;
+        let mut l: f32 = f32::from(height.get_height());
+        l = l.floor() / 255.;
         let modified_color = color.with_l(l);
 
         materials.add(modified_color)

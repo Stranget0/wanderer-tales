@@ -2,9 +2,11 @@ use bevy::{
     hierarchy::{BuildChildren, DespawnRecursiveExt},
     math::vec2,
     prelude::{SpatialBundle, *},
-    utils::HashMap,
 };
+use noise::core::perlin::perlin_2d;
 use rand::Rng;
+
+use self::resources::{MapData, SeedTable};
 
 use super::{
     events::{MapAddEvent, MoveSightEvent},
@@ -16,18 +18,7 @@ use super::{
     },
 };
 
-#[derive(Resource)]
-pub struct MapData {
-    pub hex_to_entity: HashMap<HexVector, Entity>,
-}
-
-impl Default for MapData {
-    fn default() -> Self {
-        Self {
-            hex_to_entity: HashMap::new(),
-        }
-    }
-}
+pub mod resources;
 
 pub fn spawn_layout(mut commands: Commands) {
     let layout: HexLayout = HexLayout {
@@ -47,6 +38,7 @@ pub fn spawn_layout(mut commands: Commands) {
 pub fn spawn_map_data(
     mut commands: Commands,
     layout_query: Query<(Entity, &HexLayout)>,
+    seed_table: Res<SeedTable>,
     mut map_data: ResMut<MapData>,
     mut origin_event: EventReader<MoveSightEvent>,
     mut render_event: EventWriter<MapAddEvent>,
@@ -78,7 +70,10 @@ pub fn spawn_map_data(
 
             let bundle = HexMapItemBundle {
                 biome: get_biome(&hex),
-                height: get_height(&hex),
+                height: Height {
+                    midpoint: get_height_midpoint(&hex, &seed_table),
+                    offset: get_height_offset(&hex, &seed_table),
+                },
                 pos: hex.clone(),
             };
 
@@ -158,10 +153,53 @@ pub fn clear_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayo
     controls.despawn_recursive();
 }
 
-fn get_height(_hex: &HexVector) -> Height {
-    let mut rng = rand::thread_rng();
-    let x: f32 = rng.gen();
-    Height((x * 50.0) as u8)
+fn get_height_offset(hex: &HexVector, seed_table: &Res<SeedTable>) -> f32 {
+    let compounds = [
+        (1.0, noise(1., hex, seed_table)),
+        // (0.3, noise(3., hex, seed_table)),
+        // (noise(0.1, hex, seed_table)),
+    ];
+    let mut h: f64 = 0.0;
+    let mut max = 0.0;
+    for c in compounds {
+        max += c.0;
+        h += c.1 * c.0;
+    }
+
+    // normalize to [-1., 1.]
+    h /= max;
+    h as f32
+}
+
+fn get_height_midpoint(hex: &HexVector, seed_table: &Res<SeedTable>) -> u8 {
+    let compounds = [
+        (1.0, 0.0),
+        (0.3, noise(1., hex, seed_table)),
+        // (0.3, noise(3., hex, seed_table)),
+        // (noise(0.1, hex, seed_table)),
+    ];
+    let mut h: f64 = 0.0;
+    let mut max = 0.0;
+    for c in compounds {
+        max += c.0;
+        h += c.1 * c.0;
+    }
+
+    // normalize to [0., 1.]
+    h = ((h / max) + 1.0) / 2.0;
+
+    let h_u8: u8 = (h * 255.0) as u8;
+
+    h_u8
+}
+
+fn noise(zoom: f64, hex: &HexVector, seed_table: &Res<SeedTable>) -> f64 {
+    let from = f64::from(i16::MAX) * 0.001 / zoom;
+    let point = [f64::from(hex.0) / from, f64::from(hex.1) / from];
+
+    perlin_2d(point, &seed_table.table)
+
+    // ((res + 1. / 2.) * f64::from(u8::MAX)) as u8
 }
 
 fn get_biome(_hex: &HexVector) -> Biome {

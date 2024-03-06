@@ -10,10 +10,14 @@ use super::{
             events::RenderCharacter,
             renderer_2d::{
                 render_map, render_point,
-                stores::{init_materials_store, init_meshes_store, MaterialStore, MeshesStore},
+                resources::{init_materials_store, init_meshes_store, MaterialStore, MeshesStore},
             },
         },
-        spawner::{despawn_map_data, spawn_layout, spawn_map_data, MapData},
+        spawner::{
+            despawn_map_data,
+            resources::{MapData, SeedTable},
+            spawn_layout, spawn_map_data,
+        },
     },
     player::{events::WSADEvent, move_2d_handle, move_interaction, spawn_player},
 };
@@ -29,6 +33,7 @@ impl Plugin for GameplayPlugin {
             .add_event::<WSADEvent>()
             .add_event::<MapAddEvent>()
             .insert_resource(MapData::default())
+            .insert_resource(SeedTable::default())
             .insert_resource(MeshesStore::default())
             .insert_resource(MaterialStore::default())
             .add_systems(
