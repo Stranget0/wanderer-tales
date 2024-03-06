@@ -21,6 +21,7 @@ pub fn render_map(
     meshes_map: Res<MeshesStore>,
     materials_map: Res<MaterialStore>,
     layout_query: Query<&HexLayout>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     map_data_query: Query<(&HexVector, &Biome, &Height)>,
     mut render_map_event: EventReader<MapAddEvent>,
 ) {
@@ -30,7 +31,7 @@ pub fn render_map(
             match map_data_query.get(*hex_entity) {
                 Ok((pos, biome, height)) => {
                     let transform = get_hex_transform(layout, pos);
-                    let material = get_hex_material(&materials_map, height, biome);
+                    let material = get_hex_material(&materials_map, &mut materials, height, biome);
                     let mesh = get_hex_mesh(&meshes_map);
 
                     let render_bundle = MaterialMesh2dBundle {
@@ -96,30 +97,41 @@ fn get_hex_transform(layout: &HexLayout, hex: &HexVector) -> Transform {
     Transform::from_xyz(pos.x, pos.y, 0.0)
 }
 
-fn get_hex_material(map: &MaterialStore, height: &Height, biome: &Biome) -> Handle<ColorMaterial> {
+fn get_hex_material(
+    materials_map: &Res<MaterialStore>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    height: &Height,
+    biome: &Biome,
+) -> Handle<ColorMaterial> {
     {
         let mut rng = rand::thread_rng();
         let x: f32 = rng.gen();
 
-        let handle = match (x * 4.0).floor() as u8 {
-            0 => map
+        let handle = match /*(x * 4.0).floor() as u8*/1 {
+            0 => materials_map
                 .0
                 .get(&MaterialKey::Water)
                 .expect("failed getting water material"),
-            1 => map
+            1 => materials_map
                 .0
                 .get(&MaterialKey::Mountain)
                 .expect("failed getting mountain material"),
-            2 => map
+            2 => materials_map
                 .0
                 .get(&MaterialKey::Grass)
                 .expect("failed getting grass material"),
-            _ => map
+            _ => materials_map
                 .0
                 .get(&MaterialKey::Forest)
                 .expect("failed getting forest material"),
         };
 
-        handle.clone()
+        let color = materials.get(handle).unwrap().color;
+
+        let mut l: f32 = f32::from(height.0);
+        l = (l.floor() / 255.) * 0.6 + 0.2;
+        let modified_color = color.with_l(l);
+
+        materials.add(modified_color)
     }
 }
