@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::gameplay::map::renderer::renderer_2d::resources::MaterialKey;
+use crate::gameplay::map::renderer::components::MaterialKey;
 
 use super::hex_vector::HexVector;
 
@@ -27,7 +27,7 @@ pub struct Height {
 
 impl Height {
     fn get_difference(&self) -> i16 {
-        ((self.midpoint as f32) - (self.offset as f32)) as i16
+        ((self.midpoint as f32) - self.offset) as i16
     }
 
     pub fn get_height(&self) -> u8 {

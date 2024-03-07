@@ -4,7 +4,7 @@ use self::events::WSADEvent;
 
 use super::map::{
     events::MoveSightEvent,
-    renderer::{events::RenderCharacter, renderer_2d::resources::MaterialKey},
+    renderer::{components::MaterialKey, events::RenderCharacter},
     utils::hex_layout::HexLayout,
 };
 

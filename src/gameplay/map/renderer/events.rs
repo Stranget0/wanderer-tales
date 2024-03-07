@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::renderer_2d::resources::MaterialKey;
+use super::components::MaterialKey;
 
 #[derive(Event)]
 pub struct RenderCharacter {

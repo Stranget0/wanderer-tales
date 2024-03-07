@@ -1,6 +1,6 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::map::utils::hex_layout::HexLayout;
+use crate::gameplay::map::{renderer::components::MaterialKey, utils::hex_layout::HexLayout};
 
 // #region Mesh
 #[derive(Debug, Hash, Eq, PartialEq)]
@@ -37,15 +37,6 @@ pub fn init_meshes_store(
 // #endregion
 
 // #region Material
-#[derive(Debug, Hash, Eq, PartialEq)]
-pub enum MaterialKey {
-    Beach,
-    Mountain,
-    Water,
-    Grass,
-    Forest,
-    Player,
-}
 
 #[derive(Resource)]
 pub struct MaterialStore(pub HashMap<MaterialKey, Handle<ColorMaterial>>);

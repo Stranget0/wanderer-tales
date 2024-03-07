@@ -1,4 +1,4 @@
-use self::resources::{MaterialKey, MaterialStore, MeshKey, MeshesStore};
+use self::resources::{MaterialStore, MeshKey, MeshesStore};
 use super::events::RenderCharacter;
 use crate::gameplay::map::{
     events::MapAddEvent,
@@ -12,7 +12,6 @@ use bevy::{
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
-use rand::Rng;
 
 pub mod resources;
 
