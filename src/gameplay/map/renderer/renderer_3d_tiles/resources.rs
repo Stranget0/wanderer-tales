@@ -4,15 +4,15 @@ use crate::gameplay::map::{renderer::components::MaterialKey, utils::hex_layout:
 
 // #region Mesh
 #[derive(Debug, Hash, Eq, PartialEq)]
-pub enum MeshKey {
+pub enum MeshKey3d {
     Hex,
     Character,
 }
 
 #[derive(Resource)]
-pub(crate) struct MeshesStore2d(pub HashMap<MeshKey, Handle<Mesh>>);
+pub(crate) struct MeshesStore3d(pub HashMap<MeshKey3d, Handle<Mesh>>);
 
-impl Default for MeshesStore2d {
+impl Default for MeshesStore3d {
     fn default() -> Self {
         Self(HashMap::new())
     }
@@ -20,14 +20,14 @@ impl Default for MeshesStore2d {
 
 pub(crate) fn init_meshes_store(
     mut meshes: ResMut<Assets<Mesh>>,
-    mut mesh_map: ResMut<MeshesStore2d>,
+    mut mesh_map: ResMut<MeshesStore3d>,
     layout_query: Query<&HexLayout>,
 ) {
     let layout = layout_query.single();
 
-    let entries: [(MeshKey, Mesh); 2] = [
-        (MeshKey::Hex, RegularPolygon::new(layout.size.x, 6).into()),
-        (MeshKey::Character, Circle::new(3.0).into()),
+    let entries: [(MeshKey3d, Mesh); 2] = [
+        (MeshKey3d::Hex, RegularPolygon::new(layout.size.x, 6).into()),
+        (MeshKey3d::Character, Circle::new(3.0).into()),
     ];
 
     for (key, mesh) in entries {
@@ -39,9 +39,9 @@ pub(crate) fn init_meshes_store(
 // #region Material
 
 #[derive(Resource)]
-pub(crate) struct MaterialStore2d(pub HashMap<MaterialKey, Handle<ColorMaterial>>);
+pub(crate) struct MaterialStore3d(pub HashMap<MaterialKey, Handle<ColorMaterial>>);
 
-impl Default for MaterialStore2d {
+impl Default for MaterialStore3d {
     fn default() -> Self {
         Self(HashMap::new())
     }
@@ -49,7 +49,7 @@ impl Default for MaterialStore2d {
 
 pub(crate) fn init_materials_store(
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut material_map: ResMut<MaterialStore2d>,
+    mut material_map: ResMut<MaterialStore3d>,
 ) {
     let colors = [
         (MaterialKey::Beach, Color::hex("#e1d76a")),

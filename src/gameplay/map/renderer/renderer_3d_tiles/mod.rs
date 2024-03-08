@@ -1,5 +1,5 @@
 use self::{
-    resources::{init_materials_store, init_meshes_store, MaterialStore2d, MeshesStore2d},
+    resources::{init_materials_store, init_meshes_store, MaterialStore3d, MeshesStore3d},
     systems::{despawn_camera, free_map, render_character, render_map, spawn_camera},
 };
 use crate::gameplay::{map::spawner::systems::spawn_map_data, plugin::spawn_layout};
@@ -10,14 +10,14 @@ use super::state::RendererState;
 pub mod resources;
 pub mod systems;
 
-pub struct Renderer2DPlugin;
+pub struct Renderer3DPlugin;
 
-impl Plugin for Renderer2DPlugin {
+impl Plugin for Renderer3DPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(MeshesStore2d::default())
-            .insert_resource(MaterialStore2d::default())
+        app.insert_resource(MeshesStore3d::default())
+            .insert_resource(MaterialStore3d::default())
             .add_systems(
-                OnEnter(RendererState::TwoDimension),
+                OnEnter(RendererState::ThreeDimension),
                 (
                     init_meshes_store.after(spawn_layout),
                     init_materials_store,
@@ -27,10 +27,10 @@ impl Plugin for Renderer2DPlugin {
             .add_systems(
                 Update,
                 (render_map.after(spawn_map_data), render_character)
-                    .run_if(in_state(RendererState::TwoDimension)),
+                    .run_if(in_state(RendererState::ThreeDimension)),
             )
             .add_systems(
-                OnExit(RendererState::TwoDimension),
+                OnExit(RendererState::ThreeDimension),
                 (free_map, despawn_camera),
             );
     }
