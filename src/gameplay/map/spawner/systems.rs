@@ -5,10 +5,13 @@ use bevy::{
 use noise::core::perlin::perlin_2d;
 use rand::Rng;
 
-use crate::gameplay::map::utils::{
-    hex_layout::HexLayout,
-    hex_map_item::{Biome, Height, HexMapItemBundle},
-    hex_vector::{iterators::HexVectorSpiral, HexVector},
+use crate::gameplay::map::{
+    events::ClearMap,
+    utils::{
+        hex_layout::HexLayout,
+        hex_map_item::{Biome, Height, HexMapItemBundle},
+        hex_vector::{iterators::HexVectorSpiral, HexVector},
+    },
 };
 
 use super::{
@@ -18,21 +21,15 @@ use super::{
 
 pub fn spawn_map_data(
     mut commands: Commands,
-    layout_query: Query<(Entity, &HexLayout)>,
+    layout: Res<HexLayout>,
     seed_table: Res<SeedTable>,
     mut map_data: ResMut<MapData>,
     mut origin_event: EventReader<MoveSightEvent>,
     mut render_event: EventWriter<MapAddEvent>,
 ) {
-    let layout_res = layout_query.get_single();
-    if layout_res.is_err() {
-        return;
-    };
-    let (layout_entity, layout) = layout_res.unwrap();
-
     for move_map_event in origin_event.read() {
-        let origin = origin_from_event(layout, move_map_event);
-        let new_origin: HexVector = new_origin_from_event(layout, move_map_event);
+        let origin = origin_from_event(&layout, move_map_event);
+        let new_origin: HexVector = new_origin_from_event(&layout, move_map_event);
         let distance = origin.distance_to(&new_origin);
 
         let is_unnecessary = get_is_unnecessary(distance, move_map_event);
@@ -62,8 +59,10 @@ pub fn spawn_map_data(
 
             map_data.hex_to_entity.insert(hex, hex_entity);
 
-            let mut layout_controls = commands.entity(layout_entity);
-            layout_controls.add_child(hex_entity);
+            commands
+                .entity(move_map_event.map_display)
+                .add_child(hex_entity);
+
             additive_hexes.push(hex_entity);
         }
 
@@ -73,19 +72,13 @@ pub fn spawn_map_data(
 
 pub fn despawn_map_data(
     mut commands: Commands,
-    layout_query: Query<(Entity, &HexLayout)>,
+    layout: Res<HexLayout>,
     mut map_data: ResMut<MapData>,
     mut origin_event: EventReader<MoveSightEvent>,
 ) {
-    let layout_res = layout_query.get_single();
-    if layout_res.is_err() {
-        return;
-    };
-    let (layout_entity, layout) = layout_res.unwrap();
-
     for move_map_event in origin_event.read() {
-        let origin = origin_from_event(layout, move_map_event);
-        let new_origin: HexVector = new_origin_from_event(layout, move_map_event);
+        let origin = origin_from_event(&layout, move_map_event);
+        let new_origin: HexVector = new_origin_from_event(&layout, move_map_event);
         let distance = origin.distance_to(&new_origin);
 
         if distance < 1 {
@@ -105,7 +98,7 @@ pub fn despawn_map_data(
             }
         }
         commands
-            .entity(layout_entity)
+            .entity(move_map_event.map_display)
             .remove_children(&substractive_hexes);
 
         for e in substractive_hexes {
@@ -129,9 +122,10 @@ fn origin_from_event(layout: &HexLayout, move_map_event: &MoveSightEvent) -> Hex
     origin
 }
 
-pub fn clear_map_data(mut commands: Commands, layout: Query<Entity, With<HexLayout>>) {
-    let controls = commands.entity(layout.single());
-    controls.despawn_recursive();
+pub fn clear_map_data(mut commands: Commands, mut clear_event: EventReader<ClearMap>) {
+    for e in clear_event.read() {
+        commands.entity(e.0).despawn_recursive();
+    }
 }
 
 fn get_height_offset(hex: &HexVector, seed_table: &Res<SeedTable>) -> f32 {

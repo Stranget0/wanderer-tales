@@ -1,11 +1,11 @@
-use bevy::{ecs::component::Component, math::Vec2};
+use bevy::prelude::*;
 
 use super::{
     hex_vector::{FractionalHexVector, HexVector},
     layout_orientation::HexLayoutOrientation,
 };
 
-#[derive(Component, Debug)]
+#[derive(Resource, Debug)]
 pub struct HexLayout {
     pub orientation: HexLayoutOrientation,
     pub size: Vec2,

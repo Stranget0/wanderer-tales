@@ -1,8 +1,8 @@
 use self::{
     resources::{init_materials_store, init_meshes_store, MaterialStore2d, MeshesStore2d},
-    systems::{despawn_camera, free_map, render_character, render_map, spawn_camera},
+    systems::{delete_maps, despawn_camera, render_character, render_map, spawn_camera},
 };
-use crate::gameplay::{map::spawner::systems::spawn_map_data, plugin::spawn_layout};
+use crate::gameplay::map::spawner::systems::spawn_map_data;
 use bevy::prelude::*;
 
 use super::state::RendererState;
@@ -18,11 +18,7 @@ impl Plugin for Renderer2DPlugin {
             .insert_resource(MaterialStore2d::default())
             .add_systems(
                 OnEnter(RendererState::TwoDimension),
-                (
-                    init_meshes_store.after(spawn_layout),
-                    init_materials_store,
-                    spawn_camera,
-                ),
+                (init_meshes_store, init_materials_store, spawn_camera),
             )
             .add_systems(
                 Update,
@@ -31,7 +27,7 @@ impl Plugin for Renderer2DPlugin {
             )
             .add_systems(
                 OnExit(RendererState::TwoDimension),
-                (free_map, despawn_camera),
+                (delete_maps, despawn_camera),
             );
     }
 }

@@ -1,4 +1,5 @@
 use crate::gameplay::map::{
+    components::MapContent,
     renderer::events::RenderCharacterEvent,
     spawner::MapAddEvent,
     utils::{
@@ -18,17 +19,16 @@ pub(crate) fn render_map(
     mut commands: Commands,
     meshes_map: Res<MeshesStore2d>,
     materials_map: Res<MaterialStore2d>,
-    layout_query: Query<&HexLayout>,
+    layout: Res<HexLayout>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     map_data_query: Query<(&HexVector, &Biome, &Height)>,
     mut render_map_event: EventReader<MapAddEvent>,
 ) {
     for event in render_map_event.read() {
-        let layout = layout_query.single();
         for hex_entity in event.0.iter() {
             match map_data_query.get(*hex_entity) {
                 Ok((pos, biome, height)) => {
-                    let transform = get_hex_transform(layout, pos);
+                    let transform = get_hex_transform(&layout, pos);
                     let material = get_hex_material(&materials_map, &mut materials, height, biome);
                     let mesh = get_hex_mesh(&meshes_map);
 
@@ -50,17 +50,11 @@ pub(crate) fn render_map(
     }
 }
 
-pub(crate) fn free_map(
-    mut commands: Commands,
-    rendered_items_query: Query<Entity, With<Mesh2dHandle>>,
-) {
-    for item in rendered_items_query.iter() {
-        commands
-            .entity(item)
-            .remove::<MaterialMesh2dBundle<ColorMaterial>>();
+pub(crate) fn delete_maps(mut commands: Commands, maps_query: Query<Entity, With<MapContent>>) {
+    for map in maps_query.iter() {
+        commands.entity(map).despawn_recursive();
     }
 }
-
 pub(crate) fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
@@ -106,7 +100,7 @@ pub(crate) fn render_character(
             })
             .id();
 
-        commands.entity(e.entity).add_child(child);
+        commands.entity(e.parent).add_child(child);
     }
 }
 

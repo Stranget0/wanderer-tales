@@ -2,6 +2,7 @@ use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, math::vec2, prelude::*, utils
 
 use super::{
     map::{
+        components::{MapContent, MapDisplay, WithPlayerRender},
         renderer::{events::RenderCharacterEvent, state::RendererState, RendererPlugin},
         spawner::{
             resources::{MapData, SeedTable},
@@ -16,14 +17,29 @@ pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
+        let layout = HexLayout {
+            orientation: POINTY_TOP_ORIENTATION,
+            size: vec2(5.0, 5.0),
+            origin: vec2(0.0, 0.0),
+        };
+
+        let map_display = app
+            .world
+            .spawn((MapDisplay, WithPlayerRender, SpatialBundle::default()))
+            .id();
+
+        app.world
+            .spawn((MapContent, SpatialBundle::default()))
+            .add_child(map_display);
+
         app.insert_state(RendererState::TwoDimension)
             // .init_state::<RendererState>()
             .insert_resource(SeedTable::default())
             .insert_resource(MapData::default())
+            .insert_resource(layout)
             .add_event::<MoveSightEvent>()
             .add_event::<MapAddEvent>()
             .add_event::<RenderCharacterEvent>()
-            .add_systems(Startup, spawn_layout)
             .add_plugins((
                 FrameTimeDiagnosticsPlugin,
                 MapSpawnerPlugin,
@@ -31,19 +47,4 @@ impl Plugin for GameplayPlugin {
                 PlayerPlugin,
             ));
     }
-}
-
-pub fn spawn_layout(mut commands: Commands) {
-    let layout: HexLayout = HexLayout {
-        orientation: POINTY_TOP_ORIENTATION,
-        size: vec2(5.0, 5.0),
-        origin: vec2(0.0, 0.0),
-    };
-
-    commands.spawn((
-        layout,
-        SpatialBundle {
-            ..Default::default()
-        },
-    ));
 }

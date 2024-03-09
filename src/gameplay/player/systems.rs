@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
 use crate::gameplay::map::{
+    components::{MapContent, WithPlayerRender},
     renderer::{components::MaterialKey, events::RenderCharacterEvent},
     spawner::MoveSightEvent,
-    utils::hex_layout::HexLayout,
 };
 
 use super::{
@@ -15,9 +15,10 @@ pub fn spawn_player(
     mut commands: Commands,
     mut render_character_event: EventWriter<RenderCharacterEvent>,
     mut map_origin_event: EventWriter<MoveSightEvent>,
-    layout_query: Query<Entity, With<HexLayout>>,
+    map_content_query: Query<Entity, With<MapContent>>,
+    with_player_query: Query<Entity, With<WithPlayerRender>>,
 ) {
-    let layout = layout_query.single();
+    let map_entity = map_content_query.single();
     let sight = 20;
     let player_entity = commands
         .spawn((
@@ -31,16 +32,19 @@ pub fn spawn_player(
         ))
         .id();
 
-    commands.entity(layout).add_child(player_entity);
+    commands.entity(map_entity).add_child(player_entity);
 
-    map_origin_event.send(MoveSightEvent {
-        sight,
-        force_render: true,
-        ..default()
-    });
+    for map_display in with_player_query.iter() {
+        map_origin_event.send(MoveSightEvent {
+            sight,
+            force_render: true,
+            map_display,
+            ..default()
+        });
+    }
 
     render_character_event.send(RenderCharacterEvent {
-        entity: player_entity,
+        parent: player_entity,
         material_key: MaterialKey::Player,
     });
 }
@@ -66,6 +70,7 @@ pub fn move_2d_handle(
     mut items_to_move: Query<(&mut Transform, &MapSpeed, Option<&Sight>), With<WSADSteerable>>,
     mut wsad_event: EventReader<WSADEvent>,
     mut map_origin_event: EventWriter<MoveSightEvent>,
+    maps_with_player_query: Query<Entity, With<WithPlayerRender>>,
 ) {
     for direction in wsad_event.read() {
         for (mut transform, speed, sight) in items_to_move.iter_mut() {
@@ -74,12 +79,15 @@ pub fn move_2d_handle(
 
             if sight.is_some() {
                 let pos = Vec2::new(transform.translation.x, transform.translation.y);
-                map_origin_event.send(MoveSightEvent {
-                    pos,
-                    delta_pos,
-                    sight: sight.unwrap().0,
-                    ..default()
-                });
+                for map in maps_with_player_query.iter() {
+                    map_origin_event.send(MoveSightEvent {
+                        pos,
+                        delta_pos,
+                        sight: sight.unwrap().0,
+                        map_display: map,
+                        ..default()
+                    });
+                }
             }
         }
     }

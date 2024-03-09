@@ -9,6 +9,7 @@ pub struct MoveSightEvent {
     pub delta_pos: Vec2,
     pub sight: u16,
     pub force_render: bool,
+    pub map_display: Entity,
 }
 
 impl Default for MoveSightEvent {
@@ -18,6 +19,7 @@ impl Default for MoveSightEvent {
             delta_pos: Vec2::new(0.0, 0.0),
             sight: 1,
             force_render: false,
+            map_display: Entity::PLACEHOLDER,
         }
     }
 }

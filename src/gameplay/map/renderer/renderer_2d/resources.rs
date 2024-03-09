@@ -21,10 +21,8 @@ impl Default for MeshesStore2d {
 pub(crate) fn init_meshes_store(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mesh_map: ResMut<MeshesStore2d>,
-    layout_query: Query<&HexLayout>,
+    layout: Res<HexLayout>,
 ) {
-    let layout = layout_query.single();
-
     let entries: [(MeshKey, Mesh); 2] = [
         (MeshKey::Hex, RegularPolygon::new(layout.size.x, 6).into()),
         (MeshKey::Character, Circle::new(3.0).into()),
