@@ -1,6 +1,11 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::map::{renderer::components::MaterialKey, utils::hex_layout::HexLayout};
+use crate::gameplay::map::{
+    renderer::{components::MaterialKey, debug::uv_debug_texture},
+    utils::hex_layout::HexLayout,
+};
+
+use super::mesh::Hexagon3D;
 
 // #region Mesh
 #[derive(Debug, Hash, Eq, PartialEq)]
@@ -24,8 +29,11 @@ pub(crate) fn init_meshes_store(
     layout: Res<HexLayout>,
 ) {
     let entries: [(MeshKey3d, Mesh); 2] = [
-        (MeshKey3d::Hex, RegularPolygon::new(layout.size.x, 6).into()),
-        (MeshKey3d::Character, Circle::new(3.0).into()),
+        (
+            MeshKey3d::Hex,
+            Hexagon3D::create_mesh(layout.size.x, layout.orientation.starting_angle),
+        ),
+        (MeshKey3d::Character, Sphere::new(layout.size.x).into()),
     ];
 
     for (key, mesh) in entries {
@@ -37,7 +45,7 @@ pub(crate) fn init_meshes_store(
 // #region Material
 
 #[derive(Resource)]
-pub(crate) struct MaterialStore3d(pub HashMap<MaterialKey, Handle<ColorMaterial>>);
+pub(crate) struct MaterialStore3d(pub HashMap<MaterialKey, Handle<StandardMaterial>>);
 
 impl Default for MaterialStore3d {
     fn default() -> Self {
@@ -46,10 +54,16 @@ impl Default for MaterialStore3d {
 }
 
 pub(crate) fn init_materials_store(
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     mut material_map: ResMut<MaterialStore3d>,
 ) {
-    let colors = [
+    let debug_material = materials.add(StandardMaterial {
+        base_color_texture: Some(images.add(uv_debug_texture())),
+        ..default()
+    });
+
+    let materials = [
         (MaterialKey::Beach, Color::hex("#e1d76a")),
         (MaterialKey::Grass, Color::hex("#36b90b")),
         (MaterialKey::Forest, Color::hex("#054303")),
@@ -58,9 +72,8 @@ pub(crate) fn init_materials_store(
         (MaterialKey::Player, Color::hex("#f7f1d8")),
     ];
 
-    for (key, color) in colors {
-        let material_handle = materials.add(color.unwrap());
-        material_map.0.insert(key, material_handle);
+    for (key, _) in materials {
+        material_map.0.insert(key, debug_material.clone());
     }
 }
 // #endregion

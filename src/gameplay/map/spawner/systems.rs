@@ -88,8 +88,8 @@ pub fn despawn_map_data(
         let mut substractive_hexes: Vec<Entity> = vec![];
 
         let from: u16 = move_map_event.sight;
-        let to: u16 = move_map_event.sight - distance;
-        for hex in HexVectorSpiral::new(&origin, from, to) {
+        let to: i16 = (move_map_event.sight as i16) - (distance as i16);
+        for hex in HexVectorSpiral::new(&origin, from, to as u16) {
             if hex.distance_to(&new_origin) > move_map_event.sight {
                 let value = map_data.hex_to_entity.remove(&hex);
                 if let Some(hex_entity) = value {

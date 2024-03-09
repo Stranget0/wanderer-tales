@@ -19,11 +19,11 @@ pub fn spawn_player(
     with_player_query: Query<Entity, With<WithPlayerRender>>,
 ) {
     let map_entity = map_content_query.single();
-    let sight = 20;
+    let sight = 3;
     let player_entity = commands
         .spawn((
             WSADSteerable,
-            MapSpeed(15.0),
+            MapSpeed(1.0),
             Sight(sight),
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, 0.0, 2.0),

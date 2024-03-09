@@ -1,14 +1,18 @@
-use crate::gameplay::map::{
-    components::MapContent,
-    renderer::events::RenderCharacterEvent,
-    spawner::MapAddEvent,
-    utils::{
-        hex_layout::HexLayout,
-        hex_map_item::{Biome, Height},
-        hex_vector::HexVector,
+use crate::gameplay::{
+    map::{
+        components::MapContent,
+        renderer::{components::MaterialKey, events::RenderCharacterEvent},
+        spawner::MapAddEvent,
+        utils::{
+            hex_layout::HexLayout,
+            hex_map_item::{Biome, Height},
+            hex_vector::{iterators::HexCorners, HexVector},
+        },
     },
+    player::components::WSADSteerable,
 };
 use bevy::{
+    math::vec3,
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
@@ -33,8 +37,8 @@ pub(crate) fn render_map(
                     let mesh = get_hex_mesh(&meshes_map);
 
                     let render_bundle = MaterialMesh2dBundle {
-                        mesh,
-                        material,
+                        mesh: mesh.clone(),
+                        material: material.clone(),
                         transform,
                         ..Default::default()
                     };
@@ -56,7 +60,7 @@ pub(crate) fn delete_maps(mut commands: Commands, maps_query: Query<Entity, With
     }
 }
 pub(crate) fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn((Camera2dBundle::default(), WSADSteerable));
 }
 
 pub(crate) fn despawn_camera(mut commands: Commands, camera_query: Query<Entity, With<Camera2d>>) {
@@ -90,7 +94,7 @@ pub(crate) fn render_character(
         let material_handle = materials_map
             .0
             .get(&e.material_key)
-            .expect("could not get material");
+            .unwrap_or_else(|| panic!("could not get {} material", e.material_key));
 
         let child = commands
             .spawn(MaterialMesh2dBundle {

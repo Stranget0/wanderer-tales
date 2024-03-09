@@ -56,6 +56,7 @@ pub(crate) fn init_materials_store(
         (MaterialKey::Mountain, Color::hex("#302c2a")),
         (MaterialKey::Water, Color::hex("#0E499A")),
         (MaterialKey::Player, Color::hex("#f7f1d8")),
+        (MaterialKey::Debug, Color::hex("#ea00ff")),
     ];
 
     for (key, color) in colors {

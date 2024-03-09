@@ -8,7 +8,7 @@ use bevy::{ecs::component::Component, math::Vec2};
 
 pub mod iterators;
 
-const F_HEX_MARGIN: (f32, i32) = (0.1, 2);
+pub const F_HEX_MARGIN: (f32, i32) = (0.1, 2);
 
 pub const HEX_DIRECTIONS: [HexVector; 6] = [
     HexVector::new(0, -1, 1),

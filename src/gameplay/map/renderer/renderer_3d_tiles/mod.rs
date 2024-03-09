@@ -7,6 +7,7 @@ use bevy::prelude::*;
 
 use super::state::RendererState;
 
+pub mod mesh;
 pub mod resources;
 pub mod systems;
 

@@ -1,7 +1,4 @@
-use std::iter::Take;
-
 use super::{HexVector, HEX_DIRECTIONS};
-
 pub struct HexVectorRing {
     current: HexVector,
     range: u16,
@@ -11,8 +8,14 @@ pub struct HexVectorSpiral<'a> {
     current_step: u16,
     range_end: u16,
     step: i8,
-    ring_iterator: Take<HexVectorRing>,
+    ring_iterator: std::iter::Take<HexVectorRing>,
     origin: &'a HexVector,
+}
+
+pub struct HexCorners {
+    pub size: f32,
+    pub starting_angle: f32,
+    pub corner: i8,
 }
 
 impl HexVectorRing {
@@ -96,13 +99,31 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
     }
 }
 
+impl Iterator for HexCorners {
+    type Item = [f32; 2];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let size = self.size;
+        let angle: f32 =
+            2.0 * std::f32::consts::PI * (self.starting_angle + f32::from(self.corner)) / 6.0;
+
+        self.corner -= 1;
+
+        Some([size * angle.sin(), size * angle.cos()])
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::gameplay::map::utils::{
-        hex_vector::iterators::HexVectorRing, hex_vector::HEX_DIRECTIONS,
+    use bevy::math::primitives::RegularPolygon;
+    use bevy::prelude::*;
+    use float_cmp::assert_approx_eq;
+
+    use crate::gameplay::map::utils::hex_vector::{
+        iterators::HexVectorRing, F_HEX_MARGIN, HEX_DIRECTIONS,
     };
 
-    use super::{HexVector, HexVectorSpiral};
+    use super::{HexCorners, HexVector, HexVectorSpiral};
 
     #[test]
     fn hex_circle() {
@@ -127,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn hex_ring() {
+    fn hex_spiral() {
         let origin = HexVector::new(3, 2, -5);
         let range_end = 3;
         let mut iterator = HexVectorSpiral::new(&origin, 0, range_end);
@@ -144,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn hex_ring_backwards() {
+    fn hex_spiral_backwards() {
         let origin = HexVector::new(3, 2, -5);
         let range_start = 3;
         let mut iterator = HexVectorSpiral::new(&origin, range_start, 0);
@@ -159,5 +180,20 @@ mod tests {
         }
         assert_eq!(iterator.next(), Some(origin.clone()));
         assert_eq!(iterator.next(), None);
+    }
+
+    #[test]
+    fn hex_corners() {
+        let mut corners: HexCorners = HexCorners {
+            corner: 0,
+            size: 1.0,
+            starting_angle: 0.0,
+        };
+        let hex = RegularPolygon::new(1.0, 6);
+        for a in hex.vertices(0.0) {
+            let b = corners.next().unwrap();
+            assert_approx_eq!(f32, a.x, b[0], F_HEX_MARGIN);
+            assert_approx_eq!(f32, a.y, b[1], F_HEX_MARGIN);
+        }
     }
 }

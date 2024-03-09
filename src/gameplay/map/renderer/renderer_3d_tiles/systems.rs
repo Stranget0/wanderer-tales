@@ -1,17 +1,17 @@
-use crate::gameplay::map::{
-    components::MapContent,
-    renderer::events::RenderCharacterEvent,
-    spawner::MapAddEvent,
-    utils::{
-        hex_layout::HexLayout,
-        hex_map_item::{Biome, Height},
-        hex_vector::HexVector,
+use crate::gameplay::{
+    map::{
+        components::MapContent,
+        renderer::events::RenderCharacterEvent,
+        spawner::MapAddEvent,
+        utils::{
+            hex_layout::HexLayout,
+            hex_map_item::{Biome, Height},
+            hex_vector::HexVector,
+        },
     },
+    player::components::WSADSteerable,
 };
-use bevy::{
-    prelude::*,
-    sprite::{MaterialMesh2dBundle, Mesh2dHandle},
-};
+use bevy::prelude::*;
 
 use super::resources::{MaterialStore3d, MeshKey3d, MeshesStore3d};
 
@@ -20,7 +20,6 @@ pub(crate) fn render_map(
     meshes_map: Res<MeshesStore3d>,
     materials_map: Res<MaterialStore3d>,
     layout: Res<HexLayout>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     map_data_query: Query<(&HexVector, &Biome, &Height)>,
     mut render_map_event: EventReader<MapAddEvent>,
 ) {
@@ -29,10 +28,10 @@ pub(crate) fn render_map(
             match map_data_query.get(*hex_entity) {
                 Ok((pos, biome, height)) => {
                     let transform = get_hex_transform(&layout, pos);
-                    let material = get_hex_material(&materials_map, &mut materials, height, biome);
+                    let material = get_hex_material(&materials_map, height, biome);
                     let mesh = get_hex_mesh(&meshes_map);
 
-                    let render_bundle = MaterialMesh2dBundle {
+                    let render_bundle = MaterialMeshBundle {
                         mesh,
                         material,
                         transform,
@@ -56,8 +55,19 @@ pub(crate) fn delete_maps(mut commands: Commands, maps_query: Query<Entity, With
     }
 }
 
-pub(crate) fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera3dBundle::default());
+pub(crate) fn spawn_camera(mut commands: Commands, layout: Res<HexLayout>) {
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(
+                0.,
+                1.5 * layout.size.x * 10.0,
+                6. * layout.size.x * 10.0,
+            )
+            .looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        WSADSteerable,
+    ));
 }
 
 pub(crate) fn despawn_camera(mut commands: Commands, camera_query: Query<Entity, With<Camera3d>>) {
@@ -66,14 +76,12 @@ pub(crate) fn despawn_camera(mut commands: Commands, camera_query: Query<Entity,
     }
 }
 
-fn get_hex_mesh(meshes_map: &Res<MeshesStore3d>) -> Mesh2dHandle {
-    Mesh2dHandle(
-        meshes_map
-            .0
-            .get(&MeshKey3d::Hex)
-            .expect("Could not get hex mesh")
-            .clone(),
-    )
+fn get_hex_mesh(meshes_map: &Res<MeshesStore3d>) -> Handle<Mesh> {
+    meshes_map
+        .0
+        .get(&MeshKey3d::Hex)
+        .expect("Could not get hex mesh")
+        .clone()
 }
 
 pub(crate) fn render_character(
@@ -94,8 +102,8 @@ pub(crate) fn render_character(
             .expect("could not get material");
 
         let child = commands
-            .spawn(MaterialMesh2dBundle {
-                mesh: Mesh2dHandle(mesh_handle.clone()),
+            .spawn(PbrBundle {
+                mesh: mesh_handle.clone(),
                 material: material_handle.clone(),
                 ..default()
             })
@@ -113,23 +121,16 @@ fn get_hex_transform(layout: &HexLayout, hex: &HexVector) -> Transform {
 
 fn get_hex_material(
     materials_map: &Res<MaterialStore3d>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
     height: &Height,
     biome: &Biome,
-) -> Handle<ColorMaterial> {
+) -> Handle<StandardMaterial> {
     {
         let material_key = height.get_material();
-        let handle = materials_map
+
+        materials_map
             .0
             .get(&material_key)
-            .expect("failed getting mountain material");
-
-        let color = materials.get(handle).unwrap().color;
-
-        let mut l: f32 = f32::from(height.get_height());
-        l = l.floor() / 255.;
-        let modified_color = color.with_l(l);
-
-        materials.add(modified_color)
+            .unwrap_or_else(|| panic!("failed getting {material_key} material"))
+            .clone()
     }
 }

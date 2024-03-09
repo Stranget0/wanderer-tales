@@ -17,9 +17,14 @@ pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
+        // let layout = HexLayout {
+        //     orientation: POINTY_TOP_ORIENTATION,
+        //     size: vec2(64.0, 64.0),
+        //     origin: vec2(0.0, 0.0),
+        // };
         let layout = HexLayout {
             orientation: POINTY_TOP_ORIENTATION,
-            size: vec2(5.0, 5.0),
+            size: vec2(1.0, 1.0),
             origin: vec2(0.0, 0.0),
         };
 
@@ -32,7 +37,7 @@ impl Plugin for GameplayPlugin {
             .spawn((MapContent, SpatialBundle::default()))
             .add_child(map_display);
 
-        app.insert_state(RendererState::TwoDimension)
+        app.insert_state(RendererState::ThreeDimension)
             // .init_state::<RendererState>()
             .insert_resource(SeedTable::default())
             .insert_resource(MapData::default())
