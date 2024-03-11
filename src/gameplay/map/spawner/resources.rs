@@ -1,18 +1,14 @@
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{prelude::*, utils::hashbrown::HashMap};
 use noise::permutationtable::PermutationTable;
 
 use crate::gameplay::map::utils::hex_vector::HexVector;
 
 #[derive(Resource)]
-pub struct MapData {
-    pub hex_to_entity: HashMap<HexVector, Entity>,
-}
+pub struct HexToMapSourceEntity(pub HashMap<HexVector, Entity>);
 
-impl Default for MapData {
+impl Default for HexToMapSourceEntity {
     fn default() -> Self {
-        Self {
-            hex_to_entity: HashMap::new(),
-        }
+        Self(HashMap::new())
     }
 }
 

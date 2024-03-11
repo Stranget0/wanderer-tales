@@ -1,28 +1,40 @@
-use bevy::{
-    ecs::{entity::Entity, event::Event},
-    math::Vec2,
-};
+use bevy::ecs::{entity::Entity, event::Event};
 
-#[derive(Event, Debug)]
-pub struct MoveSightEvent {
-    pub pos: Vec2,
-    pub delta_pos: Vec2,
-    pub sight: u16,
-    pub force_render: bool,
-    pub map_display: Entity,
+use crate::gameplay::map::renderer::components::RenderGroup;
+
+pub trait MapChangeEvent {
+    fn get_items(&self) -> &Vec<Entity>;
+    fn get_render_groups(&self) -> &Vec<RenderGroup>;
 }
 
-impl Default for MoveSightEvent {
-    fn default() -> Self {
-        Self {
-            pos: Vec2::new(0.0, 0.0),
-            delta_pos: Vec2::new(0.0, 0.0),
-            sight: 1,
-            force_render: false,
-            map_display: Entity::PLACEHOLDER,
-        }
+#[derive(Event)]
+pub struct MapAddEvent {
+    pub source_items: Vec<Entity>,
+    pub render_groups: Vec<RenderGroup>,
+}
+
+impl MapChangeEvent for MapAddEvent {
+    fn get_items(&self) -> &Vec<Entity> {
+        &self.source_items
+    }
+
+    fn get_render_groups(&self) -> &Vec<RenderGroup> {
+        &self.render_groups
     }
 }
 
 #[derive(Event)]
-pub struct MapAddEvent(pub Vec<Entity>);
+pub struct MapSubEvent {
+    pub source_items: Vec<Entity>,
+    pub render_groups: Vec<RenderGroup>,
+}
+
+impl MapChangeEvent for MapSubEvent {
+    fn get_items(&self) -> &Vec<Entity> {
+        &self.source_items
+    }
+
+    fn get_render_groups(&self) -> &Vec<RenderGroup> {
+        &self.render_groups
+    }
+}

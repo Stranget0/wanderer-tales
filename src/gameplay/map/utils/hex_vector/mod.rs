@@ -4,7 +4,7 @@ use std::{
     ops::{Add, Mul, Sub},
 };
 
-use bevy::{ecs::component::Component, math::Vec2};
+use bevy::math::Vec2;
 
 pub mod iterators;
 
@@ -19,10 +19,10 @@ pub const HEX_DIRECTIONS: [HexVector; 6] = [
     HexVector::new(-1, 0, 1),
 ];
 
-#[derive(Debug, Clone, Component, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct HexVector(pub i16, pub i16, pub i16);
 
-#[derive(Debug, Clone, Component)]
+#[derive(Debug, Clone)]
 pub struct FractionalHexVector(pub f32, pub f32, pub f32);
 
 impl HexVector {
@@ -355,28 +355,42 @@ impl Sub<HexVector> for FractionalHexVector {
 
 impl From<FractionalHexVector> for HexVector {
     fn from(val: FractionalHexVector) -> Self {
-        let mut q = val.0.round();
-        let mut r = val.1.round();
-        let mut s = val.2.round();
-
-        let q_diff = (q - val.0).abs();
-        let r_diff = (q - val.0).abs();
-        let s_diff = (q - val.0).abs();
-
-        if q_diff > r_diff && q_diff > s_diff {
-            q = -r - s;
-        } else if r_diff > s_diff {
-            r = -q - s;
-        } else {
-            s = -q - r;
-        };
-
-        HexVector::new(q as i16, r as i16, s as i16)
+        fractional_hex_to_hex(&val)
     }
+}
+impl From<&FractionalHexVector> for HexVector {
+    fn from(val: &FractionalHexVector) -> Self {
+        fractional_hex_to_hex(val)
+    }
+}
+
+fn fractional_hex_to_hex(val: &FractionalHexVector) -> HexVector {
+    let mut q = val.0.round();
+    let mut r = val.1.round();
+    let mut s = val.2.round();
+
+    let q_diff = (q - val.0).abs();
+    let r_diff = (q - val.0).abs();
+    let s_diff = (q - val.0).abs();
+
+    if q_diff > r_diff && q_diff > s_diff {
+        q = -r - s;
+    } else if r_diff > s_diff {
+        r = -q - s;
+    } else {
+        s = -q - r;
+    };
+
+    HexVector::new(q as i16, r as i16, s as i16)
 }
 
 impl From<HexVector> for FractionalHexVector {
     fn from(value: HexVector) -> Self {
+        FractionalHexVector::new(value.0 as f32, value.1 as f32, value.2 as f32)
+    }
+}
+impl From<&HexVector> for FractionalHexVector {
+    fn from(value: &HexVector) -> Self {
         FractionalHexVector::new(value.0 as f32, value.1 as f32, value.2 as f32)
     }
 }

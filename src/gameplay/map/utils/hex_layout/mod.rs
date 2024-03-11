@@ -1,22 +1,18 @@
 use bevy::prelude::*;
 
-use super::{
-    hex_vector::{FractionalHexVector, HexVector},
-    layout_orientation::HexLayoutOrientation,
-};
+use super::{hex_vector::FractionalHexVector, layout_orientation::HexLayoutOrientation};
 
-#[derive(Resource, Debug)]
+#[derive(Component, Debug)]
 pub struct HexLayout {
     pub orientation: HexLayoutOrientation,
     pub size: Vec2,
     pub origin: Vec2,
 }
 impl HexLayout {
-    pub fn hex_to_pixel(&self, h: &HexVector) -> Vec2 {
+    pub fn hex_to_pixel(&self, h: &FractionalHexVector) -> Vec2 {
         let matrix = &self.orientation;
-
-        let x = (matrix.f0 * h.0 as f32 + matrix.f1 * h.1 as f32) * self.size.x;
-        let y = (matrix.f2 * h.0 as f32 + matrix.f3 * h.1 as f32) * self.size.y;
+        let x = (matrix.f0 * h.0 + matrix.f1 * h.1) * self.size.x;
+        let y = (matrix.f2 * h.0 + matrix.f3 * h.1) * self.size.y;
         Vec2::from_array([x, y])
     }
 

@@ -1,66 +1,116 @@
 use crate::gameplay::{
     map::{
-        components::MapContent,
-        renderer::{components::MaterialKey, events::RenderCharacterEvent},
-        spawner::MapAddEvent,
+        renderer::{
+            components::{RenderGroup, RenderGroupItem},
+            events::RenderCharacterEvent,
+        },
+        spawner::{MapAddEvent, MapSubEvent},
         utils::{
             hex_layout::HexLayout,
             hex_map_item::{Biome, Height},
-            hex_vector::{iterators::HexCorners, HexVector},
+            hex_vector::{FractionalHexVector, HexVector},
         },
     },
-    player::components::WSADSteerable,
+    player::{components::HexPosition, events::CharacterMovedEvent},
 };
 use bevy::{
-    math::vec3,
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
 
 use super::resources::*;
 
+const RENDER_GROUP: RenderGroup = RenderGroup::PreviewMap2D;
+
 pub(crate) fn render_map(
     mut commands: Commands,
+    mut render_map_event: EventReader<MapAddEvent>,
+    mut render_map: ResMut<SourceToRenderStore2d>,
+    layout_query: Query<(Entity, &HexLayout, &RenderGroup)>,
     meshes_map: Res<MeshesStore2d>,
     materials_map: Res<MaterialStore2d>,
-    layout: Res<HexLayout>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    map_data_query: Query<(&HexVector, &Biome, &Height)>,
-    mut render_map_event: EventReader<MapAddEvent>,
+    map_data_query: Query<(&HexPosition, &Biome, &Height)>,
 ) {
-    for event in render_map_event.read() {
-        for hex_entity in event.0.iter() {
-            match map_data_query.get(*hex_entity) {
-                Ok((pos, biome, height)) => {
-                    let transform = get_hex_transform(&layout, pos);
-                    let material = get_hex_material(&materials_map, &mut materials, height, biome);
-                    let mesh = get_hex_mesh(&meshes_map);
+    for e in render_map_event.read() {
+        if are_render_groups_irrelevant(&e.render_groups) {
+            continue;
+        }
+        for (layout_entity, layout, layout_render_group) in layout_query.iter() {
+            if is_render_group_irrelevant(layout_render_group) {
+                continue;
+            }
+            let mut spawned_hexes = Vec::new();
+            for source_entity in e.source_items.iter() {
+                match map_data_query.get(*source_entity) {
+                    Ok((hex_pos, biome, height)) => {
+                        let pos = &hex_pos.0;
+                        let transform = get_hex_transform(layout, pos);
+                        let material = get_hex_material(&materials_map, height, biome);
+                        let mesh = get_hex_mesh(&meshes_map);
 
-                    let render_bundle = MaterialMesh2dBundle {
-                        mesh: mesh.clone(),
-                        material: material.clone(),
-                        transform,
-                        ..Default::default()
-                    };
+                        let render_bundle = MaterialMesh2dBundle {
+                            mesh: mesh.clone(),
+                            material: material.clone(),
+                            transform,
+                            ..Default::default()
+                        };
 
-                    commands.entity(*hex_entity).insert(render_bundle);
-                }
-                Err(err) => {
-                    error!("[renderer] entity get error: {}", err);
-                    continue;
-                }
-            };
+                        let rendered_hex_id = commands.spawn(render_bundle).id();
+                        spawned_hexes.push(rendered_hex_id);
+                        render_map.0.insert(source_entity.index(), rendered_hex_id);
+                    }
+                    Err(err) => {
+                        error!("[renderer] entity get error: {}", err);
+                        continue;
+                    }
+                };
+            }
+
+            commands.entity(layout_entity).push_children(&spawned_hexes);
         }
     }
 }
 
-pub(crate) fn delete_maps(mut commands: Commands, maps_query: Query<Entity, With<MapContent>>) {
-    for map in maps_query.iter() {
-        commands.entity(map).despawn_recursive();
+pub(crate) fn despawn_map(
+    mut commands: Commands,
+    mut despawn_map_event: EventReader<MapSubEvent>,
+    mut render_map: ResMut<SourceToRenderStore2d>,
+    layout_query: Query<(Entity, &RenderGroup)>,
+) {
+    for e in despawn_map_event.read() {
+        if are_render_groups_irrelevant(&e.render_groups) {
+            continue;
+        }
+        for (layout_entity, layout_render_group) in layout_query.iter() {
+            if is_render_group_irrelevant(layout_render_group) {
+                continue;
+            }
+
+            let mut children_to_remove: Vec<Entity> = Vec::new();
+            for source_entity in e.source_items.iter() {
+                let index = &source_entity.index();
+                if let Some(render_entity) = render_map.0.get(index) {
+                    commands.entity(*render_entity).despawn_recursive();
+                    children_to_remove.push(*render_entity);
+                    render_map.0.remove(index);
+                }
+            }
+            commands
+                .entity(layout_entity)
+                .remove_children(&children_to_remove);
+        }
+    }
+}
+
+pub(crate) fn delete_render_groups(mut commands: Commands, groups: Query<(Entity, &RenderGroup)>) {
+    for (map, render_group) in groups.iter() {
+        if render_group == &RENDER_GROUP {
+            commands.entity(map).despawn_recursive();
+        }
     }
 }
 pub(crate) fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Camera2dBundle::default(), WSADSteerable));
+    commands.spawn((Camera2dBundle::default(), RenderGroupItem::PreviewMap2D));
 }
 
 pub(crate) fn despawn_camera(mut commands: Commands, camera_query: Query<Entity, With<Camera2d>>) {
@@ -73,7 +123,7 @@ fn get_hex_mesh(meshes_map: &Res<MeshesStore2d>) -> Mesh2dHandle {
     Mesh2dHandle(
         meshes_map
             .0
-            .get(&MeshKey::Hex)
+            .get(&MeshKey2d::Hex)
             .expect("Could not get hex mesh")
             .clone(),
     )
@@ -82,57 +132,98 @@ fn get_hex_mesh(meshes_map: &Res<MeshesStore2d>) -> Mesh2dHandle {
 pub(crate) fn render_character(
     mut commands: Commands,
     mut event: EventReader<RenderCharacterEvent>,
+    mut render_map: ResMut<SourceToRenderStore2d>,
+    layout_query: Query<(Entity, &HexLayout, &RenderGroup)>,
     mesh_map: Res<MeshesStore2d>,
     materials_map: Res<MaterialStore2d>,
 ) {
     for e in event.read() {
-        let mesh_handle = mesh_map
-            .0
-            .get(&MeshKey::Character)
-            .expect("Player mesh not found");
+        if are_render_groups_irrelevant(&e.render_groups) {
+            continue;
+        }
+        for (layout_entity, layout, layout_render_group) in layout_query.iter() {
+            if is_render_group_irrelevant(layout_render_group) {
+                continue;
+            }
+            let pos = layout.hex_to_pixel(&e.position.0);
+            let mesh_handle = mesh_map
+                .0
+                .get(&MeshKey2d::Character)
+                .expect("Player mesh not found");
 
-        let material_handle = materials_map
-            .0
-            .get(&e.material_key)
-            .unwrap_or_else(|| panic!("could not get {} material", e.material_key));
+            let material_handle = materials_map
+                .0
+                .get(&e.material_key)
+                .unwrap_or_else(|| panic!("could not get {} material", e.material_key));
 
-        let child = commands
-            .spawn(MaterialMesh2dBundle {
-                mesh: Mesh2dHandle(mesh_handle.clone()),
-                material: material_handle.clone(),
-                ..default()
-            })
-            .id();
+            let render_entity = commands
+                .spawn(MaterialMesh2dBundle {
+                    mesh: Mesh2dHandle(mesh_handle.clone()),
+                    material: material_handle.clone(),
+                    transform: Transform::from_xyz(pos.x, pos.y, 2.0),
+                    ..default()
+                })
+                .id();
 
-        commands.entity(e.parent).add_child(child);
+            render_map
+                .0
+                .insert(e.character_entity.index(), render_entity);
+
+            commands.entity(layout_entity).add_child(render_entity);
+        }
+    }
+}
+
+pub(crate) fn move_rendered_character(
+    mut event: EventReader<CharacterMovedEvent>,
+    mut transform_query: Query<&mut Transform>,
+    render_map: ResMut<SourceToRenderStore2d>,
+    layout_query: Query<(&HexLayout, &RenderGroup)>,
+) {
+    for e in event.read() {
+        for (layout, layout_render_group) in layout_query.iter() {
+            if is_render_group_irrelevant(layout_render_group) {
+                continue;
+            }
+            let render_entity_option = render_map.0.get(&e.character_source.index());
+            if let Some(render_entity) = render_entity_option {
+                if let Ok(mut transform) = transform_query.get_mut(*render_entity) {
+                    let delta = layout.hex_to_pixel(&e.delta_pos.0);
+                    transform.translation.x += delta.x;
+                    transform.translation.y += delta.y;
+                }
+            } else {
+                error!("Could not get character render entity");
+            }
+        }
     }
 }
 
 fn get_hex_transform(layout: &HexLayout, hex: &HexVector) -> Transform {
-    let pos = layout.hex_to_pixel(hex);
+    let pos = layout.hex_to_pixel(&FractionalHexVector::from(hex));
 
     Transform::from_xyz(pos.x, pos.y, 0.0)
 }
 
 fn get_hex_material(
     materials_map: &Res<MaterialStore2d>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
     height: &Height,
     biome: &Biome,
 ) -> Handle<ColorMaterial> {
     {
         let material_key = height.get_material();
-        let handle = materials_map
+        materials_map
             .0
             .get(&material_key)
-            .expect("failed getting mountain material");
-
-        let color = materials.get(handle).unwrap().color;
-
-        let mut l: f32 = f32::from(height.get_height());
-        l = l.floor() / 255.;
-        let modified_color = color.with_l(l);
-
-        materials.add(modified_color)
+            .unwrap_or_else(|| panic!("failed getting {material_key} material"))
+            .clone()
     }
+}
+
+fn is_render_group_irrelevant(render_group: &RenderGroup) -> bool {
+    render_group != &RENDER_GROUP
+}
+
+fn are_render_groups_irrelevant(render_groups: &[RenderGroup]) -> bool {
+    !render_groups.contains(&RENDER_GROUP)
 }

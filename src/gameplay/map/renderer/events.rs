@@ -1,9 +1,13 @@
 use bevy::prelude::*;
 
-use super::components::MaterialKey;
+use crate::gameplay::player::components::HexPositionFractional;
+
+use super::{components::RenderGroup, utils::MaterialKey};
 
 #[derive(Event)]
 pub struct RenderCharacterEvent {
-    pub parent: Entity,
+    pub character_entity: Entity,
     pub material_key: MaterialKey,
+    pub position: HexPositionFractional,
+    pub render_groups: Vec<RenderGroup>,
 }

@@ -33,7 +33,7 @@ fn map_init_render(sight: u16) {
         origin: vec2(0.0, 0.0),
     };
     let map_data = MapData {
-        hex_to_entity: HashMap::new(),
+        hex_to_data_entity: HashMap::new(),
     };
     app.add_event::<MoveSightEvent>()
         .add_event::<MapAddEvent>()

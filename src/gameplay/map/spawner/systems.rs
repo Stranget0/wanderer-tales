@@ -5,126 +5,186 @@ use bevy::{
 use noise::core::perlin::perlin_2d;
 use rand::Rng;
 
-use crate::gameplay::map::{
-    events::ClearMap,
-    utils::{
-        hex_layout::HexLayout,
-        hex_map_item::{Biome, Height, HexMapItemBundle},
-        hex_vector::{iterators::HexVectorSpiral, HexVector},
+use crate::gameplay::{
+    map::{
+        components::SourceLayout,
+        renderer::components::RenderGroup,
+        utils::{
+            hex_map_item::{Biome, Height, HexMapItemBundle},
+            hex_vector::{iterators::HexVectorSpiral, HexVector},
+        },
+    },
+    player::{
+        components::HexPosition,
+        events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent},
     },
 };
 
 use super::{
-    events::{MapAddEvent, MoveSightEvent},
-    resources::{MapData, SeedTable},
+    events::MapAddEvent,
+    resources::{HexToMapSourceEntity, SeedTable},
+    MapSubEvent,
 };
+
+const MAP_RENDER_GROUPS: [RenderGroup; 2] = [RenderGroup::Gameplay3D, RenderGroup::PreviewMap2D];
 
 pub fn spawn_map_data(
     mut commands: Commands,
-    layout: Res<HexLayout>,
-    seed_table: Res<SeedTable>,
-    mut map_data: ResMut<MapData>,
-    mut origin_event: EventReader<MoveSightEvent>,
+    mut hex_to_map_source_entity: ResMut<HexToMapSourceEntity>,
     mut render_event: EventWriter<MapAddEvent>,
+    mut character_moved_event: EventReader<CharacterMovedEvent>,
+    layout_query: Query<Entity, With<SourceLayout>>,
+    seed_table: Res<SeedTable>,
 ) {
-    for move_map_event in origin_event.read() {
-        let origin = origin_from_event(&layout, move_map_event);
-        let new_origin: HexVector = new_origin_from_event(&layout, move_map_event);
+    for e in character_moved_event.read() {
+        let origin: HexVector = (&e.pos.0 - &e.delta_pos.0).into();
+        let new_origin: HexVector = (&e.pos.0).into();
         let distance = origin.distance_to(&new_origin);
-
-        let is_unnecessary = get_is_unnecessary(distance, move_map_event);
-        if is_unnecessary {
+        if is_moved_event_irrelevant(e) || distance < 1 {
             continue;
         }
 
-        let mut additive_hexes: Vec<Entity> = vec![];
+        let sight = e.sight.as_ref().unwrap().0;
+        let from: u16 = sight;
+        let to: u16 = sight.saturating_sub(distance);
 
-        let from: u16 = move_map_event.sight;
-        let to: u16 = move_map_event.sight - distance;
-        for hex in HexVectorSpiral::new(&new_origin, from, to) {
-            if map_data.hex_to_entity.contains_key(&hex) {
-                continue;
+        for layout_entity in layout_query.iter() {
+            let mut additive_entities: Vec<Entity> = vec![];
+
+            for hex in HexVectorSpiral::new(&new_origin, from, to) {
+                if hex_to_map_source_entity.0.contains_key(&hex) {
+                    continue;
+                }
+
+                let bundle = HexMapItemBundle {
+                    biome: get_biome(&hex),
+                    height: Height {
+                        midpoint: get_height_midpoint(&hex, &seed_table),
+                        offset: get_height_offset(&hex, &seed_table),
+                    },
+                    pos: HexPosition(hex.clone()),
+                };
+
+                let hex_entity = commands.spawn(bundle).id();
+                hex_to_map_source_entity.0.insert(hex, hex_entity);
+                additive_entities.push(hex_entity);
             }
 
-            let bundle = HexMapItemBundle {
-                biome: get_biome(&hex),
-                height: Height {
-                    midpoint: get_height_midpoint(&hex, &seed_table),
-                    offset: get_height_offset(&hex, &seed_table),
-                },
-                pos: hex.clone(),
-            };
-
-            let hex_entity = commands.spawn(bundle).id();
-
-            map_data.hex_to_entity.insert(hex, hex_entity);
-
             commands
-                .entity(move_map_event.map_display)
-                .add_child(hex_entity);
+                .entity(layout_entity)
+                .push_children(&additive_entities);
 
-            additive_hexes.push(hex_entity);
+            render_event.send(MapAddEvent {
+                source_items: additive_entities,
+                render_groups: MAP_RENDER_GROUPS.to_vec(),
+            });
         }
-
-        render_event.send(MapAddEvent(additive_hexes));
     }
+}
+
+fn is_moved_event_irrelevant(e: &CharacterMovedEvent) -> bool {
+    !e.is_player_controllable || e.sight.is_none()
 }
 
 pub fn despawn_map_data(
     mut commands: Commands,
-    layout: Res<HexLayout>,
-    mut map_data: ResMut<MapData>,
-    mut origin_event: EventReader<MoveSightEvent>,
+    mut hex_to_map_source_entity: ResMut<HexToMapSourceEntity>,
+    mut render_sub_event: EventWriter<MapSubEvent>,
+    mut character_moved_event: EventReader<CharacterMovedEvent>,
+    layout_query: Query<Entity, With<SourceLayout>>,
 ) {
-    for move_map_event in origin_event.read() {
-        let origin = origin_from_event(&layout, move_map_event);
-        let new_origin: HexVector = new_origin_from_event(&layout, move_map_event);
+    for e in character_moved_event.read() {
+        let origin: HexVector = (&e.pos.0 - &e.delta_pos.0).into();
+        let new_origin: HexVector = (&e.pos.0).into();
         let distance = origin.distance_to(&new_origin);
-
-        if distance < 1 {
+        if is_moved_event_irrelevant(e) || distance < 1 {
             continue;
         }
 
-        let mut substractive_hexes: Vec<Entity> = vec![];
+        let sight = e.sight.as_ref().unwrap().0;
+        let from: u16 = sight;
+        let to: u16 = sight.saturating_sub(distance);
 
-        let from: u16 = move_map_event.sight;
-        let to: i16 = (move_map_event.sight as i16) - (distance as i16);
-        for hex in HexVectorSpiral::new(&origin, from, to as u16) {
-            if hex.distance_to(&new_origin) > move_map_event.sight {
-                let value = map_data.hex_to_entity.remove(&hex);
-                if let Some(hex_entity) = value {
-                    substractive_hexes.push(hex_entity);
+        for layout_entity in layout_query.iter() {
+            let mut substractive_entities: Vec<Entity> = vec![];
+
+            for hex in HexVectorSpiral::new(&origin, from, to) {
+                if hex.distance_to(&new_origin) > sight {
+                    let value = hex_to_map_source_entity.0.remove(&hex);
+                    if let Some(hex_entity) = value {
+                        substractive_entities.push(hex_entity);
+
+                        commands
+                            .entity(layout_entity)
+                            .remove_children(&[hex_entity]);
+                    }
                 }
             }
-        }
-        commands
-            .entity(move_map_event.map_display)
-            .remove_children(&substractive_hexes);
 
-        for e in substractive_hexes {
-            commands.entity(e).despawn();
+            for e in &substractive_entities {
+                commands.entity(*e).despawn_recursive();
+            }
+
+            render_sub_event.send(MapSubEvent {
+                source_items: substractive_entities,
+                render_groups: MAP_RENDER_GROUPS.to_vec(),
+            });
         }
     }
 }
 
-fn get_is_unnecessary(distance: u16, move_map_event: &MoveSightEvent) -> bool {
-    distance < 1 && !move_map_event.force_render
+pub fn init_map_data(
+    mut commands: Commands,
+    mut hex_to_map_source_entity: ResMut<HexToMapSourceEntity>,
+    mut render_event: EventWriter<MapAddEvent>,
+    mut character_spawned: EventReader<PlayerWithSightSpawnedEvent>,
+    layout_query: Query<Entity, With<SourceLayout>>,
+    seed_table: Res<SeedTable>,
+) {
+    for e in character_spawned.read() {
+        let origin: HexVector = (&e.pos.0).into();
+        let sight = e.sight.0;
+
+        let from: u16 = 0;
+        let to: u16 = sight;
+
+        for layout_entity in layout_query.iter() {
+            let mut additive_entities: Vec<Entity> = vec![];
+
+            for hex in HexVectorSpiral::new(&origin, from, to) {
+                if hex_to_map_source_entity.0.contains_key(&hex) {
+                    continue;
+                }
+
+                let bundle = HexMapItemBundle {
+                    biome: get_biome(&hex),
+                    height: Height {
+                        midpoint: get_height_midpoint(&hex, &seed_table),
+                        offset: get_height_offset(&hex, &seed_table),
+                    },
+                    pos: HexPosition(hex.clone()),
+                };
+
+                let hex_entity = commands.spawn(bundle).id();
+                hex_to_map_source_entity.0.insert(hex, hex_entity);
+                additive_entities.push(hex_entity);
+            }
+
+            commands
+                .entity(layout_entity)
+                .push_children(&additive_entities);
+
+            render_event.send(MapAddEvent {
+                source_items: additive_entities,
+                render_groups: MAP_RENDER_GROUPS.to_vec(),
+            });
+        }
+    }
 }
 
-fn new_origin_from_event(layout: &HexLayout, move_map_event: &MoveSightEvent) -> HexVector {
-    layout.pixel_to_hex(move_map_event.pos).into()
-}
-
-fn origin_from_event(layout: &HexLayout, move_map_event: &MoveSightEvent) -> HexVector {
-    let origin: HexVector = layout
-        .pixel_to_hex(move_map_event.pos - move_map_event.delta_pos)
-        .into();
-    origin
-}
-
-pub fn clear_map_data(mut commands: Commands, mut clear_event: EventReader<ClearMap>) {
-    for e in clear_event.read() {
-        commands.entity(e.0).despawn_recursive();
+pub fn clear_map_data(mut commands: Commands, layout_query: Query<Entity, With<SourceLayout>>) {
+    for e in layout_query.iter() {
+        commands.entity(e).despawn_recursive();
     }
 }
 

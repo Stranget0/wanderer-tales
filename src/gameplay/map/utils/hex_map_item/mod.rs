@@ -1,12 +1,10 @@
 use bevy::prelude::*;
 
-use crate::gameplay::map::renderer::components::MaterialKey;
-
-use super::hex_vector::HexVector;
+use crate::gameplay::{map::renderer::utils::MaterialKey, player::components::HexPosition};
 
 #[derive(Bundle, Clone, Debug)]
 pub struct HexMapItemBundle {
-    pub pos: HexVector,
+    pub pos: HexPosition,
     pub biome: Biome,
     pub height: Height,
 }

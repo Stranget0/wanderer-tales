@@ -1,7 +1,7 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 use crate::gameplay::map::{
-    renderer::{components::MaterialKey, debug::uv_debug_texture},
+    renderer::{components::RenderGroup, debug::uv_debug_texture, utils::MaterialKey},
     utils::hex_layout::HexLayout,
 };
 
@@ -26,18 +26,23 @@ impl Default for MeshesStore3d {
 pub(crate) fn init_meshes_store(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mesh_map: ResMut<MeshesStore3d>,
-    layout: Res<HexLayout>,
+    layout_query: Query<(&HexLayout, &RenderGroup)>,
 ) {
-    let entries: [(MeshKey3d, Mesh); 2] = [
-        (
-            MeshKey3d::Hex,
-            Hexagon3D::create_mesh(layout.size.x, layout.orientation.starting_angle),
-        ),
-        (MeshKey3d::Character, Sphere::new(layout.size.x).into()),
-    ];
+    for (layout, render_group) in layout_query.iter() {
+        if render_group != &RenderGroup::Gameplay3D {
+            continue;
+        }
+        let entries: [(MeshKey3d, Mesh); 2] = [
+            (
+                MeshKey3d::Hex,
+                Hexagon3D::create_mesh(layout.size.x, layout.orientation.starting_angle),
+            ),
+            (MeshKey3d::Character, Sphere::new(layout.size.x).into()),
+        ];
 
-    for (key, mesh) in entries {
-        mesh_map.0.insert(key, meshes.add(mesh));
+        for (key, mesh) in entries {
+            mesh_map.0.insert(key, meshes.add(mesh));
+        }
     }
 }
 // #endregion
@@ -74,6 +79,17 @@ pub(crate) fn init_materials_store(
 
     for (key, _) in materials {
         material_map.0.insert(key, debug_material.clone());
+    }
+}
+// #endregion
+
+// #region source to render
+#[derive(Resource, Debug)]
+pub(crate) struct SourceToRenderStore3d(pub HashMap<u32, Entity>);
+
+impl Default for SourceToRenderStore3d {
+    fn default() -> Self {
+        Self(HashMap::new())
     }
 }
 // #endregion
