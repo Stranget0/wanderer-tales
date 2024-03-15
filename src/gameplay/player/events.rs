@@ -10,7 +10,7 @@ pub struct WSADEvent(pub Vec2);
 
 #[derive(Event)]
 pub struct CharacterMovedEvent {
-    pub character_source: Entity,
+    pub source_entity: Entity,
     pub pos: HexPositionFractional,
     pub delta_pos: HexPositionFractionalDelta,
     pub sight: Option<Sight>,

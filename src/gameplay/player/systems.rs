@@ -3,7 +3,11 @@ use bevy::prelude::*;
 use crate::gameplay::{
     map::{
         components::SourceLayout,
-        renderer::{components::RenderGroup, events::RenderCharacterEvent, utils::MaterialKey},
+        renderer::{
+            components::{CameraFollowTarget, RenderGroup},
+            events::RenderCharacterEvent,
+            utils::MaterialKey,
+        },
         utils::{hex_layout::HexLayout, hex_vector::FractionalHexVector},
     },
     player::components::{HexPositionFractional, HexPositionFractionalDelta},
@@ -40,10 +44,10 @@ pub fn spawn_player(
         commands.entity(layout_entity).add_child(player_entity);
 
         render_character_event.send(RenderCharacterEvent {
-            character_entity: player_entity,
+            source_entity: player_entity,
             material_key: MaterialKey::Player,
             position: pos.clone(),
-            render_groups: PLAYER_RENDER_GROUPS.to_vec(),
+            is_camera_follow: true,
         });
 
         player_with_sight_event.send(PlayerWithSightSpawnedEvent {
@@ -98,7 +102,7 @@ pub fn move_2d_handle(
                 position.0 = &position.0 + &new_position_delta;
 
                 events_to_send.push(CharacterMovedEvent {
-                    character_source: entity,
+                    source_entity: entity,
                     pos: position.clone(),
                     delta_pos: position_delta.clone(),
                     sight: sight_option.cloned(),

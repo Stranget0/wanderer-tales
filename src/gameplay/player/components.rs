@@ -40,3 +40,6 @@ impl Default for HexPositionDelta {
         Self(HexVector(0, 0, 0))
     }
 }
+
+#[derive(Component)]
+pub struct Character;

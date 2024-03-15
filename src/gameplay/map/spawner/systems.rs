@@ -82,10 +82,6 @@ pub fn spawn_map_data(
     }
 }
 
-fn is_moved_event_irrelevant(e: &CharacterMovedEvent) -> bool {
-    !e.is_player_controllable || e.sight.is_none()
-}
-
 pub fn despawn_map_data(
     mut commands: Commands,
     mut hex_to_map_source_entity: ResMut<HexToMapSourceEntity>,
@@ -242,4 +238,8 @@ fn get_biome(_hex: &HexVector) -> Biome {
         0 => Biome::Forest,
         _ => Biome::Grass,
     }
+}
+
+fn is_moved_event_irrelevant(e: &CharacterMovedEvent) -> bool {
+    !e.is_player_controllable || e.sight.is_none()
 }
