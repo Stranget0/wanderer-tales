@@ -4,7 +4,7 @@ use super::{
     map::{
         components::SourceLayout,
         renderer::{
-            components::{CameraSetting, RenderGroup},
+            components::RenderGroup,
             events::RenderCharacterEvent,
             renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
             state::RendererState,
@@ -26,8 +26,7 @@ pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_state(RendererState::ThreeDimension)
-            // .init_state::<RendererState>()
+        app.insert_state(RendererState::TwoDimension)
             .insert_resource(SeedTable::default())
             .insert_resource(HexToMapSourceEntity::default())
             .add_event::<MapAddEvent>()
@@ -81,7 +80,6 @@ fn initialize_map(
         ),
         gameplay_map_layout,
         RenderGroup::Gameplay3D,
-        CameraSetting::Follow3D(Transform::from_xyz(0.0, -5.0, 2.0)),
     ));
 
     commands.spawn((
@@ -89,6 +87,5 @@ fn initialize_map(
         Renderer2D::new(&preview_map_layout, &mut materials_2d, &mut meshes),
         preview_map_layout,
         RenderGroup::PreviewMap2D,
-        CameraSetting::Follow2D(Transform::default()),
     ));
 }

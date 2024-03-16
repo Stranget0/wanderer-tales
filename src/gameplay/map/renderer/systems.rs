@@ -1,21 +1,22 @@
 use crate::gameplay::{
     map::{
-        renderer::{components::RenderMap, events::RenderCharacterEvent},
+        renderer::events::RenderCharacterEvent,
         spawner::{MapAddEvent, MapSubEvent},
         utils::{
             hex_layout::HexLayout,
             hex_map_item::{Biome, Height},
+            hex_vector::FractionalHexVector,
         },
     },
     player::{
-        components::{Character, HexPosition, HexPositionFractional, PlayerRoot},
+        components::{Character, HexPosition, HexPositionFractional, PlayerControllable},
         events::CharacterMovedEvent,
     },
 };
 use bevy::prelude::*;
 
 use super::{
-    components::PlayerRender,
+    components::{CameraOffset, SourceCameraFollow},
     renderers::traits::{CreateCharacterRenderBundle, CreateMapRenderBundle, RenderMapApi},
 };
 
@@ -36,10 +37,9 @@ pub(crate) fn render_map<T: Bundle, R: CreateMapRenderBundle<T> + RenderMapApi +
                             renderer.create_map_render_bundle(layout, pos, biome, height);
 
                         let render_entity = commands.spawn(render_bundle).id();
-                        let old_render_entity =
-                            renderer.link_source_item(source_entity, &render_entity);
+                        let old_option = renderer.link_source_item(source_entity, &render_entity);
 
-                        if let Some(old_rendered_entity) = old_render_entity {
+                        if let Some(old_rendered_entity) = old_option {
                             warn!("double render, replacing with new one");
                             commands.entity(old_rendered_entity).despawn();
                         }
@@ -72,12 +72,6 @@ pub(crate) fn fill_map<T: Bundle, R: CreateMapRenderBundle<T> + RenderMapApi + C
             renderer.link_source_item(&source_entity, &render_entity);
             commands.entity(layout_entity).add_child(render_entity);
         }
-    }
-}
-
-pub(crate) fn hide_entity<E: Component>(mut commands: Commands, query: Query<Entity, With<E>>) {
-    for entity in query.iter() {
-        commands.entity(entity).insert(Visibility::Hidden);
     }
 }
 
@@ -120,7 +114,7 @@ pub(crate) fn render_character<
         for (layout_entity, layout, mut renderer) in layout_query.iter_mut() {
             let pos = layout.hex_to_pixel(&e.position.0);
             let render_entity = commands
-                .spawn(renderer.create_character_render_bundle(&pos, &e))
+                .spawn(renderer.create_character_render_bundle(&pos, e))
                 .id();
 
             renderer.link_source_item(&e.source_entity, &render_entity);
@@ -168,6 +162,50 @@ pub(crate) fn synchronize_rendered_characters<R: RenderMapApi + Component>(
                     Err(_) => error!("Character doesn't have transform to synchronize"),
                 },
                 None => warn!("No character render found to synchronize"),
+            }
+        }
+    }
+}
+
+pub(crate) fn camera_follow<R: RenderMapApi + Component>(
+    mut camera_query: Query<
+        (&mut Transform, Option<&CameraOffset>, Option<&Camera3d>),
+        With<Camera>,
+    >,
+    source_followed_query: Query<Entity, With<SourceCameraFollow>>,
+    renderer_query: Query<&R>,
+    transform_query: Query<&Transform, Without<Camera>>,
+) {
+    for renderer in renderer_query.iter() {
+        for source_entity in source_followed_query.iter() {
+            match renderer
+                .get_render_item(&source_entity)
+                .and_then(|entity| transform_query.get(*entity).ok())
+            {
+                Some(target_transform) => {
+                    for (mut camera_transform, offset_option, camera_3d_option) in
+                        camera_query.iter_mut()
+                    {
+                        let render_pos = Vec3::from_array(target_transform.translation.to_array());
+                        let mut camera_pos =
+                            Vec3::from_array(target_transform.translation.to_array());
+
+                        if let Some(offset) = offset_option {
+                            camera_pos += Vec3::new(offset.0, offset.1, offset.2);
+                        }
+
+                        camera_transform.translation.x = camera_pos.x;
+                        camera_transform.translation.y = camera_pos.y;
+                        camera_transform.translation.z = camera_pos.z;
+
+                        if camera_3d_option.is_some() {
+                            camera_transform.look_at(render_pos, Vec3::Y);
+                        }
+                    }
+                }
+                None => {
+                    continue;
+                }
             }
         }
     }

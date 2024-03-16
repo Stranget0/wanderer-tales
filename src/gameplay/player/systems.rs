@@ -4,9 +4,7 @@ use crate::gameplay::{
     map::{
         components::SourceLayout,
         renderer::{
-            components::{CameraFollowTarget, RenderGroup},
-            events::RenderCharacterEvent,
-            utils::MaterialKey,
+            components::SourceCameraFollow, events::RenderCharacterEvent, utils::MaterialKey,
         },
         utils::{hex_layout::HexLayout, hex_vector::FractionalHexVector},
     },
@@ -17,8 +15,6 @@ use super::{
     components::{MapSpeed, PlayerControllable, PlayerRoot, Sight, WSADSteerable},
     events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent, WSADEvent},
 };
-
-const PLAYER_RENDER_GROUPS: [RenderGroup; 2] = [RenderGroup::Gameplay3D, RenderGroup::PreviewMap2D];
 
 pub fn spawn_player(
     mut commands: Commands,
@@ -36,6 +32,7 @@ pub fn spawn_player(
                 Sight(sight),
                 PlayerRoot,
                 PlayerControllable,
+                SourceCameraFollow,
                 pos.clone(),
                 HexPositionFractionalDelta::default(),
             ))
@@ -47,7 +44,6 @@ pub fn spawn_player(
             source_entity: player_entity,
             material_key: MaterialKey::Player,
             position: pos.clone(),
-            is_camera_follow: true,
         });
 
         player_with_sight_event.send(PlayerWithSightSpawnedEvent {

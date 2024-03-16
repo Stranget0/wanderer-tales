@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_editor_pls::EditorPlugin;
 use wanderer_tales::{
     debug::fps_counter::FPSPlugin, gameplay::plugin::GameplayPlugin, global_state::SceneState,
 };
@@ -10,7 +9,7 @@ fn main() {
         .insert_state(SceneState::Game)
         .add_plugins((
             DefaultPlugins,
-            EditorPlugin::default(),
+            // EditorPlugin::default(),
             GameplayPlugin,
             FPSPlugin,
         ))
