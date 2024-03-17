@@ -11,8 +11,9 @@ use self::{
     renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
     state::RendererState,
     systems::{
-        camera_follow, clean_render_items, move_rendered_items, remove_moving_render_items,
-        render_map_items, render_static_map_items, set_camera_state, show_entity,
+        camera_look_around, camera_update, camera_zoom, clean_render_items, move_rendered_items,
+        remove_moving_render_items, render_map_items, render_static_map_items, set_camera_state,
+        show_entity,
     },
 };
 
@@ -50,7 +51,7 @@ impl Plugin for RendererPlugin {
                 render_map_items::<PbrBundle, Renderer3D>.before(spawn_player),
                 clean_render_items::<Renderer3D>.before(despawn_map_data),
                 move_rendered_items::<Renderer3D>,
-                camera_follow::<Renderer3D>,
+                camera_update::<Renderer3D>.after(camera_look_around),
             )
                 .run_if(in_state(RendererState::ThreeDimension)),
         )
@@ -78,7 +79,7 @@ impl Plugin for RendererPlugin {
                     .before(spawn_player),
                 clean_render_items::<Renderer2D>.before(despawn_map_data),
                 move_rendered_items::<Renderer2D>,
-                camera_follow::<Renderer2D>,
+                camera_update::<Renderer2D>.after(camera_look_around),
             )
                 .run_if(in_state(RendererState::TwoDimension)),
         )
@@ -90,6 +91,9 @@ impl Plugin for RendererPlugin {
                 remove_moving_render_items::<Renderer2D>,
             ),
         )
-        .add_systems(Update, debug_switch_renderer);
+        .add_systems(
+            Update,
+            (debug_switch_renderer, camera_look_around, camera_zoom),
+        );
     }
 }
