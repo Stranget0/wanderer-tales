@@ -60,4 +60,4 @@ impl TileHeight {
 }
 
 #[derive(Component, Clone, Debug)]
-pub struct Height(pub f32);
+pub struct Height(pub u8);

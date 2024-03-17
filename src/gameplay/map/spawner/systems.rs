@@ -243,7 +243,7 @@ fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMa
 
     HexMapTileBundle {
         biome: get_biome(hex),
-        height: Height(height.get_height().into()),
+        height: Height(height.get_height()),
         tile_height: height,
         pos: HexPosition(hex.clone()),
         mesh_type: MeshType::HexMapTile,

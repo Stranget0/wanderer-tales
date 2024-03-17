@@ -23,7 +23,7 @@ pub fn get_hex_corner_3d(
     index: i8,
     starting_angle: f32,
     size: f32,
-    height_differences: &[f32; 6],
+    height_differences: &[u8; 6],
 ) -> [f32; 3] {
     let [x, y] = get_hex_corner_2d(index, starting_angle, size);
 
@@ -35,15 +35,15 @@ pub fn get_hex_corner_3d(
     [x, y, z]
 }
 
-fn get_hex_corner_z(heights: [&f32; 2]) -> f32 {
+fn get_hex_corner_z(heights: [&u8; 2]) -> f32 {
     // base is always 0
-    let mut sum = 0.0;
+    let mut sum = 0;
 
     for h in heights {
         sum += h;
     }
 
-    sum / 3.0
+    f32::from(sum) / 3.0
 }
 
 impl HexLayout {
@@ -129,5 +129,10 @@ mod tests {
             let result = layout.hex_to_pixel(&hex.into());
             assert_eq!(result, pos);
         }
+    }
+
+    #[test]
+    fn testste() {
+        Vec::from([1, 2, 3, 4, 5, 6]).iter
     }
 }

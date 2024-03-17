@@ -26,7 +26,7 @@ pub(crate) fn render_static_map_items<
                 continue;
             }
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
-            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0);
+            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0.into());
 
             spawn_render_item(
                 &mut commands,
@@ -58,7 +58,7 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapAp
                 continue;
             }
             let pos_2d = layout.hex_to_pixel(&position.0);
-            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0);
+            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0.into());
 
             spawn_render_item(
                 &mut commands,
@@ -231,7 +231,7 @@ pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
                     let delta = layout.hex_to_pixel(&delta_pos.0);
                     transform.translation.x += delta.x;
                     transform.translation.y += delta.y;
-                    transform.translation.z = height.0;
+                    transform.translation.z = height.0.into();
                 }
             } else {
                 error!("Could not get character render entity");

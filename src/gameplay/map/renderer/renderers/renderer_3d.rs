@@ -1,4 +1,5 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
+use itertools::Itertools;
 
 use crate::gameplay::map::{
     renderer::{
@@ -162,7 +163,7 @@ impl Renderer3D {
                 Hexagon3D::create_base(
                     layout.size.x,
                     layout.orientation.starting_angle,
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                    [0, 0, 0, 0, 0, 0],
                 ),
             ),
             (MeshType::Player, Sphere::new(layout.size.x).into()),

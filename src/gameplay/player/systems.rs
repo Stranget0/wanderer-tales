@@ -32,7 +32,7 @@ pub fn spawn_player(
                 WSADSteerable,
                 MapSpeed(10.0),
                 Sight(sight),
-                Height(50.0),
+                Height(50),
                 PlayerRoot,
                 PlayerControllable,
                 SourceCameraFollow,
