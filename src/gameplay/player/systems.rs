@@ -4,13 +4,18 @@ use crate::gameplay::{
     map::{
         components::SourceLayout,
         renderer::components::{MaterialType, MeshType, SourceCameraFollow},
-        utils::{hex_layout::HexLayout, hex_map_item::Height, hex_vector::FractionalHexVector},
+        spawner::resources::HexToMapSourceEntity,
+        utils::{
+            hex_layout::HexLayout,
+            hex_map_item::Height,
+            hex_vector::{FractionalHexVector, HexVector},
+        },
     },
     player::components::{HexPositionFractional, HexPositionFractionalDelta},
 };
 
 use super::{
-    components::{MapSpeed, PlayerControllable, PlayerRoot, Sight, WSADSteerable},
+    components::{HexPosition, MapSpeed, PlayerControllable, PlayerRoot, Sight, WSADSteerable},
     events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent, WSADEvent},
 };
 
@@ -21,11 +26,11 @@ pub fn spawn_player(
 ) {
     for layout_entity in source_layout.iter() {
         let pos = HexPositionFractional(FractionalHexVector(0.0, 0.0, 0.0));
-        let sight = 3;
+        let sight = 40;
         let player_entity = commands
             .spawn((
                 WSADSteerable,
-                MapSpeed(2.0),
+                MapSpeed(10.0),
                 Sight(sight),
                 Height(50.0),
                 PlayerRoot,
@@ -69,20 +74,21 @@ type CharacterMoveComponents<'a> = (
     &'a mut HexPositionFractional,
     &'a mut HexPositionFractionalDelta,
     &'a MapSpeed,
+    &'a mut Height,
     Option<&'a Sight>,
 );
 
 pub fn move_2d_handle(
-    mut items_to_move: Query<
-        CharacterMoveComponents,
-        (With<WSADSteerable>, With<PlayerControllable>),
-    >,
+    mut items_to_move: Query<CharacterMoveComponents, (With<WSADSteerable>, Without<HexPosition>)>,
     mut wsad_event: EventReader<WSADEvent>,
     mut character_moved_event: EventWriter<CharacterMovedEvent>,
     source_layout: Query<&HexLayout, With<SourceLayout>>,
+    hex_to_map_source_entity: Res<HexToMapSourceEntity>,
+    height_query: Query<&Height, With<HexPosition>>,
+    time: Res<Time>,
 ) {
     if wsad_event.is_empty() {
-        for (_, _, mut delta, _, _) in items_to_move.iter_mut() {
+        for (_, _, mut delta, _, _, _) in items_to_move.iter_mut() {
             if delta.0.length() <= 0.0 {
                 continue;
             }
@@ -92,12 +98,26 @@ pub fn move_2d_handle(
     for direction in wsad_event.read() {
         let mut events_to_send: Vec<CharacterMovedEvent> = vec![];
         for layout in source_layout.iter() {
-            for (entity, mut position, mut position_delta, speed, sight_option) in
+            for (entity, mut position, mut position_delta, speed, mut height, sight_option) in
                 items_to_move.iter_mut()
             {
-                let new_position_delta = layout.pixel_to_hex(direction.0) * speed.0;
+                let new_position_delta =
+                    layout.pixel_to_hex(direction.0) * speed.0 * time.delta_seconds();
                 position_delta.0 = new_position_delta.clone();
                 position.0 = &position.0 + &new_position_delta;
+                let k: HexVector = (&position.0).into();
+                match hex_to_map_source_entity
+                    .0
+                    .get(&k)
+                    .and_then(|source_entity| height_query.get(*source_entity).ok())
+                {
+                    Some(hex_height) => {
+                        height.0 = hex_height.0;
+                    }
+                    None => {
+                        error!("Could not get hex height at {:?}", k);
+                    }
+                };
 
                 events_to_send.push(CharacterMovedEvent {
                     source_entity: entity,

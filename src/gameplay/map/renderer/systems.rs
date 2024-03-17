@@ -216,10 +216,10 @@ pub(crate) fn show_entity<E: Component>(mut commands: Commands, query: Query<Ent
 
 pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
     mut transform_query: Query<&mut Transform>,
-    moveable_query: Query<(Entity, &HexPositionFractionalDelta)>,
+    moveable_query: Query<(Entity, &HexPositionFractionalDelta, &Height)>,
     layout_query: Query<(&HexLayout, &R)>,
 ) {
-    for (source_entity, delta_pos) in moveable_query.iter() {
+    for (source_entity, delta_pos, height) in moveable_query.iter() {
         if delta_pos.0.length() <= 0.0 {
             debug!("Skip updating character move");
             continue;
@@ -231,6 +231,7 @@ pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
                     let delta = layout.hex_to_pixel(&delta_pos.0);
                     transform.translation.x += delta.x;
                     transform.translation.y += delta.y;
+                    transform.translation.z = height.0;
                 }
             } else {
                 error!("Could not get character render entity");
