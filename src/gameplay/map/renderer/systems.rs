@@ -119,46 +119,6 @@ pub(crate) fn set_camera_state<W: Component, const IS_ACTIVE: bool>(
     }
 }
 
-fn despawn_render_item<R: RenderMapApi + Component>(
-    renderer: &mut Mut<R>,
-    source_entity: &Entity,
-    commands: &mut Commands,
-) {
-    if let Some(render_entity) = renderer.remove_render_item(source_entity) {
-        commands.entity(render_entity).remove_parent();
-        commands.entity(render_entity).despawn_recursive();
-        debug!(
-            "Despawned of source {:?} -> {:?}",
-            source_entity, render_entity
-        );
-    } else {
-        warn!("Could not clean render item {:?}", source_entity);
-    }
-}
-
-fn spawn_render_item<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
-    commands: &mut Commands,
-    mut renderer: Mut<R>,
-    pos: Vec3,
-    material_type: &MaterialType,
-    mesh_type: &MeshType,
-    source_entity: Entity,
-    layout_entity: Entity,
-) {
-    let render_entity = commands
-        .spawn(renderer.create_render_bundle(&pos, material_type, mesh_type))
-        .id();
-
-    debug!(
-        "Spawning map item {:?} {:?} for source {:?} -> {:?}",
-        mesh_type, material_type, source_entity, render_entity
-    );
-
-    renderer.link_source_item(&source_entity, &render_entity);
-
-    commands.entity(layout_entity).add_child(render_entity);
-}
-
 // pub(crate) fn render_map<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
 //     mut commands: Commands,
 //     mut render_map_event: EventReader<MapAddEvent>,
@@ -358,4 +318,44 @@ pub(crate) fn camera_zoom(
             }
         }
     }
+}
+
+fn despawn_render_item<R: RenderMapApi + Component>(
+    renderer: &mut Mut<R>,
+    source_entity: &Entity,
+    commands: &mut Commands,
+) {
+    if let Some(render_entity) = renderer.remove_render_item(source_entity) {
+        commands.entity(render_entity).remove_parent();
+        commands.entity(render_entity).despawn_recursive();
+        debug!(
+            "Despawned of source {:?} -> {:?}",
+            source_entity, render_entity
+        );
+    } else {
+        warn!("Could not clean render item {:?}", source_entity);
+    }
+}
+
+fn spawn_render_item<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
+    commands: &mut Commands,
+    mut renderer: Mut<R>,
+    pos: Vec3,
+    material_type: &MaterialType,
+    mesh_type: &MeshType,
+    source_entity: Entity,
+    layout_entity: Entity,
+) {
+    let render_entity = commands
+        .spawn(renderer.create_render_bundle(&pos, material_type, mesh_type))
+        .id();
+
+    debug!(
+        "Spawning map item {:?} {:?} for source {:?} -> {:?}",
+        mesh_type, material_type, source_entity, render_entity
+    );
+
+    renderer.link_source_item(&source_entity, &render_entity);
+
+    commands.entity(layout_entity).add_child(render_entity);
 }
