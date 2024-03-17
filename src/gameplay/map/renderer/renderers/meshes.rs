@@ -9,7 +9,6 @@ use bevy::{
 
 pub struct Hexagon3D;
 
-#[rustfmt::skip]
 impl Hexagon3D {
     pub fn create_base(size: f32, starting_angle: f32) -> Mesh {
         let mut corners_clockwise = HexCorners {
@@ -19,7 +18,7 @@ impl Hexagon3D {
         }
         .take(6);
 
-        let top_vertices = [
+        let top_vertices: [[f32; 3]; 6] = [
             corners_clockwise.next().unwrap(),
             corners_clockwise.next().unwrap(),
             corners_clockwise.next().unwrap(),
@@ -55,11 +54,17 @@ impl Hexagon3D {
                 [0.0, 1.0, 0.0],
             ],
         )
-        .with_inserted_indices(Indices::U16(vec![
-						2, 4, 0,
-						0, 1, 2,
-						2, 3, 4,
-						4, 5, 0,
-					]))
+        .with_inserted_attribute(
+            Mesh::ATTRIBUTE_UV_0,
+            vec![
+                [0.000093, 0.250046],
+                [0.865957, 0.250046],
+                [0.433025, 0.999907],
+                [0.000093, 0.749953],
+                [0.433025, 0.000093],
+                [0.865957, 0.749954],
+            ],
+        )
+        .with_inserted_indices(Indices::U16(vec![2, 4, 0, 0, 1, 2, 2, 3, 4, 4, 5, 0]))
     }
 }
