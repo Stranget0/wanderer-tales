@@ -35,7 +35,7 @@ impl TileHeight {
     }
 
     pub fn get_height(&self) -> u8 {
-        (self.midpoint as i16 + (self.offset * 35.0) as i16) as u8
+        (self.midpoint as i16 / 4 + (self.offset * 2.0) as i16 * 10) as u8
     }
 
     pub fn get_material(&self) -> MaterialType {
