@@ -3,8 +3,8 @@ use bevy::{prelude::*, utils::hashbrown::HashMap};
 use crate::gameplay::{
     map::{
         renderer::{
-            components::RenderType, debug::uv_debug_texture, events::RenderCharacterEvent,
-            utils::MaterialKey,
+            components::{MaterialType, MeshType},
+            debug::uv_debug_texture,
         },
         utils::{
             hex_layout::HexLayout,
@@ -12,19 +12,22 @@ use crate::gameplay::{
             hex_vector::FractionalHexVector,
         },
     },
-    player::components::HexPosition,
+    player::components::{HexPosition, HexPositionFractional},
 };
 
 use super::{
     meshes::Hexagon3D,
-    traits::{CreateCharacterRenderBundle, CreateMapRenderBundle, RenderMap, RenderMapApi},
+    traits::{
+        CreateCharacterRenderBundle, CreateMapRenderBundle, CreateRenderBundle, RenderMap,
+        RenderMapApi,
+    },
 };
 
 #[derive(Component)]
 pub struct Renderer3D {
     renders_map: RenderMap,
-    pub materials_map: HashMap<MaterialKey, Handle<StandardMaterial>>,
-    pub meshes_map: HashMap<RenderType, Handle<Mesh>>,
+    pub materials_map: HashMap<MaterialType, Handle<StandardMaterial>>,
+    pub meshes_map: HashMap<MeshType, Handle<Mesh>>,
 }
 
 impl Renderer3D {
@@ -45,7 +48,7 @@ impl Renderer3D {
     }
     fn get_hex_mesh(&self) -> Handle<Mesh> {
         self.meshes_map
-            .get(&RenderType::HexMapTile)
+            .get(&MeshType::HexMapTile)
             .expect("Could not get hex mesh")
             .clone()
     }
@@ -70,51 +73,91 @@ impl RenderMapApi for Renderer3D {
     }
 }
 
-impl CreateMapRenderBundle<PbrBundle> for Renderer3D {
-    fn create_map_render_bundle(
+// impl CreateMapRenderBundle<PbrBundle> for Renderer3D {
+//     fn create_map_render_bundle(
+//         &self,
+//         layout: &HexLayout,
+//         pos: &HexPosition,
+//         biome: &Biome,
+//         height: &Height,
+//     ) -> PbrBundle {
+//         let transform = Self::get_hex_transform(layout, pos, height);
+//         let material = self.get_hex_material(height, biome);
+//         let mesh = self
+//             .meshes_map
+//             .get(&MeshType::HexMapTile)
+//             .expect("Failed getting hex 2d mesh");
+
+//         PbrBundle {
+//             mesh: mesh.clone(),
+//             material: material.clone(),
+//             transform,
+//             ..Default::default()
+//         }
+//     }
+// }
+
+// impl CreateCharacterRenderBundle<PbrBundle> for Renderer3D {
+//     fn create_character_render_bundle(
+//         &self,
+//         pos: &Vec2,
+//         source_entity: Entity,
+//         material_key: MaterialType,
+//         position: HexPositionFractional,
+//     ) -> PbrBundle {
+//         let mesh_handle = self
+//             .meshes_map
+//             .get(&MeshType::Player)
+//             .expect("Player mesh not found");
+
+//         let material_handle = self
+//             .materials_map
+//             .get(&material_key)
+//             .unwrap_or_else(|| panic!("could not get {} material", material_key));
+
+//         PbrBundle {
+//             mesh: mesh_handle.clone(),
+//             material: material_handle.clone(),
+//             transform: Transform::from_xyz(pos.x, pos.y, 256.0),
+//             ..default()
+//         }
+//     }
+// }
+
+impl CreateRenderBundle<PbrBundle> for Renderer3D {
+    fn create_render_bundle(
         &self,
-        layout: &HexLayout,
-        pos: &HexPosition,
-        biome: &Biome,
-        height: &Height,
+        pos: &Vec3,
+        material_type: &MaterialType,
+        mesh_type: &MeshType,
     ) -> PbrBundle {
-        let transform = Self::get_hex_transform(layout, pos, height);
-        let material = self.get_hex_material(height, biome);
+        let transform = Transform::from_xyz(pos.x, pos.y, pos.z);
+
+        let material = self
+            .materials_map
+            .get(material_type)
+            .unwrap_or_else(|| {
+                self.materials_map
+                    .get(&MaterialType::Debug)
+                    .expect("Could not get debug material")
+            })
+            .clone();
+
         let mesh = self
             .meshes_map
-            .get(&RenderType::HexMapTile)
-            .expect("Failed getting hex 2d mesh");
+            .get(mesh_type)
+            .unwrap_or_else(|| {
+                self.meshes_map
+                    .get(&MeshType::Debug)
+                    .expect("Could not get debug mesh")
+            })
+            .clone();
 
         PbrBundle {
-            mesh: mesh.clone(),
-            material: material.clone(),
+            mesh,
+            material,
             transform,
             ..Default::default()
-        }
-    }
-}
-
-impl CreateCharacterRenderBundle<PbrBundle> for Renderer3D {
-    fn create_character_render_bundle(
-        &self,
-        pos: &Vec2,
-        event: &RenderCharacterEvent,
-    ) -> PbrBundle {
-        let mesh_handle = self
-            .meshes_map
-            .get(&RenderType::Player)
-            .expect("Player mesh not found");
-
-        let material_handle = self
-            .materials_map
-            .get(&event.material_key)
-            .unwrap_or_else(|| panic!("could not get {} material", event.material_key));
-
-        PbrBundle {
-            mesh: mesh_handle.clone(),
-            material: material_handle.clone(),
-            transform: Transform::from_xyz(pos.x, pos.y, 256.0),
-            ..default()
         }
     }
 }
@@ -135,24 +178,24 @@ impl Renderer3D {
         });
 
         let materials = [
-            MaterialKey::Beach,
-            MaterialKey::Grass,
-            MaterialKey::Forest,
-            MaterialKey::Mountain,
-            MaterialKey::Water,
-            MaterialKey::Player,
+            MaterialType::Beach,
+            MaterialType::Grass,
+            MaterialType::Forest,
+            MaterialType::Mountain,
+            MaterialType::Water,
+            MaterialType::Player,
         ];
 
         for key in materials {
             materials_map.insert(key, debug_material.clone());
         }
 
-        let entries: [(RenderType, Mesh); 2] = [
+        let entries: [(MeshType, Mesh); 2] = [
             (
-                RenderType::HexMapTile,
+                MeshType::HexMapTile,
                 Hexagon3D::create_mesh(layout.size.x, layout.orientation.starting_angle),
             ),
-            (RenderType::Player, Sphere::new(layout.size.x).into()),
+            (MeshType::Player, Sphere::new(layout.size.x).into()),
         ];
 
         for (key, mesh) in entries {

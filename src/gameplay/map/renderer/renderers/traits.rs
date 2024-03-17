@@ -2,13 +2,14 @@ use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 use crate::gameplay::{
     map::{
-        renderer::events::RenderCharacterEvent,
+        renderer::components::{MaterialType, MeshType},
         utils::{
             hex_layout::HexLayout,
             hex_map_item::{Biome, Height},
+            hex_vector::FractionalHexVector,
         },
     },
-    player::components::HexPosition,
+    player::components::{HexPosition, HexPositionFractional},
 };
 
 pub trait RenderMapApi {
@@ -32,7 +33,22 @@ pub trait CreateMapRenderBundle<T: Bundle> {
 }
 
 pub trait CreateCharacterRenderBundle<T: Bundle> {
-    fn create_character_render_bundle(&self, pos: &Vec2, event: &RenderCharacterEvent) -> T;
+    fn create_character_render_bundle(
+        &self,
+        pos: &Vec2,
+        source_entity: Entity,
+        material_key: MaterialType,
+        position: HexPositionFractional,
+    ) -> T;
+}
+
+pub trait CreateRenderBundle<T: Bundle> {
+    fn create_render_bundle(
+        &self,
+        pos: &Vec3,
+        material_type: &MaterialType,
+        mesh_type: &MeshType,
+    ) -> T;
 }
 
 #[derive(Debug)]

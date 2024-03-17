@@ -6,23 +6,25 @@ use bevy::{
 
 use crate::gameplay::{
     map::{
-        renderer::{components::RenderType, events::RenderCharacterEvent, utils::MaterialKey},
+        renderer::components::{MaterialType, MeshType},
         utils::{
             hex_layout::HexLayout,
             hex_map_item::{Biome, Height},
             hex_vector::FractionalHexVector,
         },
     },
-    player::components::HexPosition,
+    player::components::{HexPosition, HexPositionFractional},
 };
 
-use super::traits::{CreateCharacterRenderBundle, CreateMapRenderBundle, RenderMap, RenderMapApi};
+use super::traits::{
+    CreateCharacterRenderBundle, CreateMapRenderBundle, CreateRenderBundle, RenderMap, RenderMapApi,
+};
 
 #[derive(Component)]
 pub struct Renderer2D {
     renders_map: RenderMap,
-    pub materials_map: HashMap<MaterialKey, Handle<ColorMaterial>>,
-    pub meshes_map: HashMap<RenderType, Mesh2dHandle>,
+    pub materials_map: HashMap<MaterialType, Handle<ColorMaterial>>,
+    pub meshes_map: HashMap<MeshType, Mesh2dHandle>,
 }
 
 impl RenderMapApi for Renderer2D {
@@ -44,62 +46,94 @@ impl RenderMapApi for Renderer2D {
     }
 }
 
-impl CreateMapRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
-    fn create_map_render_bundle(
+impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
+    fn create_render_bundle(
         &self,
-        layout: &HexLayout,
-        pos: &HexPosition,
-        biome: &Biome,
-        height: &Height,
+        pos: &Vec3,
+        material_type: &MaterialType,
+        mesh_type: &MeshType,
     ) -> MaterialMesh2dBundle<ColorMaterial> {
-        let pos = layout.hex_to_pixel(&FractionalHexVector::from(&pos.0));
-        let transform = Transform::from_xyz(pos.x, pos.y, 0.0);
-        let material_key = height.get_material();
+        let transform = Transform::from_xyz(pos.x, pos.y, pos.z);
 
         let material = self
             .materials_map
-            .get(&material_key)
-            .unwrap_or_else(|| panic!("failed getting {material_key} material"))
+            .get(material_type)
+            .unwrap_or_else(|| self.materials_map.get(&MaterialType::Debug).unwrap())
             .clone();
 
         let mesh = self
             .meshes_map
-            .get(&RenderType::HexMapTile)
-            .expect("Failed getting hex 2d mesh");
+            .get(mesh_type)
+            .unwrap_or_else(|| self.meshes_map.get(&MeshType::Debug).unwrap())
+            .clone();
 
         MaterialMesh2dBundle {
-            mesh: mesh.clone(),
-            material: material.clone(),
+            mesh,
+            material,
             transform,
             ..Default::default()
         }
     }
 }
 
-impl CreateCharacterRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
-    fn create_character_render_bundle(
-        &self,
-        pos: &Vec2,
-        event: &RenderCharacterEvent,
-    ) -> MaterialMesh2dBundle<ColorMaterial> {
-        let mesh_handle = self
-            .meshes_map
-            .get(&RenderType::Player)
-            .expect("Player mesh not found");
+// impl CreateMapRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
+//     fn create_map_render_bundle(
+//         &self,
+//         layout: &HexLayout,
+//         pos: &HexPosition,
+//         biome: &Biome,
+//         height: &Height,
+//     ) -> MaterialMesh2dBundle<ColorMaterial> {
+//         let pos = layout.hex_to_pixel(&FractionalHexVector::from(&pos.0));
+//         let transform = Transform::from_xyz(pos.x, pos.y, 0.0);
+//         let material_key = height.get_material();
 
-        let material_handle = self
-            .materials_map
-            .get(&event.material_key)
-            .unwrap_or_else(|| panic!("could not get {} material", event.material_key));
+//         let material = self
+//             .materials_map
+//             .get(&material_key)
+//             .unwrap_or_else(|| panic!("failed getting {material_key} material"))
+//             .clone();
 
-        MaterialMesh2dBundle {
-            mesh: mesh_handle.clone(),
-            material: material_handle.clone(),
-            transform: Transform::from_xyz(pos.x, pos.y, 2.0),
-            ..default()
-        }
-    }
-}
+//         let mesh = self
+//             .meshes_map
+//             .get(&MeshType::HexMapTile)
+//             .expect("Failed getting hex 2d mesh");
+
+//         MaterialMesh2dBundle {
+//             mesh: mesh.clone(),
+//             material: material.clone(),
+//             transform,
+//             ..Default::default()
+//         }
+//     }
+// }
+
+// impl CreateCharacterRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
+//     fn create_character_render_bundle(
+//         &self,
+//         pos: &Vec2,
+//         source_entity: Entity,
+//         material_key: &MaterialType,
+//         position: &HexPositionFractional,
+//     ) -> MaterialMesh2dBundle<ColorMaterial> {
+//         let mesh_handle = self
+//             .meshes_map
+//             .get(&MeshType::Player)
+//             .expect("Player mesh not found");
+
+//         let material_handle = self
+//             .materials_map
+//             .get(material_key)
+//             .unwrap_or_else(|| panic!("could not get {} material", material_key));
+
+//         MaterialMesh2dBundle {
+//             mesh: mesh_handle.clone(),
+//             material: material_handle.clone(),
+//             transform: Transform::from_xyz(pos.x, pos.y, 2.0),
+//             ..default()
+//         }
+//     }
+// }
 
 impl Renderer2D {
     pub fn new(
@@ -111,13 +145,13 @@ impl Renderer2D {
         let mut meshes_map = HashMap::default();
 
         let colors = [
-            (MaterialKey::Beach, Color::hex("#e1d76a")),
-            (MaterialKey::Grass, Color::hex("#36b90b")),
-            (MaterialKey::Forest, Color::hex("#054303")),
-            (MaterialKey::Mountain, Color::hex("#302c2a")),
-            (MaterialKey::Water, Color::hex("#0E499A")),
-            (MaterialKey::Player, Color::hex("#f7f1d8")),
-            (MaterialKey::Debug, Color::hex("#ea00ff")),
+            (MaterialType::Beach, Color::hex("#e1d76a")),
+            (MaterialType::Grass, Color::hex("#36b90b")),
+            (MaterialType::Forest, Color::hex("#054303")),
+            (MaterialType::Mountain, Color::hex("#302c2a")),
+            (MaterialType::Water, Color::hex("#0E499A")),
+            (MaterialType::Player, Color::hex("#f7f1d8")),
+            (MaterialType::Debug, Color::hex("#ea00ff")),
         ];
 
         for (key, color) in colors {
@@ -125,12 +159,12 @@ impl Renderer2D {
             materials_map.insert(key, material_handle);
         }
 
-        let entries: [(RenderType, Mesh); 2] = [
+        let entries: [(MeshType, Mesh); 2] = [
             (
-                RenderType::HexMapTile,
+                MeshType::HexMapTile,
                 RegularPolygon::new(layout.size.x, 6).into(),
             ),
-            (RenderType::Player, Circle::new(3.0).into()),
+            (MeshType::Player, Circle::new(3.0).into()),
         ];
 
         for (key, mesh) in entries {

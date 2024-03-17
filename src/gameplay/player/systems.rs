@@ -3,9 +3,7 @@ use bevy::prelude::*;
 use crate::gameplay::{
     map::{
         components::SourceLayout,
-        renderer::{
-            components::SourceCameraFollow, events::RenderCharacterEvent, utils::MaterialKey,
-        },
+        renderer::components::{MaterialType, MeshType, SourceCameraFollow},
         utils::{hex_layout::HexLayout, hex_vector::FractionalHexVector},
     },
     player::components::{HexPositionFractional, HexPositionFractionalDelta},
@@ -18,7 +16,6 @@ use super::{
 
 pub fn spawn_player(
     mut commands: Commands,
-    mut render_character_event: EventWriter<RenderCharacterEvent>,
     mut player_with_sight_event: EventWriter<PlayerWithSightSpawnedEvent>,
     source_layout: Query<Entity, With<SourceLayout>>,
 ) {
@@ -33,18 +30,14 @@ pub fn spawn_player(
                 PlayerRoot,
                 PlayerControllable,
                 SourceCameraFollow,
+                MeshType::Player,
+                MaterialType::Player,
                 pos.clone(),
                 HexPositionFractionalDelta::default(),
             ))
             .id();
 
         commands.entity(layout_entity).add_child(player_entity);
-
-        render_character_event.send(RenderCharacterEvent {
-            source_entity: player_entity,
-            material_key: MaterialKey::Player,
-            position: pos.clone(),
-        });
 
         player_with_sight_event.send(PlayerWithSightSpawnedEvent {
             sight: Sight(sight),

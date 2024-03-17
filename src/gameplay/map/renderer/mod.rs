@@ -10,21 +10,17 @@ use self::{
     renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
     state::RendererState,
     systems::{
-        camera_follow, despawn_map, empty_map, fill_map, move_rendered_character, render_character,
-        render_map, show_entity, synchronize_rendered_characters,
+        camera_follow, despawn_map, empty_map, fill_map, move_rendered_character, render_map,
+        render_static_map_items, show_entity,
     },
 };
-
-use super::spawner::systems::{despawn_map_data, spawn_map_data};
 
 mod bundles;
 pub mod components;
 pub mod debug;
-pub mod events;
 pub mod renderers;
 pub mod state;
 mod systems;
-pub mod utils;
 
 pub struct RendererPlugin;
 
@@ -43,8 +39,8 @@ impl Plugin for RendererPlugin {
             Update,
             (
                 render_map::<PbrBundle, Renderer3D>,
-                despawn_map::<Renderer3D>.after(despawn_map_data),
-                render_character::<PbrBundle, Renderer3D>,
+                despawn_map::<Renderer3D>,
+                render_static_map_items::<PbrBundle, Renderer3D>,
                 move_rendered_character::<Renderer3D>,
                 camera_follow::<Renderer3D>,
             )
@@ -70,9 +66,9 @@ impl Plugin for RendererPlugin {
         .add_systems(
             Update,
             (
-                render_map::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>.after(spawn_map_data),
-                despawn_map::<Renderer2D>.after(despawn_map_data),
-                render_character::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
+                render_map::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
+                despawn_map::<Renderer2D>,
+                render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
                 move_rendered_character::<Renderer2D>,
                 camera_follow::<Renderer2D>,
             )

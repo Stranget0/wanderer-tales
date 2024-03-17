@@ -8,9 +8,9 @@ use rand::Rng;
 use crate::gameplay::{
     map::{
         components::SourceLayout,
-        renderer::components::RenderGroup,
+        renderer::components::{MeshType, RenderGroup},
         utils::{
-            hex_map_item::{Biome, Height, HexMapItemBundle},
+            hex_map_item::{Biome, Height, HexMapTileBundle},
             hex_vector::{iterators::HexVectorSpiral, HexVector},
         },
     },
@@ -50,24 +50,19 @@ pub fn spawn_map_data(
 
         for layout_entity in layout_query.iter() {
             let mut additive_entities: Vec<Entity> = vec![];
+            let mut additive_hexes: Vec<(Entity, HexMapTileBundle)> = vec![];
 
             for hex in HexVectorSpiral::new(&new_origin, from, to) {
                 if hex_to_map_source_entity.0.contains_key(&hex) {
                     continue;
                 }
 
-                let bundle = HexMapItemBundle {
-                    biome: get_biome(&hex),
-                    height: Height {
-                        midpoint: get_height_midpoint(&hex, &seed_table),
-                        offset: get_height_offset(&hex, &seed_table),
-                    },
-                    pos: HexPosition(hex.clone()),
-                };
+                let bundle = create_map_tile_bundle(&hex, &seed_table);
 
-                let hex_entity = commands.spawn(bundle).id();
+                let hex_entity = commands.spawn(bundle.clone()).id();
                 hex_to_map_source_entity.0.insert(hex, hex_entity);
                 additive_entities.push(hex_entity);
+                additive_hexes.push((hex_entity, bundle));
             }
 
             commands
@@ -75,7 +70,7 @@ pub fn spawn_map_data(
                 .push_children(&additive_entities);
 
             render_event.send(MapAddEvent {
-                source_items: additive_entities,
+                source_items: additive_hexes,
                 render_groups: MAP_RENDER_GROUPS.to_vec(),
             });
         }
@@ -146,24 +141,19 @@ pub fn init_map_data(
 
         for layout_entity in layout_query.iter() {
             let mut additive_entities: Vec<Entity> = vec![];
+            let mut additive_hexes: Vec<(Entity, HexMapTileBundle)> = vec![];
 
             for hex in HexVectorSpiral::new(&origin, from, to) {
                 if hex_to_map_source_entity.0.contains_key(&hex) {
                     continue;
                 }
 
-                let bundle = HexMapItemBundle {
-                    biome: get_biome(&hex),
-                    height: Height {
-                        midpoint: get_height_midpoint(&hex, &seed_table),
-                        offset: get_height_offset(&hex, &seed_table),
-                    },
-                    pos: HexPosition(hex.clone()),
-                };
+                let bundle = create_map_tile_bundle(&hex, &seed_table);
 
-                let hex_entity = commands.spawn(bundle).id();
+                let hex_entity = commands.spawn(bundle.clone()).id();
                 hex_to_map_source_entity.0.insert(hex, hex_entity);
                 additive_entities.push(hex_entity);
+                additive_hexes.push((hex_entity, bundle));
             }
 
             commands
@@ -171,7 +161,7 @@ pub fn init_map_data(
                 .push_children(&additive_entities);
 
             render_event.send(MapAddEvent {
-                source_items: additive_entities,
+                source_items: additive_hexes,
                 render_groups: MAP_RENDER_GROUPS.to_vec(),
             });
         }
@@ -242,4 +232,20 @@ fn get_biome(_hex: &HexVector) -> Biome {
 
 fn is_moved_event_irrelevant(e: &CharacterMovedEvent) -> bool {
     !e.is_player_controllable || e.sight.is_none()
+}
+
+fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMapTileBundle {
+    let height = Height {
+        midpoint: get_height_midpoint(hex, seed_table),
+        offset: get_height_offset(hex, seed_table),
+    };
+    let material_type = height.get_material();
+
+    HexMapTileBundle {
+        biome: get_biome(hex),
+        height,
+        pos: HexPosition(hex.clone()),
+        mesh_type: MeshType::HexMapTile,
+        material_type,
+    }
 }

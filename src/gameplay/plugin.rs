@@ -5,7 +5,6 @@ use super::{
         components::SourceLayout,
         renderer::{
             components::RenderGroup,
-            events::RenderCharacterEvent,
             renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
             state::RendererState,
             RendererPlugin,
@@ -31,7 +30,6 @@ impl Plugin for GameplayPlugin {
             .insert_resource(HexToMapSourceEntity::default())
             .add_event::<MapAddEvent>()
             .add_event::<MapSubEvent>()
-            .add_event::<RenderCharacterEvent>()
             .add_event::<CharacterMovedEvent>()
             .add_event::<PlayerWithSightSpawnedEvent>()
             .add_systems(Startup, initialize_map)
