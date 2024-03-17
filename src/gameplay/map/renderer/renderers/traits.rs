@@ -6,7 +6,6 @@ use crate::gameplay::{
         utils::{
             hex_layout::HexLayout,
             hex_map_item::{Biome, TileHeight},
-            hex_vector::FractionalHexVector,
         },
     },
     player::components::{HexPosition, HexPositionFractional},
@@ -51,7 +50,7 @@ pub trait CreateRenderBundle<T: Bundle> {
     ) -> T;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct RenderMap(HashMap<u32, Entity>);
 
 impl RenderMapApi for RenderMap {
@@ -69,11 +68,5 @@ impl RenderMapApi for RenderMap {
         render_entity: &Entity,
     ) -> Option<Entity> {
         self.0.insert(source_entity.index(), *render_entity)
-    }
-}
-
-impl Default for RenderMap {
-    fn default() -> Self {
-        Self(Default::default())
     }
 }

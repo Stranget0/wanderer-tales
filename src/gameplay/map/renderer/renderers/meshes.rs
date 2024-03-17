@@ -11,7 +11,7 @@ pub struct Hexagon3D;
 
 #[rustfmt::skip]
 impl Hexagon3D {
-    pub fn create_mesh(size: f32, starting_angle: f32) -> Mesh {
+    pub fn create_base(size: f32, starting_angle: f32) -> Mesh {
         let mut corners_clockwise = HexCorners {
             corner: 0,
             size,

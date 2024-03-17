@@ -4,21 +4,12 @@ use bevy::{
     utils::hashbrown::HashMap,
 };
 
-use crate::gameplay::{
-    map::{
-        renderer::components::{MaterialType, MeshType},
-        utils::{
-            hex_layout::HexLayout,
-            hex_map_item::{Biome, TileHeight},
-            hex_vector::FractionalHexVector,
-        },
-    },
-    player::components::{HexPosition, HexPositionFractional},
+use crate::gameplay::map::{
+    renderer::components::{MaterialType, MeshType},
+    utils::hex_layout::HexLayout,
 };
 
-use super::traits::{
-    CreateCharacterRenderBundle, CreateMapRenderBundle, CreateRenderBundle, RenderMap, RenderMapApi,
-};
+use super::traits::{CreateRenderBundle, RenderMap, RenderMapApi};
 
 #[derive(Component)]
 pub struct Renderer2D {

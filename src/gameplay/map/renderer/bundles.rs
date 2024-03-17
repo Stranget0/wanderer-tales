@@ -4,7 +4,7 @@ use crate::gameplay::theme::constants::COLORS;
 
 use super::components::CameraOffset;
 
-const CLEAR_COLOR: ClearColorConfig = ClearColorConfig::Custom(COLORS.gray.l100);
+const CLEAR_COLOR: ClearColorConfig = ClearColorConfig::Custom(COLORS.gray.l900);
 
 #[derive(Bundle)]
 pub struct Game3DCameraBundle(Camera3dBundle, CameraOffset);
@@ -19,6 +19,7 @@ impl Default for Game3DCameraBundle {
                 camera: Camera {
                     order: 1,
                     clear_color: CLEAR_COLOR,
+                    is_active: false,
                     ..default()
                 },
                 ..default()
@@ -34,6 +35,7 @@ impl Default for Game2DCameraBundle {
             camera: Camera {
                 order: 2,
                 clear_color: CLEAR_COLOR,
+                is_active: false,
                 ..default()
             },
             ..default()

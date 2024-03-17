@@ -108,6 +108,14 @@ pub(crate) fn remove_moving_render_items<R: RenderMapApi + Component>(
     }
 }
 
+pub(crate) fn set_camera_state<W: Component, const IS_ACTIVE: bool>(
+    mut camera_query: Query<&mut Camera, With<W>>,
+) {
+    for mut camera in camera_query.iter_mut() {
+        camera.is_active = IS_ACTIVE;
+    }
+}
+
 fn despawn_render_item<R: RenderMapApi + Component>(
     renderer: &mut Mut<R>,
     source_entity: &Entity,
@@ -305,7 +313,7 @@ pub(crate) fn camera_follow<R: RenderMapApi + Component>(
                     }
                 }
                 None => {
-                    error!("Failed following entity");
+                    warn!("Failed following entity");
                 }
             }
         }

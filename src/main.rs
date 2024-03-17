@@ -10,7 +10,7 @@ fn main() {
         .insert_state(SceneState::Game)
         .add_plugins((
             DefaultPlugins,
-            // EditorPlugin::default(),
+            EditorPlugin::default(),
             GameplayPlugin,
             FPSPlugin,
         ))

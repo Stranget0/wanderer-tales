@@ -1,26 +1,16 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::{
-    map::{
-        renderer::{
-            components::{MaterialType, MeshType},
-            debug::uv_debug_texture,
-        },
-        utils::{
-            hex_layout::HexLayout,
-            hex_map_item::{Biome, TileHeight},
-            hex_vector::FractionalHexVector,
-        },
+use crate::gameplay::map::{
+    renderer::{
+        components::{MaterialType, MeshType},
+        debug::uv_debug_texture,
     },
-    player::components::{HexPosition, HexPositionFractional},
+    utils::hex_layout::HexLayout,
 };
 
 use super::{
     meshes::Hexagon3D,
-    traits::{
-        CreateCharacterRenderBundle, CreateMapRenderBundle, CreateRenderBundle, RenderMap,
-        RenderMapApi,
-    },
+    traits::{CreateRenderBundle, RenderMap, RenderMapApi},
 };
 
 #[derive(Component)]
@@ -28,30 +18,6 @@ pub struct Renderer3D {
     renders_map: RenderMap,
     pub materials_map: HashMap<MaterialType, Handle<StandardMaterial>>,
     pub meshes_map: HashMap<MeshType, Handle<Mesh>>,
-}
-
-impl Renderer3D {
-    fn get_hex_transform(layout: &HexLayout, pos: &HexPosition, height: &TileHeight) -> Transform {
-        let pos = layout.hex_to_pixel(&FractionalHexVector::from(&pos.0));
-
-        Transform::from_xyz(pos.x, pos.y, height.get_height().into())
-    }
-    fn get_hex_material(&self, height: &TileHeight, biome: &Biome) -> Handle<StandardMaterial> {
-        {
-            let material_key = height.get_material();
-
-            self.materials_map
-                .get(&material_key)
-                .unwrap_or_else(|| panic!("failed getting {material_key} material"))
-                .clone()
-        }
-    }
-    fn get_hex_mesh(&self) -> Handle<Mesh> {
-        self.meshes_map
-            .get(&MeshType::HexMapTile)
-            .expect("Could not get hex mesh")
-            .clone()
-    }
 }
 
 impl RenderMapApi for Renderer3D {
@@ -193,7 +159,7 @@ impl Renderer3D {
         let entries: [(MeshType, Mesh); 2] = [
             (
                 MeshType::HexMapTile,
-                Hexagon3D::create_mesh(layout.size.x, layout.orientation.starting_angle),
+                Hexagon3D::create_base(layout.size.x, layout.orientation.starting_angle),
             ),
             (MeshType::Player, Sphere::new(layout.size.x).into()),
         ];
