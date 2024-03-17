@@ -2,7 +2,10 @@ use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 use crate::gameplay::{
     map::{
-        renderer::{debug::uv_debug_texture, events::RenderCharacterEvent, utils::MaterialKey},
+        renderer::{
+            components::RenderType, debug::uv_debug_texture, events::RenderCharacterEvent,
+            utils::MaterialKey,
+        },
         utils::{
             hex_layout::HexLayout,
             hex_map_item::{Biome, Height},
@@ -17,17 +20,11 @@ use super::{
     traits::{CreateCharacterRenderBundle, CreateMapRenderBundle, RenderMap, RenderMapApi},
 };
 
-#[derive(Debug, Hash, Eq, PartialEq)]
-pub enum MeshKey3D {
-    Hex,
-    Character,
-}
-
 #[derive(Component)]
 pub struct Renderer3D {
     renders_map: RenderMap,
     pub materials_map: HashMap<MaterialKey, Handle<StandardMaterial>>,
-    pub meshes_map: HashMap<MeshKey3D, Handle<Mesh>>,
+    pub meshes_map: HashMap<RenderType, Handle<Mesh>>,
 }
 
 impl Renderer3D {
@@ -48,7 +45,7 @@ impl Renderer3D {
     }
     fn get_hex_mesh(&self) -> Handle<Mesh> {
         self.meshes_map
-            .get(&MeshKey3D::Hex)
+            .get(&RenderType::HexMapTile)
             .expect("Could not get hex mesh")
             .clone()
     }
@@ -85,7 +82,7 @@ impl CreateMapRenderBundle<PbrBundle> for Renderer3D {
         let material = self.get_hex_material(height, biome);
         let mesh = self
             .meshes_map
-            .get(&MeshKey3D::Hex)
+            .get(&RenderType::HexMapTile)
             .expect("Failed getting hex 2d mesh");
 
         PbrBundle {
@@ -105,7 +102,7 @@ impl CreateCharacterRenderBundle<PbrBundle> for Renderer3D {
     ) -> PbrBundle {
         let mesh_handle = self
             .meshes_map
-            .get(&MeshKey3D::Character)
+            .get(&RenderType::Player)
             .expect("Player mesh not found");
 
         let material_handle = self
@@ -150,12 +147,12 @@ impl Renderer3D {
             materials_map.insert(key, debug_material.clone());
         }
 
-        let entries: [(MeshKey3D, Mesh); 2] = [
+        let entries: [(RenderType, Mesh); 2] = [
             (
-                MeshKey3D::Hex,
+                RenderType::HexMapTile,
                 Hexagon3D::create_mesh(layout.size.x, layout.orientation.starting_angle),
             ),
-            (MeshKey3D::Character, Sphere::new(layout.size.x).into()),
+            (RenderType::Player, Sphere::new(layout.size.x).into()),
         ];
 
         for (key, mesh) in entries {

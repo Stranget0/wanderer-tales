@@ -6,7 +6,7 @@ use bevy::{
 
 use crate::gameplay::{
     map::{
-        renderer::{events::RenderCharacterEvent, utils::MaterialKey},
+        renderer::{components::RenderType, events::RenderCharacterEvent, utils::MaterialKey},
         utils::{
             hex_layout::HexLayout,
             hex_map_item::{Biome, Height},
@@ -18,17 +18,11 @@ use crate::gameplay::{
 
 use super::traits::{CreateCharacterRenderBundle, CreateMapRenderBundle, RenderMap, RenderMapApi};
 
-#[derive(Debug, Hash, Eq, PartialEq)]
-pub enum MeshKey2d {
-    Hex,
-    Character,
-}
-
 #[derive(Component)]
 pub struct Renderer2D {
     renders_map: RenderMap,
     pub materials_map: HashMap<MaterialKey, Handle<ColorMaterial>>,
-    pub meshes_map: HashMap<MeshKey2d, Mesh2dHandle>,
+    pub meshes_map: HashMap<RenderType, Mesh2dHandle>,
 }
 
 impl RenderMapApi for Renderer2D {
@@ -70,7 +64,7 @@ impl CreateMapRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
 
         let mesh = self
             .meshes_map
-            .get(&MeshKey2d::Hex)
+            .get(&RenderType::HexMapTile)
             .expect("Failed getting hex 2d mesh");
 
         MaterialMesh2dBundle {
@@ -90,7 +84,7 @@ impl CreateCharacterRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Render
     ) -> MaterialMesh2dBundle<ColorMaterial> {
         let mesh_handle = self
             .meshes_map
-            .get(&MeshKey2d::Character)
+            .get(&RenderType::Player)
             .expect("Player mesh not found");
 
         let material_handle = self
@@ -131,9 +125,12 @@ impl Renderer2D {
             materials_map.insert(key, material_handle);
         }
 
-        let entries: [(MeshKey2d, Mesh); 2] = [
-            (MeshKey2d::Hex, RegularPolygon::new(layout.size.x, 6).into()),
-            (MeshKey2d::Character, Circle::new(3.0).into()),
+        let entries: [(RenderType, Mesh); 2] = [
+            (
+                RenderType::HexMapTile,
+                RegularPolygon::new(layout.size.x, 6).into(),
+            ),
+            (RenderType::Player, Circle::new(3.0).into()),
         ];
 
         for (key, mesh) in entries {
