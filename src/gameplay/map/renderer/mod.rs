@@ -10,7 +10,7 @@ use self::{
     renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
     state::RendererState,
     systems::{
-        camera_follow, despawn_map, fill_map, move_rendered_character, render_character,
+        camera_follow, despawn_map, empty_map, fill_map, move_rendered_character, render_character,
         render_map, show_entity, synchronize_rendered_characters,
     },
 };
@@ -35,7 +35,7 @@ impl Plugin for RendererPlugin {
             (
                 fill_map::<PbrBundle, Renderer3D>,
                 show_entity::<Renderer3D>,
-                synchronize_rendered_characters::<Renderer3D>,
+                // synchronize_rendered_characters::<Renderer3D>,
                 spawn_default_with_parent::<Game3DCameraBundle, With<Renderer3D>>,
             ),
         )
@@ -55,6 +55,7 @@ impl Plugin for RendererPlugin {
             (
                 hide_entity::<Renderer3D>,
                 despawn_with_parent::<With<Camera3d>>,
+                empty_map::<Renderer3D>,
             ),
         )
         .add_systems(
@@ -62,7 +63,7 @@ impl Plugin for RendererPlugin {
             (
                 fill_map::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
                 show_entity::<Renderer2D>,
-                synchronize_rendered_characters::<Renderer2D>,
+                // synchronize_rendered_characters::<Renderer2D>,
                 spawn_default_with_parent::<Game2DCameraBundle, With<Renderer2D>>,
             ),
         )
@@ -82,6 +83,7 @@ impl Plugin for RendererPlugin {
             (
                 despawn_with_parent::<With<Camera2d>>,
                 hide_entity::<Renderer2D>,
+                empty_map::<Renderer2D>,
             ),
         )
         .add_systems(Update, debug_switch_renderer);

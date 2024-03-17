@@ -75,6 +75,22 @@ pub(crate) fn fill_map<T: Bundle, R: CreateMapRenderBundle<T> + RenderMapApi + C
     }
 }
 
+pub(crate) fn empty_map<R: RenderMapApi + Component>(
+    mut commands: Commands,
+    mut layout_query: Query<&mut R>,
+    map_data_query: Query<Entity, (With<HexPosition>, With<Biome>, With<Height>)>,
+) {
+    for mut renderer in layout_query.iter_mut() {
+        for source_entity in map_data_query.iter() {
+            if let Some(render_entity) = renderer.get_render_item(&source_entity) {
+                commands.entity(*render_entity).remove_parent();
+                commands.entity(*render_entity).despawn_recursive();
+            }
+            renderer.remove_render_item(&source_entity);
+        }
+    }
+}
+
 pub(crate) fn show_entity<E: Component>(mut commands: Commands, query: Query<Entity, With<E>>) {
     for entity in query.iter() {
         commands.entity(entity).insert(Visibility::Visible);

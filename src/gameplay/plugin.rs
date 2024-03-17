@@ -26,7 +26,7 @@ pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_state(RendererState::TwoDimension)
+        app.insert_state(RendererState::ThreeDimension)
             .insert_resource(SeedTable::default())
             .insert_resource(HexToMapSourceEntity::default())
             .add_event::<MapAddEvent>()
