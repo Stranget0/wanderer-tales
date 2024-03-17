@@ -4,7 +4,11 @@ use crate::gameplay::{
     map::{
         components::SourceLayout,
         renderer::components::{MaterialType, MeshType, SourceCameraFollow},
-        utils::{hex_layout::HexLayout, hex_vector::FractionalHexVector},
+        utils::{
+            hex_layout::HexLayout,
+            hex_map_item::{Height, TileHeight},
+            hex_vector::FractionalHexVector,
+        },
     },
     player::components::{HexPositionFractional, HexPositionFractionalDelta},
 };
@@ -27,6 +31,7 @@ pub fn spawn_player(
                 WSADSteerable,
                 MapSpeed(2.0),
                 Sight(sight),
+                Height(50.0),
                 PlayerRoot,
                 PlayerControllable,
                 SourceCameraFollow,
@@ -80,6 +85,11 @@ pub fn move_2d_handle(
     mut character_moved_event: EventWriter<CharacterMovedEvent>,
     source_layout: Query<&HexLayout, With<SourceLayout>>,
 ) {
+    if wsad_event.is_empty() {
+        for (_, _, mut delta, _, _) in items_to_move.iter_mut() {
+            delta.0 = FractionalHexVector(0.0, 0.0, 0.0);
+        }
+    }
     for direction in wsad_event.read() {
         let mut events_to_send: Vec<CharacterMovedEvent> = vec![];
         for layout in source_layout.iter() {

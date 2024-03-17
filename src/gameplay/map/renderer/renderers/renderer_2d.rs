@@ -9,7 +9,7 @@ use crate::gameplay::{
         renderer::components::{MaterialType, MeshType},
         utils::{
             hex_layout::HexLayout,
-            hex_map_item::{Biome, Height},
+            hex_map_item::{Biome, TileHeight},
             hex_vector::FractionalHexVector,
         },
     },
@@ -53,7 +53,15 @@ impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
         material_type: &MaterialType,
         mesh_type: &MeshType,
     ) -> MaterialMesh2dBundle<ColorMaterial> {
-        let transform = Transform::from_xyz(pos.x, pos.y, pos.z);
+        let transform = Transform::from_xyz(
+            pos.x,
+            pos.y,
+            match mesh_type {
+                MeshType::HexMapTile => 0.0,
+                MeshType::Player => 1.0,
+                MeshType::Debug => 2.0,
+            },
+        );
 
         let material = self
             .materials_map

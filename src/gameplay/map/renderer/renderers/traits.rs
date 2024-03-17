@@ -5,7 +5,7 @@ use crate::gameplay::{
         renderer::components::{MaterialType, MeshType},
         utils::{
             hex_layout::HexLayout,
-            hex_map_item::{Biome, Height},
+            hex_map_item::{Biome, TileHeight},
             hex_vector::FractionalHexVector,
         },
     },
@@ -28,7 +28,7 @@ pub trait CreateMapRenderBundle<T: Bundle> {
         layout: &HexLayout,
         pos: &HexPosition,
         biome: &Biome,
-        height: &Height,
+        height: &TileHeight,
     ) -> T;
 }
 

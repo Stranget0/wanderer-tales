@@ -9,6 +9,7 @@ use crate::gameplay::{
 pub struct HexMapTileBundle {
     pub pos: HexPosition,
     pub biome: Biome,
+    pub tile_height: TileHeight,
     pub height: Height,
     pub mesh_type: MeshType,
     pub material_type: MaterialType,
@@ -20,15 +21,15 @@ pub enum Biome {
     Forest,
 }
 
-#[derive(Component, Clone, Debug, Copy)]
-pub struct Height {
+#[derive(Component, Clone, Debug)]
+pub struct TileHeight {
     // [0, 255]
     pub midpoint: u8,
     // [-1, 1]
     pub offset: f32,
 }
 
-impl Height {
+impl TileHeight {
     fn get_difference(&self) -> i16 {
         ((self.midpoint as f32) - self.offset) as i16
     }
@@ -57,3 +58,6 @@ impl Height {
         MaterialType::Mountain
     }
 }
+
+#[derive(Component, Clone, Debug)]
+pub struct Height(pub f32);

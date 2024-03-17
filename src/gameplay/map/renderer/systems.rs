@@ -1,10 +1,7 @@
 use crate::gameplay::{
-    map::{
-        spawner::{MapAddEvent, MapSubEvent},
-        utils::{hex_layout::HexLayout, hex_map_item::Height, hex_vector::FractionalHexVector},
-    },
+    map::utils::{hex_layout::HexLayout, hex_map_item::Height, hex_vector::FractionalHexVector},
     player::{
-        components::{Character, HexPosition, HexPositionFractional},
+        components::{Character, HexPosition, HexPositionFractional, HexPositionFractionalDelta},
         events::CharacterMovedEvent,
     },
 };
@@ -20,16 +17,17 @@ pub(crate) fn render_static_map_items<
     R: CreateRenderBundle<T> + RenderMapApi + Component,
 >(
     mut commands: Commands,
-    mut render_type_query: Query<(Entity, &HexPosition, &Height, &MeshType, &MaterialType)>,
+    render_type_query: Query<(Entity, &HexPosition, &Height, &MeshType, &MaterialType)>,
     mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
 ) {
     for (source_entity, position, height, mesh_type, material_type) in render_type_query.iter() {
-        for (layout_entity, layout, mut renderer) in layout_query.iter_mut() {
+        for (layout_entity, layout, renderer) in layout_query.iter_mut() {
             if renderer.get_render_item(&source_entity).is_some() {
                 continue;
             }
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
-            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.get_height().into());
+            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0);
+
             spawn_render_item(
                 &mut commands,
                 renderer,
@@ -45,7 +43,7 @@ pub(crate) fn render_static_map_items<
 
 pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
     mut commands: Commands,
-    mut render_type_query: Query<(
+    render_type_query: Query<(
         Entity,
         &HexPositionFractional,
         &Height,
@@ -55,12 +53,12 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapAp
     mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
 ) {
     for (source_entity, position, height, mesh_type, material_type) in render_type_query.iter() {
-        for (layout_entity, layout, mut renderer) in layout_query.iter_mut() {
+        for (layout_entity, layout, renderer) in layout_query.iter_mut() {
             if renderer.get_render_item(&source_entity).is_some() {
                 continue;
             }
             let pos_2d = layout.hex_to_pixel(&position.0);
-            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.get_height().into());
+            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0);
 
             spawn_render_item(
                 &mut commands,
@@ -72,6 +70,61 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapAp
                 layout_entity,
             );
         }
+    }
+}
+
+pub(crate) fn clean_render_items<R: RenderMapApi + Component>(
+    mut commands: Commands,
+    source_item_query: Query<(Entity, &MaterialType, &MeshType)>,
+    mut layout_query: Query<&mut R>,
+    mut last_items: Local<Vec<Entity>>,
+) {
+    for mut renderer in layout_query.iter_mut() {
+        for source_entity in last_items.iter() {
+            if source_item_query.get(*source_entity).is_err() {
+                despawn_render_item(&mut renderer, source_entity, &mut commands);
+            }
+        }
+
+        *last_items = source_item_query.iter().map(|item| item.0).collect();
+    }
+}
+
+pub(crate) fn remove_moving_render_items<R: RenderMapApi + Component>(
+    mut commands: Commands,
+    source_item_query: Query<
+        Entity,
+        (
+            With<HexPositionFractionalDelta>,
+            With<MaterialType>,
+            With<MeshType>,
+        ),
+    >,
+    mut layout_query: Query<&mut R>,
+) {
+    for mut renderer in layout_query.iter_mut() {
+        for source_entity in source_item_query.iter() {
+            if source_item_query.get(source_entity).is_ok() {
+                despawn_render_item(&mut renderer, &source_entity, &mut commands);
+            }
+        }
+    }
+}
+
+fn despawn_render_item<R: RenderMapApi + Component>(
+    renderer: &mut Mut<R>,
+    source_entity: &Entity,
+    commands: &mut Commands,
+) {
+    if let Some(render_entity) = renderer.remove_render_item(source_entity) {
+        commands.entity(render_entity).remove_parent();
+        commands.entity(render_entity).despawn_recursive();
+        debug!(
+            "Despawned of source {:?} -> {:?}",
+            source_entity, render_entity
+        );
+    } else {
+        warn!("Could not clean render item {:?}", source_entity);
     }
 }
 
@@ -88,24 +141,14 @@ fn spawn_render_item<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Compon
         .spawn(renderer.create_render_bundle(&pos, material_type, mesh_type))
         .id();
 
+    debug!(
+        "Spawning map item {:?} {:?} for source {:?} -> {:?}",
+        mesh_type, material_type, source_entity, render_entity
+    );
+
     renderer.link_source_item(&source_entity, &render_entity);
 
     commands.entity(layout_entity).add_child(render_entity);
-}
-
-pub(crate) fn despawn_render_items<R: RenderMapApi + Component>(
-    mut commands: Commands,
-    items_query: Query<(Entity, &MaterialType, &MeshType)>,
-    layout_query: Query<&R>,
-) {
-    for renderer in layout_query.iter() {
-        for (source_entity, material_type, mesh_type) in items_query.iter() {
-            if let Some(render_entity) = renderer.remove_render_item(&source_entity) {
-                commands.entity(render_entity).remove_parent();
-                commands.entity(render_entity).despawn_recursive();
-            }
-        }
-    }
 }
 
 // pub(crate) fn render_map<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
@@ -203,44 +246,26 @@ pub(crate) fn show_entity<E: Component>(mut commands: Commands, query: Query<Ent
     }
 }
 
-pub(crate) fn move_rendered_character<R: RenderMapApi + Component>(
-    mut event: EventReader<CharacterMovedEvent>,
+pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
     mut transform_query: Query<&mut Transform>,
+    moveable_query: Query<(Entity, &HexPositionFractionalDelta)>,
     layout_query: Query<(&HexLayout, &R)>,
 ) {
-    for e in event.read() {
+    for (source_entity, delta_pos) in moveable_query.iter() {
+        if delta_pos.0.length() <= 0.0 {
+            debug!("Skip updating character move");
+            continue;
+        }
         for (layout, renderer) in layout_query.iter() {
-            let render_entity_option = renderer.get_render_item(&e.source_entity);
+            let render_entity_option = renderer.get_render_item(&source_entity);
             if let Some(render_entity) = render_entity_option {
                 if let Ok(mut transform) = transform_query.get_mut(*render_entity) {
-                    let delta = layout.hex_to_pixel(&e.delta_pos.0);
+                    let delta = layout.hex_to_pixel(&delta_pos.0);
                     transform.translation.x += delta.x;
                     transform.translation.y += delta.y;
                 }
             } else {
                 error!("Could not get character render entity");
-            }
-        }
-    }
-}
-
-pub(crate) fn synchronize_rendered_characters<R: RenderMapApi + Component>(
-    mut player_render_query: Query<&mut Transform>,
-    layout_query: Query<(&HexLayout, &R)>,
-    character_query: Query<(Entity, &HexPositionFractional), With<Character>>,
-) {
-    for (layout, renderer) in layout_query.iter() {
-        for (source_entity, pos) in character_query.iter() {
-            match renderer.get_render_item(&source_entity) {
-                Some(render_entity) => match player_render_query.get_mut(*render_entity) {
-                    Ok(mut transform) => {
-                        let pixel_pos = layout.hex_to_pixel(&pos.0);
-                        transform.translation.x = pixel_pos.x;
-                        transform.translation.y = pixel_pos.y;
-                    }
-                    Err(_) => error!("Character doesn't have transform to synchronize"),
-                },
-                None => warn!("No character render found to synchronize"),
             }
         }
     }
@@ -283,7 +308,7 @@ pub(crate) fn camera_follow<R: RenderMapApi + Component>(
                     }
                 }
                 None => {
-                    continue;
+                    error!("Failed following entity");
                 }
             }
         }

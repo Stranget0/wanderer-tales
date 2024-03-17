@@ -10,7 +10,7 @@ use crate::gameplay::{
         components::SourceLayout,
         renderer::components::{MeshType, RenderGroup},
         utils::{
-            hex_map_item::{Biome, Height, HexMapTileBundle},
+            hex_map_item::{Biome, Height, HexMapTileBundle, TileHeight},
             hex_vector::{iterators::HexVectorSpiral, HexVector},
         },
     },
@@ -235,7 +235,7 @@ fn is_moved_event_irrelevant(e: &CharacterMovedEvent) -> bool {
 }
 
 fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMapTileBundle {
-    let height = Height {
+    let height = TileHeight {
         midpoint: get_height_midpoint(hex, seed_table),
         offset: get_height_offset(hex, seed_table),
     };
@@ -243,7 +243,8 @@ fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMa
 
     HexMapTileBundle {
         biome: get_biome(hex),
-        height,
+        height: Height(height.get_height().into()),
+        tile_height: height,
         pos: HexPosition(hex.clone()),
         mesh_type: MeshType::HexMapTile,
         material_type,

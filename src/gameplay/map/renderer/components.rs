@@ -24,6 +24,18 @@ pub enum MeshType {
     Debug,
 }
 
+impl Display for MeshType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            MeshType::Debug => "Debug",
+            MeshType::HexMapTile => "HexMapTile",
+            MeshType::Player => "Player",
+        };
+
+        write!(f, "{name}")
+    }
+}
+
 #[derive(Component, Clone, Copy, Debug, Hash, Eq, PartialEq)]
 pub enum MaterialType {
     Beach,

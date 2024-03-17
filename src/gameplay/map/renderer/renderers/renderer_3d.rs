@@ -8,7 +8,7 @@ use crate::gameplay::{
         },
         utils::{
             hex_layout::HexLayout,
-            hex_map_item::{Biome, Height},
+            hex_map_item::{Biome, TileHeight},
             hex_vector::FractionalHexVector,
         },
     },
@@ -31,12 +31,12 @@ pub struct Renderer3D {
 }
 
 impl Renderer3D {
-    fn get_hex_transform(layout: &HexLayout, pos: &HexPosition, height: &Height) -> Transform {
+    fn get_hex_transform(layout: &HexLayout, pos: &HexPosition, height: &TileHeight) -> Transform {
         let pos = layout.hex_to_pixel(&FractionalHexVector::from(&pos.0));
 
         Transform::from_xyz(pos.x, pos.y, height.get_height().into())
     }
-    fn get_hex_material(&self, height: &Height, biome: &Biome) -> Handle<StandardMaterial> {
+    fn get_hex_material(&self, height: &TileHeight, biome: &Biome) -> Handle<StandardMaterial> {
         {
             let material_key = height.get_material();
 
