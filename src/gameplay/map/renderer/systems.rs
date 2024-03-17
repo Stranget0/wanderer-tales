@@ -1,9 +1,6 @@
 use crate::gameplay::{
     map::utils::{hex_layout::HexLayout, hex_map_item::Height, hex_vector::FractionalHexVector},
-    player::{
-        components::{Character, HexPosition, HexPositionFractional, HexPositionFractionalDelta},
-        events::CharacterMovedEvent,
-    },
+    player::components::{HexPosition, HexPositionFractional, HexPositionFractionalDelta},
 };
 use bevy::prelude::*;
 
