@@ -159,7 +159,11 @@ impl Renderer3D {
         let entries: [(MeshType, Mesh); 2] = [
             (
                 MeshType::HexMapTile,
-                Hexagon3D::create_base(layout.size.x, layout.orientation.starting_angle),
+                Hexagon3D::create_base(
+                    layout.size.x,
+                    layout.orientation.starting_angle,
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                ),
             ),
             (MeshType::Player, Sphere::new(layout.size.x).into()),
         ];

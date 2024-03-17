@@ -1,3 +1,5 @@
+use std::ops::{Add, Rem};
+
 use bevy::{ecs::query::QueryFilter, prelude::*};
 
 pub fn spawn_default_with_parent<T: Bundle + Default, F: QueryFilter>(
@@ -26,4 +28,8 @@ pub fn hide_entity<E: Component>(mut commands: Commands, query: Query<Entity, Wi
     for entity in query.iter() {
         commands.entity(entity).insert(Visibility::Hidden);
     }
+}
+
+pub fn positive_modulo<T: Rem<Output = T> + Add<Output = T> + Copy>(i: T, n: T) -> T {
+    (n + (i % n)) % n
 }

@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
-use super::{hex_vector::FractionalHexVector, layout_orientation::HexLayoutOrientation};
+use crate::util_systems::positive_modulo;
+
+use super::{
+    hex_map_item::Height, hex_vector::FractionalHexVector, layout_orientation::HexLayoutOrientation,
+};
 
 #[derive(Component, Debug)]
 pub struct HexLayout {
@@ -8,6 +12,40 @@ pub struct HexLayout {
     pub size: Vec2,
     pub origin: Vec2,
 }
+
+pub fn get_hex_corner_2d(index: i8, starting_angle: f32, size: f32) -> [f32; 2] {
+    let angle: f32 = 2.0 * std::f32::consts::PI * (starting_angle + f32::from(index)) / 6.0;
+
+    [size * angle.sin(), size * angle.cos()]
+}
+
+pub fn get_hex_corner_3d(
+    index: i8,
+    starting_angle: f32,
+    size: f32,
+    height_differences: &[f32; 6],
+) -> [f32; 3] {
+    let [x, y] = get_hex_corner_2d(index, starting_angle, size);
+
+    let z = get_hex_corner_z([
+        &height_differences[positive_modulo(index, 6) as usize],
+        &height_differences[positive_modulo(index - 1, 6) as usize],
+    ]);
+
+    [x, y, z]
+}
+
+fn get_hex_corner_z(heights: [&f32; 2]) -> f32 {
+    // base is always 0
+    let mut sum = 0.0;
+
+    for h in heights {
+        sum += h;
+    }
+
+    sum / 3.0
+}
+
 impl HexLayout {
     pub fn hex_to_pixel(&self, h: &FractionalHexVector) -> Vec2 {
         let matrix = &self.orientation;
@@ -88,7 +126,7 @@ mod tests {
         };
 
         for (hex, pos) in input_output {
-            let result = layout.hex_to_pixel(&hex);
+            let result = layout.hex_to_pixel(&hex.into());
             assert_eq!(result, pos);
         }
     }

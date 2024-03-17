@@ -1,9 +1,12 @@
+use crate::gameplay::map::utils::hex_layout::get_hex_corner_2d;
+
 use super::{HexVector, HEX_DIRECTIONS};
 pub struct HexVectorRing {
     current: HexVector,
     range: u16,
     i: u16,
 }
+
 pub struct HexVectorSpiral<'a> {
     current_step: u16,
     range_end: u16,
@@ -103,13 +106,11 @@ impl Iterator for HexCorners {
     type Item = [f32; 2];
 
     fn next(&mut self) -> Option<Self::Item> {
-        let size = self.size;
-        let angle: f32 =
-            2.0 * std::f32::consts::PI * (self.starting_angle + f32::from(self.corner)) / 6.0;
+        let corner = get_hex_corner_2d(self.corner, self.starting_angle, self.size);
 
         self.corner -= 1;
 
-        Some([size * angle.sin(), size * angle.cos()])
+        Some(corner)
     }
 }
 

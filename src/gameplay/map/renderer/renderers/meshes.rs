@@ -1,4 +1,4 @@
-use crate::gameplay::map::utils::hex_vector::iterators::HexCorners;
+use crate::gameplay::map::utils::hex_layout::get_hex_corner_3d;
 use bevy::{
     prelude::*,
     render::{
@@ -10,39 +10,21 @@ use bevy::{
 pub struct Hexagon3D;
 
 impl Hexagon3D {
-    pub fn create_base(size: f32, starting_angle: f32) -> Mesh {
-        let mut corners_clockwise = HexCorners {
-            corner: 0,
-            size,
-            starting_angle,
-        }
-        .take(6);
-
+    pub fn create_base(size: f32, starting_angle: f32, height_differences: [f32; 6]) -> Mesh {
         let top_vertices: [[f32; 3]; 6] = [
-            corners_clockwise.next().unwrap(),
-            corners_clockwise.next().unwrap(),
-            corners_clockwise.next().unwrap(),
-            corners_clockwise.next().unwrap(),
-            corners_clockwise.next().unwrap(),
-            corners_clockwise.next().unwrap(),
-        ]
-        .map(|c| [c[0], c[1], 0.0]);
+            get_hex_corner_3d(5, starting_angle, size, &height_differences),
+            get_hex_corner_3d(4, starting_angle, size, &height_differences),
+            get_hex_corner_3d(3, starting_angle, size, &height_differences),
+            get_hex_corner_3d(2, starting_angle, size, &height_differences),
+            get_hex_corner_3d(1, starting_angle, size, &height_differences),
+            get_hex_corner_3d(0, starting_angle, size, &height_differences),
+        ];
 
         Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::RENDER_WORLD,
         )
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            vec![
-                top_vertices[0],
-                top_vertices[1],
-                top_vertices[2],
-                top_vertices[3],
-                top_vertices[4],
-                top_vertices[5],
-            ],
-        )
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, Vec::from(top_vertices))
         .with_inserted_attribute(
             Mesh::ATTRIBUTE_NORMAL,
             vec![
