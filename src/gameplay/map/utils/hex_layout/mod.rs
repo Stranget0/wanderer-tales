@@ -130,9 +130,4 @@ mod tests {
             assert_eq!(result, pos);
         }
     }
-
-    #[test]
-    fn testste() {
-        Vec::from([1, 2, 3, 4, 5, 6]).iter
-    }
 }

@@ -1,3 +1,4 @@
+pub mod cycle;
 pub mod hex_layout;
 pub mod hex_map_item;
 pub mod hex_vector;
