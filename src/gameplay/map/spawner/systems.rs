@@ -147,7 +147,7 @@ pub fn init_map_data(
                 if hex_to_map_source_entity.0.contains_key(&hex) {
                     continue;
                 }
-
+                println!("TESTETSTESTT");
                 let bundle = create_map_tile_bundle(&hex, &seed_table);
 
                 let hex_entity = commands.spawn(bundle.clone()).id();

@@ -1,15 +1,24 @@
 use std::time::Duration;
 
-use bevy::{
-    app::ScheduleRunnerPlugin,
-    prelude::*,
-    utils::{hashbrown::HashMap, HashMap},
-};
+use bevy::{app::ScheduleRunnerPlugin, math::vec2, prelude::*, utils::hashbrown::HashMap};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use wanderer_tales::gameplay::map::{
-    components::MapContent,
-    spawner::{resources::MapData, systems::spawn_map_data, MapAddEvent, MoveSightEvent},
-    utils::hex_layout::HexLayout,
+use wanderer_tales::gameplay::{
+    map::{
+        components::SourceLayout,
+        spawner::{
+            resources::{HexToMapSourceEntity, SeedTable},
+            systems::spawn_map_data,
+            MapAddEvent, MapSubEvent,
+        },
+        utils::{
+            hex_layout::HexLayout, hex_vector::FractionalHexVector,
+            layout_orientation::POINTY_TOP_ORIENTATION,
+        },
+    },
+    player::{
+        components::{HexPositionFractional, Sight},
+        events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent},
+    },
 };
 
 criterion_group!(benches, map_bench);
@@ -27,31 +36,27 @@ pub fn map_bench(c: &mut Criterion) {
 
 fn map_init_render(sight: u16) {
     let mut app = App::new();
+
+    app.add_event::<PlayerWithSightSpawnedEvent>()
+        .add_event::<MapAddEvent>()
+        .add_event::<MapSubEvent>()
+        .add_event::<CharacterMovedEvent>()
+        .insert_resource(SeedTable::default())
+        .insert_resource(HexToMapSourceEntity::default());
+
+    app.add_systems(Update, spawn_map_data);
+
     let layout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
         size: vec2(5.0, 5.0),
         origin: vec2(0.0, 0.0),
     };
-    let map_data = MapData {
-        hex_to_data_entity: HashMap::new(),
-    };
-    app.add_event::<MoveSightEvent>()
-        .add_event::<MapAddEvent>()
-        .insert_resource(layout)
-        .insert_resource(map_data);
 
-    let map_display = app.world.spawn(MapDisplay).id();
-    app.world.spawn(MapContent).add_child(map_display);
+    app.world.spawn((layout, SourceLayout));
 
-    app.add_systems(Update, spawn_map_data);
-    app.update();
-
-    app.world.send_event(MoveSightEvent {
-        pos: Vec2::new(0.0, 0.0),
-        sight,
-        force_render: true,
-        map_display,
-        ..default()
+    app.world.send_event(PlayerWithSightSpawnedEvent {
+        pos: HexPositionFractional(FractionalHexVector(0.0, 0.0, 0.0)),
+        sight: Sight(sight),
     });
 
     app.update();
