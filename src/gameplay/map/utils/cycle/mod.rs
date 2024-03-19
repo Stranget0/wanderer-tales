@@ -7,13 +7,13 @@ pub struct Cycle<T: Sized + Clone + Ord + Debug, const COUNT: usize> {
 }
 
 impl<T: Sized + Clone + Ord + Debug, const COUNT: usize> Cycle<T, COUNT> {
-    pub fn naive_minimal_rotation(arr: [T; COUNT]) -> Self {
+    pub fn naive_minimal_rotation(arr: &[T; COUNT]) -> Self {
         let mut min_rotation_arr = arr.clone();
         let mut min_rotation = 0;
 
         for i in 0..arr.len() {
-            let rotation_vec = [&arr[i..], &arr[..i]].concat();
-            let rotation: [T; COUNT] = rotation_vec.try_into().unwrap();
+            let mut rotation = arr.clone();
+            rotation.rotate_left(i);
             if rotation.iter().lt(min_rotation_arr.iter()) {
                 min_rotation_arr = rotation;
                 min_rotation = i;
@@ -39,7 +39,7 @@ mod tests {
                 let mut input = cycle.clone();
                 input.rotate_right(shift);
 
-                let res = Cycle::naive_minimal_rotation(input);
+                let res = Cycle::naive_minimal_rotation(&input);
                 assert!(
                     res.cycle.iter().eq(expected.iter()),
                     "{:?} != {:?}",
