@@ -54,6 +54,8 @@ fn map_init_render(sight: u16) {
 
     app.world.spawn((layout, SourceLayout));
 
+    app.update();
+
     app.world.send_event(PlayerWithSightSpawnedEvent {
         pos: HexPositionFractional(FractionalHexVector(0.0, 0.0, 0.0)),
         sight: Sight(sight),

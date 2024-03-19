@@ -58,3 +58,7 @@ harness = false
 [[bench]]
 name = "hex_spiral"
 harness = false
+
+[[bench]]
+name = "minimal_string_rotation"
+harness = false
