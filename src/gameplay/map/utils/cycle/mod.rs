@@ -6,6 +6,12 @@ pub struct Cycle<T: Sized + Clone + Ord + Debug, const COUNT: usize> {
     rotation: usize,
 }
 
+impl<T: Sized + Clone + Ord + Debug, const SIZE: usize> PartialEq for Cycle<T, SIZE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cycle == other.cycle
+    }
+}
+
 impl<T: Sized + Clone + Ord + Debug, const COUNT: usize> Cycle<T, COUNT>
 where
     [T; COUNT]: Debug + for<'a> TryFrom<&'a [T]>,
@@ -74,63 +80,89 @@ where
 
 #[cfg(test)]
 mod tests {
+    use self::test_utils::*;
     use crate::gameplay::map::utils::cycle::Cycle;
 
     #[test]
     fn cycle_naive_rotation() {
-        let cycles = [([3, 1, 3, 4, 5, 1, 7], [1, 3, 4, 5, 1, 7, 3])];
-        for (cycle, expected) in cycles {
-            for shift in (0..cycle.len()) {
-                let mut input = cycle.clone();
-                input.rotate_right(shift);
-
-                let res = Cycle::naive_minimal_rotation(&input);
-                assert!(
-                    res.cycle.iter().eq(expected.iter()),
-                    "{:?} != {:?}",
-                    res,
-                    expected
-                );
-
-                let mut rotated = input.clone();
-                rotated.rotate_left(res.rotation);
-
-                assert!(
-                    rotated.iter().eq(expected.iter()),
-                    "{:?} != {:?}",
-                    rotated,
-                    expected
-                );
-            }
-        }
+        check_equality::<5>(Cycle::naive_minimal_rotation);
+        check_correctness(Cycle::naive_minimal_rotation);
     }
 
     #[test]
-    fn shiloah_rotation() {
-        let cycles = [([3, 1, 3, 4, 5, 1, 7], [1, 3, 4, 5, 1, 7, 3])];
-        for (cycle, expected) in cycles {
-            for shift in (0..cycle.len()) {
-                let mut input = cycle.clone();
-                input.rotate_right(shift);
+    fn cycle_shiloah_rotation() {
+        check_equality::<5>(Cycle::shiloah_minimal_rotation);
+        check_correctness(Cycle::shiloah_minimal_rotation);
+    }
 
-                let res = Cycle::shiloah_minimal_rotation(&input);
-                assert!(
-                    res.cycle.iter().eq(expected.iter()),
-                    "{:?} != {:?}",
-                    res,
-                    expected
-                );
+    pub mod test_utils {
+        use crate::gameplay::map::utils::cycle::Cycle;
+        use itertools::Itertools;
 
-                let mut rotated = input.clone();
-                rotated.rotate_left(res.rotation);
+        pub fn check_equality<const SIZE: usize>(calculate: fn(&[i8; SIZE]) -> Cycle<i8, SIZE>) {
+            let inputs = get_inputs::<SIZE>();
 
-                assert!(
-                    rotated.iter().eq(expected.iter()),
-                    "{:?} != {:?}",
-                    rotated,
-                    expected
-                );
+            let shifted_inputs = create_many_variations(inputs);
+            for outputs in get_results(shifted_inputs, calculate) {
+                for i in 0..outputs.len() {
+                    for j in 0..outputs.len() {
+                        assert_eq!(outputs[i], outputs[j]);
+                    }
+                }
             }
+        }
+        pub fn check_correctness(calculate: fn(&[i8; 7]) -> Cycle<i8, 7>) {
+            let cycles = get_input_expected();
+            for (input, expected) in cycles {
+                let input_variations = create_variations(&input);
+                for output in input_variations.iter().map(calculate) {
+                    assert_eq!(output.cycle, expected);
+                }
+            }
+        }
+        fn get_results<const SIZE: usize>(
+            shifted_inputs: Vec<Vec<[i8; SIZE]>>,
+            calculate: fn(&[i8; SIZE]) -> Cycle<i8, SIZE>,
+        ) -> Vec<Vec<Cycle<i8, SIZE>>> {
+            shifted_inputs
+                .iter()
+                .map(move |inputs| inputs.iter().map(calculate).collect_vec())
+                .collect_vec()
+        }
+
+        fn create_many_variations<const SIZE: usize>(
+            inputs: Vec<[i8; SIZE]>,
+        ) -> Vec<Vec<[i8; SIZE]>> {
+            inputs
+                .iter()
+                .map(|i| {
+                    let shifted_inputs: Vec<[i8; SIZE]> = create_variations(i);
+
+                    shifted_inputs
+                })
+                .collect_vec()
+        }
+
+        fn create_variations<const SIZE: usize>(i: &[i8; SIZE]) -> Vec<[i8; SIZE]> {
+            (0..i.len())
+                .map(|shift| {
+                    let mut input = *i;
+                    input.rotate_right(shift);
+                    input
+                })
+                .collect()
+        }
+
+        fn get_inputs<const SIZE: usize>() -> Vec<[i8; SIZE]> {
+            let inputs: Vec<[i8; SIZE]> = (-2..3)
+                .permutations(SIZE)
+                .map(|i| i.try_into().unwrap())
+                .collect();
+            inputs
+        }
+
+        fn get_input_expected() -> [([i8; 7], [i8; 7]); 1] {
+            [([3, 1, 3, 4, 5, 1, 7], [1, 3, 4, 5, 1, 7, 3])]
         }
     }
 }
