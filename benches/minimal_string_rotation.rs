@@ -7,6 +7,11 @@ fn rotation_naive(cycles: &Vec<[i32; 6]>) {
         Cycle::naive_minimal_rotation(cycle);
     }
 }
+fn rotation_shiloah(cycles: &Vec<[i32; 6]>) {
+    for cycle in cycles {
+        Cycle::shiloah_minimal_rotation(cycle);
+    }
+}
 
 fn lexicographically_minimal_rotation(c: &mut Criterion) {
     let mut group = c.benchmark_group("Minimal Rotation");
@@ -22,6 +27,11 @@ fn lexicographically_minimal_rotation(c: &mut Criterion) {
         BenchmarkId::new("naive", input.len()),
         &input,
         |b, cycles| b.iter(|| rotation_naive(cycles)),
+    );
+    group.bench_with_input(
+        BenchmarkId::new("shiloah", input.len()),
+        &input,
+        |b, cycles| b.iter(|| rotation_shiloah(cycles)),
     );
 }
 
