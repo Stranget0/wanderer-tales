@@ -12,16 +12,16 @@ impl<T: Sized + Clone + Ord + Debug, const SIZE: usize> PartialEq for Cycle<T, S
     }
 }
 
-impl<T: Sized + Clone + Ord + Debug, const COUNT: usize> Cycle<T, COUNT>
+impl<T: Sized + Clone + Ord + Debug + Copy, const COUNT: usize> Cycle<T, COUNT>
 where
     [T; COUNT]: Debug + for<'a> TryFrom<&'a [T]>,
 {
     pub fn naive_minimal_rotation(arr: &[T; COUNT]) -> Self {
-        let mut min_rotation_arr = arr.clone();
+        let mut min_rotation_arr = *arr;
         let mut min_rotation = 0;
 
         for i in 0..arr.len() {
-            let mut rotation = arr.clone();
+            let mut rotation = *arr;
             rotation.rotate_left(i);
             if rotation.iter().lt(min_rotation_arr.iter()) {
                 min_rotation_arr = rotation;
@@ -37,13 +37,12 @@ where
 
     pub fn shiloah_minimal_rotation(arr: &[T; COUNT]) -> Self {
         let n = arr.len();
-        let n_double = 2 * n;
 
         let mut i = 0;
         let mut j = 1;
         let mut k = 0;
 
-        while i < n_double && j < n_double && k < n_double {
+        while i < n && j < n && k < n {
             match arr[(i + k) % n].cmp(&arr[(j + k) % n]) {
                 Ordering::Equal => {
                     k += 1;
@@ -68,7 +67,7 @@ where
         }
         let rotation_point = i.min(j) % n;
 
-        let mut res = arr.clone();
+        let mut res = *arr;
         res.rotate_left(rotation_point);
 
         Cycle {
@@ -99,7 +98,7 @@ where
             }
         }
 
-        let mut res = arr.clone();
+        let mut res = *arr;
         res.rotate_left(k as usize);
 
         Self {
