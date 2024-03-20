@@ -46,7 +46,7 @@ pub struct SourceCameraFollow;
 
 #[derive(Component, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MeshType {
-    HexMapTile,
+    HexMapTile([i8; 6]),
     Player,
     Debug,
 }
@@ -55,7 +55,7 @@ impl Display for MeshType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
             MeshType::Debug => "Debug",
-            MeshType::HexMapTile => "HexMapTile",
+            MeshType::HexMapTile(_) => "HexMapTile",
             MeshType::Player => "Player",
         };
 

@@ -48,7 +48,7 @@ impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
             pos.x,
             pos.y,
             match mesh_type {
-                MeshType::HexMapTile => 0.0,
+                MeshType::HexMapTile(_) => 0.0,
                 MeshType::Player => 1.0,
                 MeshType::Debug => 2.0,
             },
@@ -160,7 +160,7 @@ impl Renderer2D {
 
         let entries: [(MeshType, Mesh); 2] = [
             (
-                MeshType::HexMapTile,
+                MeshType::HexMapTile([0, 0, 0, 0, 0, 0]),
                 RegularPolygon::new(layout.size.x, 6).into(),
             ),
             (MeshType::Player, Circle::new(3.0).into()),

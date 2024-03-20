@@ -2,9 +2,7 @@ use bevy::prelude::*;
 
 use crate::util_systems::positive_modulo;
 
-use super::{
-    hex_map_item::Height, hex_vector::FractionalHexVector, layout_orientation::HexLayoutOrientation,
-};
+use super::{hex_vector::FractionalHexVector, layout_orientation::HexLayoutOrientation};
 
 #[derive(Component, Debug)]
 pub struct HexLayout {
@@ -23,7 +21,7 @@ pub fn get_hex_corner_3d(
     index: i8,
     starting_angle: f32,
     size: f32,
-    height_differences: &[u8; 6],
+    height_differences: &[i8; 6],
 ) -> [f32; 3] {
     let [x, y] = get_hex_corner_2d(index, starting_angle, size);
 
@@ -35,7 +33,7 @@ pub fn get_hex_corner_3d(
     [x, y, z]
 }
 
-fn get_hex_corner_z(heights: [&u8; 2]) -> f32 {
+fn get_hex_corner_z(heights: [&i8; 2]) -> f32 {
     // base is always 0
     let mut sum = 0;
 

@@ -1,5 +1,4 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
-use itertools::Itertools;
 
 use crate::gameplay::map::{
     renderer::{
@@ -10,6 +9,7 @@ use crate::gameplay::map::{
 };
 
 use super::{
+    common::PRECOMPUTED_HEIGHT_DIFF,
     meshes::Hexagon3D,
     traits::{CreateRenderBundle, RenderMap, RenderMapApi},
 };
@@ -40,57 +40,6 @@ impl RenderMapApi for Renderer3D {
     }
 }
 
-// impl CreateMapRenderBundle<PbrBundle> for Renderer3D {
-//     fn create_map_render_bundle(
-//         &self,
-//         layout: &HexLayout,
-//         pos: &HexPosition,
-//         biome: &Biome,
-//         height: &Height,
-//     ) -> PbrBundle {
-//         let transform = Self::get_hex_transform(layout, pos, height);
-//         let material = self.get_hex_material(height, biome);
-//         let mesh = self
-//             .meshes_map
-//             .get(&MeshType::HexMapTile)
-//             .expect("Failed getting hex 2d mesh");
-
-//         PbrBundle {
-//             mesh: mesh.clone(),
-//             material: material.clone(),
-//             transform,
-//             ..Default::default()
-//         }
-//     }
-// }
-
-// impl CreateCharacterRenderBundle<PbrBundle> for Renderer3D {
-//     fn create_character_render_bundle(
-//         &self,
-//         pos: &Vec2,
-//         source_entity: Entity,
-//         material_key: MaterialType,
-//         position: HexPositionFractional,
-//     ) -> PbrBundle {
-//         let mesh_handle = self
-//             .meshes_map
-//             .get(&MeshType::Player)
-//             .expect("Player mesh not found");
-
-//         let material_handle = self
-//             .materials_map
-//             .get(&material_key)
-//             .unwrap_or_else(|| panic!("could not get {} material", material_key));
-
-//         PbrBundle {
-//             mesh: mesh_handle.clone(),
-//             material: material_handle.clone(),
-//             transform: Transform::from_xyz(pos.x, pos.y, 256.0),
-//             ..default()
-//         }
-//     }
-// }
-
 impl CreateRenderBundle<PbrBundle> for Renderer3D {
     fn create_render_bundle(
         &self,
@@ -104,6 +53,7 @@ impl CreateRenderBundle<PbrBundle> for Renderer3D {
             .materials_map
             .get(material_type)
             .unwrap_or_else(|| {
+                error!("Could not get material {:?}", material_type);
                 self.materials_map
                     .get(&MaterialType::Debug)
                     .expect("Could not get debug material")
@@ -114,6 +64,7 @@ impl CreateRenderBundle<PbrBundle> for Renderer3D {
             .meshes_map
             .get(mesh_type)
             .unwrap_or_else(|| {
+                error!("Could not get mesh {:?}", mesh_type);
                 self.meshes_map
                     .get(&MeshType::Debug)
                     .expect("Could not get debug mesh")
@@ -157,17 +108,15 @@ impl Renderer3D {
             materials_map.insert(key, debug_material.clone());
         }
 
-        let entries: [(MeshType, Mesh); 2] = [
+        let computed_entries = PRECOMPUTED_HEIGHT_DIFF.map(|h_diff| {
             (
-                MeshType::HexMapTile,
-                Hexagon3D::create_base(
-                    layout.size.x,
-                    layout.orientation.starting_angle,
-                    [0, 0, 0, 0, 0, 0],
-                ),
-            ),
-            (MeshType::Player, Sphere::new(layout.size.x).into()),
-        ];
+                MeshType::HexMapTile(h_diff),
+                Hexagon3D::create_base(layout.size.x, layout.orientation.starting_angle, &h_diff),
+            )
+        });
+        let mut entries: Vec<(MeshType, Mesh)> =
+            vec![(MeshType::Player, Sphere::new(layout.size.x).into())];
+        entries.extend_from_slice(&computed_entries);
 
         for (key, mesh) in entries {
             meshes_map.insert(key, meshes.add(mesh));

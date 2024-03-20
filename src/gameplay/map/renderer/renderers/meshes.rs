@@ -10,14 +10,14 @@ use bevy::{
 pub struct Hexagon3D;
 
 impl Hexagon3D {
-    pub fn create_base(size: f32, starting_angle: f32, height_differences: [u8; 6]) -> Mesh {
+    pub fn create_base(size: f32, starting_angle: f32, height_differences: &[i8; 6]) -> Mesh {
         let top_vertices: [[f32; 3]; 6] = [
-            get_hex_corner_3d(5, starting_angle, size, &height_differences),
-            get_hex_corner_3d(4, starting_angle, size, &height_differences),
-            get_hex_corner_3d(3, starting_angle, size, &height_differences),
-            get_hex_corner_3d(2, starting_angle, size, &height_differences),
-            get_hex_corner_3d(1, starting_angle, size, &height_differences),
-            get_hex_corner_3d(0, starting_angle, size, &height_differences),
+            get_hex_corner_3d(5, starting_angle, size, height_differences),
+            get_hex_corner_3d(4, starting_angle, size, height_differences),
+            get_hex_corner_3d(3, starting_angle, size, height_differences),
+            get_hex_corner_3d(2, starting_angle, size, height_differences),
+            get_hex_corner_3d(1, starting_angle, size, height_differences),
+            get_hex_corner_3d(0, starting_angle, size, height_differences),
         ];
 
         Mesh::new(
