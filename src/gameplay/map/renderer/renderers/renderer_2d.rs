@@ -62,7 +62,10 @@ impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
 
         let mesh = self
             .meshes_map
-            .get(mesh_type)
+            .get(match mesh_type {
+                MeshType::HexMapTile(_) => &MeshType::HexMapTile([0, 0, 0, 0, 0, 0]),
+                _ => mesh_type,
+            })
             .unwrap_or_else(|| self.meshes_map.get(&MeshType::Debug).unwrap())
             .clone();
 
@@ -74,65 +77,6 @@ impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
         }
     }
 }
-
-// impl CreateMapRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
-//     fn create_map_render_bundle(
-//         &self,
-//         layout: &HexLayout,
-//         pos: &HexPosition,
-//         biome: &Biome,
-//         height: &Height,
-//     ) -> MaterialMesh2dBundle<ColorMaterial> {
-//         let pos = layout.hex_to_pixel(&FractionalHexVector::from(&pos.0));
-//         let transform = Transform::from_xyz(pos.x, pos.y, 0.0);
-//         let material_key = height.get_material();
-
-//         let material = self
-//             .materials_map
-//             .get(&material_key)
-//             .unwrap_or_else(|| panic!("failed getting {material_key} material"))
-//             .clone();
-
-//         let mesh = self
-//             .meshes_map
-//             .get(&MeshType::HexMapTile)
-//             .expect("Failed getting hex 2d mesh");
-
-//         MaterialMesh2dBundle {
-//             mesh: mesh.clone(),
-//             material: material.clone(),
-//             transform,
-//             ..Default::default()
-//         }
-//     }
-// }
-
-// impl CreateCharacterRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
-//     fn create_character_render_bundle(
-//         &self,
-//         pos: &Vec2,
-//         source_entity: Entity,
-//         material_key: &MaterialType,
-//         position: &HexPositionFractional,
-//     ) -> MaterialMesh2dBundle<ColorMaterial> {
-//         let mesh_handle = self
-//             .meshes_map
-//             .get(&MeshType::Player)
-//             .expect("Player mesh not found");
-
-//         let material_handle = self
-//             .materials_map
-//             .get(material_key)
-//             .unwrap_or_else(|| panic!("could not get {} material", material_key));
-
-//         MaterialMesh2dBundle {
-//             mesh: mesh_handle.clone(),
-//             material: material_handle.clone(),
-//             transform: Transform::from_xyz(pos.x, pos.y, 2.0),
-//             ..default()
-//         }
-//     }
-// }
 
 impl Renderer2D {
     pub fn new(

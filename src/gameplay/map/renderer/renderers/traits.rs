@@ -8,7 +8,7 @@ use crate::gameplay::{
             hex_map_item::{Biome, TileHeight},
         },
     },
-    player::components::{HexPosition, HexPositionFractional},
+    player::components::HexPosition,
 };
 
 pub trait RenderMapApi {
@@ -28,16 +28,6 @@ pub trait CreateMapRenderBundle<T: Bundle> {
         pos: &HexPosition,
         biome: &Biome,
         height: &TileHeight,
-    ) -> T;
-}
-
-pub trait CreateCharacterRenderBundle<T: Bundle> {
-    fn create_character_render_bundle(
-        &self,
-        pos: &Vec2,
-        source_entity: Entity,
-        material_key: MaterialType,
-        position: HexPositionFractional,
     ) -> T;
 }
 
