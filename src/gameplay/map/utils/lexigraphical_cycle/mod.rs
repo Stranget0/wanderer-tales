@@ -1,15 +1,9 @@
 use std::{cmp::Ordering, fmt::Debug};
 
-#[derive(Debug, Clone)]
-pub struct LexigraphicalCycle<T: Sized + Clone + Ord + Debug, const COUNT: usize> {
-    cycle: [T; COUNT],
-    rotation: usize,
-}
-
-impl<T: Sized + Clone + Ord + Debug, const SIZE: usize> PartialEq for LexigraphicalCycle<T, SIZE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cycle == other.cycle
-    }
+#[derive(Debug, Clone, Eq)]
+pub struct LexigraphicalCycle<T, const COUNT: usize> {
+    pub cycle: [T; COUNT],
+    pub rotation: usize,
 }
 
 impl<T: Sized + Clone + Ord + Debug + Copy, const COUNT: usize> LexigraphicalCycle<T, COUNT>
@@ -108,6 +102,12 @@ where
     }
 }
 
+impl<T: PartialEq, const SIZE: usize> PartialEq for LexigraphicalCycle<T, SIZE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cycle == other.cycle
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use self::test_utils::*;
@@ -193,7 +193,7 @@ mod tests {
 
         fn get_inputs<const SIZE: usize>() -> Vec<[i8; SIZE]> {
             let inputs: Vec<[i8; SIZE]> = (-2..3)
-                .permutations(SIZE)
+                .combinations_with_replacement(SIZE)
                 .map(|i| i.try_into().unwrap())
                 .collect();
             inputs
