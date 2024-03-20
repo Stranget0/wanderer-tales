@@ -76,6 +76,37 @@ where
             rotation: rotation_point,
         }
     }
+
+    pub fn booth_minimal_rotation(arr: &[T; COUNT]) -> Self {
+        let n2: i16 = 2 * COUNT as i16;
+        let mut f: Vec<i16> = vec![-1; n2 as usize];
+        let mut k: i16 = 0;
+        for j in 1..n2 {
+            let mut i: i16 = f[(j - k - 1) as usize];
+            while i != -1 && arr[j as usize % COUNT] != arr[(k + i + 1) as usize % COUNT] {
+                if arr[j as usize % COUNT] < arr[(k + i + 1) as usize % COUNT] {
+                    k = j - i - 1;
+                }
+                i = f[i as usize];
+            }
+            if i == -1 && arr[j as usize % COUNT] != arr[(k + i + 1) as usize % COUNT] {
+                if arr[j as usize % COUNT] < arr[(k + i + 1) as usize % COUNT] {
+                    k = j;
+                }
+                f[(j - k) as usize] = -1;
+            } else {
+                f[(j - k) as usize] = i + 1;
+            }
+        }
+
+        let mut res = arr.clone();
+        res.rotate_left(k as usize);
+
+        Self {
+            cycle: res,
+            rotation: k as usize,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -93,6 +124,12 @@ mod tests {
     fn cycle_shiloah_rotation() {
         check_equality::<5>(Cycle::shiloah_minimal_rotation);
         check_correctness(Cycle::shiloah_minimal_rotation);
+    }
+
+    #[test]
+    fn cycle_booth_rotation() {
+        check_equality::<5>(Cycle::booth_minimal_rotation);
+        check_correctness(Cycle::booth_minimal_rotation);
     }
 
     pub mod test_utils {
