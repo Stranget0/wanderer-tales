@@ -1,21 +1,21 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use itertools::Itertools;
-use wanderer_tales::gameplay::map::utils::cycle::Cycle;
+use wanderer_tales::gameplay::map::utils::lexigraphical_cycle::LexigraphicalCycle;
 
 fn rotation_naive(cycles: &Vec<[i32; 6]>) {
     for cycle in cycles {
-        Cycle::naive_minimal_rotation(cycle);
+        LexigraphicalCycle::naive_minimal_rotation(cycle);
     }
 }
 fn rotation_shiloah(cycles: &Vec<[i32; 6]>) {
     for cycle in cycles {
-        Cycle::shiloah_minimal_rotation(cycle);
+        LexigraphicalCycle::shiloah_minimal_rotation(cycle);
     }
 }
 
 fn rotation_booth(cycles: &Vec<[i32; 6]>) {
     for cycle in cycles {
-        Cycle::booth_minimal_rotation(cycle);
+        LexigraphicalCycle::booth_minimal_rotation(cycle);
     }
 }
 

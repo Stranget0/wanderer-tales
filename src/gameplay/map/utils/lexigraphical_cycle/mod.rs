@@ -1,18 +1,18 @@
 use std::{cmp::Ordering, fmt::Debug};
 
 #[derive(Debug, Clone)]
-pub struct Cycle<T: Sized + Clone + Ord + Debug, const COUNT: usize> {
+pub struct LexigraphicalCycle<T: Sized + Clone + Ord + Debug, const COUNT: usize> {
     cycle: [T; COUNT],
     rotation: usize,
 }
 
-impl<T: Sized + Clone + Ord + Debug, const SIZE: usize> PartialEq for Cycle<T, SIZE> {
+impl<T: Sized + Clone + Ord + Debug, const SIZE: usize> PartialEq for LexigraphicalCycle<T, SIZE> {
     fn eq(&self, other: &Self) -> bool {
         self.cycle == other.cycle
     }
 }
 
-impl<T: Sized + Clone + Ord + Debug + Copy, const COUNT: usize> Cycle<T, COUNT>
+impl<T: Sized + Clone + Ord + Debug + Copy, const COUNT: usize> LexigraphicalCycle<T, COUNT>
 where
     [T; COUNT]: Debug + for<'a> TryFrom<&'a [T]>,
 {
@@ -70,7 +70,7 @@ where
         let mut res = *arr;
         res.rotate_left(rotation_point);
 
-        Cycle {
+        LexigraphicalCycle {
             cycle: res,
             rotation: rotation_point,
         }
@@ -111,31 +111,33 @@ where
 #[cfg(test)]
 mod tests {
     use self::test_utils::*;
-    use crate::gameplay::map::utils::cycle::Cycle;
+    use crate::gameplay::map::utils::lexigraphical_cycle::LexigraphicalCycle;
 
     #[test]
     fn cycle_naive_rotation() {
-        check_equality::<5>(Cycle::naive_minimal_rotation);
-        check_correctness(Cycle::naive_minimal_rotation);
+        check_equality::<5>(LexigraphicalCycle::naive_minimal_rotation);
+        check_correctness(LexigraphicalCycle::naive_minimal_rotation);
     }
 
     #[test]
     fn cycle_shiloah_rotation() {
-        check_equality::<5>(Cycle::shiloah_minimal_rotation);
-        check_correctness(Cycle::shiloah_minimal_rotation);
+        check_equality::<5>(LexigraphicalCycle::shiloah_minimal_rotation);
+        check_correctness(LexigraphicalCycle::shiloah_minimal_rotation);
     }
 
     #[test]
     fn cycle_booth_rotation() {
-        check_equality::<5>(Cycle::booth_minimal_rotation);
-        check_correctness(Cycle::booth_minimal_rotation);
+        check_equality::<5>(LexigraphicalCycle::booth_minimal_rotation);
+        check_correctness(LexigraphicalCycle::booth_minimal_rotation);
     }
 
     pub mod test_utils {
-        use crate::gameplay::map::utils::cycle::Cycle;
+        use crate::gameplay::map::utils::lexigraphical_cycle::LexigraphicalCycle;
         use itertools::Itertools;
 
-        pub fn check_equality<const SIZE: usize>(calculate: fn(&[i8; SIZE]) -> Cycle<i8, SIZE>) {
+        pub fn check_equality<const SIZE: usize>(
+            calculate: fn(&[i8; SIZE]) -> LexigraphicalCycle<i8, SIZE>,
+        ) {
             let inputs = get_inputs::<SIZE>();
 
             let shifted_inputs = create_many_variations(inputs);
@@ -147,7 +149,7 @@ mod tests {
                 }
             }
         }
-        pub fn check_correctness(calculate: fn(&[i8; 7]) -> Cycle<i8, 7>) {
+        pub fn check_correctness(calculate: fn(&[i8; 7]) -> LexigraphicalCycle<i8, 7>) {
             let cycles = get_input_expected();
             for (input, expected) in cycles {
                 let input_variations = create_variations(&input);
@@ -158,8 +160,8 @@ mod tests {
         }
         fn get_results<const SIZE: usize>(
             shifted_inputs: Vec<Vec<[i8; SIZE]>>,
-            calculate: fn(&[i8; SIZE]) -> Cycle<i8, SIZE>,
-        ) -> Vec<Vec<Cycle<i8, SIZE>>> {
+            calculate: fn(&[i8; SIZE]) -> LexigraphicalCycle<i8, SIZE>,
+        ) -> Vec<Vec<LexigraphicalCycle<i8, SIZE>>> {
             shifted_inputs
                 .iter()
                 .map(move |inputs| inputs.iter().map(calculate).collect_vec())
