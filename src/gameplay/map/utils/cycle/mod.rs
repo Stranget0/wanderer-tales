@@ -30,75 +30,46 @@ where
     }
 
     pub fn shiloah_minimal_rotation(arr: &[T; COUNT]) -> Self {
-        let doubled_arr = [arr.to_vec(), arr.to_vec()].concat();
-        let n = doubled_arr.len();
+        let n = arr.len();
+        let n_double = 2 * n;
 
         let mut i = 0;
         let mut j = 1;
         let mut k = 0;
 
-        while i < n && j < n && k < n {
-            let comp = doubled_arr[(i + k) % n].cmp(&doubled_arr[(j + k) % n]);
-            if comp == Ordering::Equal {
-                k += 1;
-            } else {
-                if comp == Ordering::Greater {
+        while i < n_double && j < n_double && k < n_double {
+            match arr[(i + k) % n].cmp(&arr[(j + k) % n]) {
+                Ordering::Equal => {
+                    k += 1;
+                }
+                Ordering::Greater => {
                     i += k + 1;
-                } else {
+
+                    if i == j {
+                        j += 1;
+                    }
+                    k = 0;
+                }
+                Ordering::Less => {
                     j += k + 1;
+
+                    if i == j {
+                        j += 1;
+                    }
+                    k = 0;
                 }
-                if i == j {
-                    j += 1;
-                }
-                k = 0;
             }
         }
-        let rotation_point = i.min(j);
+        let rotation_point = i.min(j) % n;
 
-        let minimal_rotation = &doubled_arr[rotation_point..rotation_point + n / 2];
-        let res = &minimal_rotation[..arr.len()];
+        let mut res = arr.clone();
+        res.rotate_left(rotation_point);
 
         Cycle {
-            cycle: res.to_vec().try_into().unwrap(),
+            cycle: res,
             rotation: rotation_point,
         }
     }
-
-    //     let mut i = 0;
-    //     let mut j = 1;
-    //     let mut k = 0;
-
-    //     while i < n && j < n && k < n {
-    //         match doubled_arr[(i + k) % n].cmp(&doubled_arr[(j + k) % n]) {
-    //             Ordering::Equal => k += 1,
-    //             Ordering::Greater => {
-    //                 i += k + 1;
-    //                 if i == j {
-    //                     j += 1;
-    //                 }
-    //             }
-    //             Ordering::Less => {
-    //                 j += k + 1;
-    //                 if i == j {
-    //                     j += 1;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     let min_rotation_index = i.min(j);
-
-    //     let cycle = match doubled_arr[min_rotation_index..min_rotation_index + n / 2][..arr.len()]
-    //         .try_into()
-    //     {
-    //         Ok(res) => res,
-    //         Err(_) => panic!("Failed converting cycle {:?} to sized arr", arr),
-    //     };
-
-    //     Cycle {
-    //         cycle,
-    //         rotation: min_rotation_index,
-    //     }
-    // }
 }
 
 #[cfg(test)]
