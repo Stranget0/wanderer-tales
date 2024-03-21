@@ -278,7 +278,10 @@ pub(crate) fn camera_update<R: RenderMapApi + Component>(
 
                 if let Some(rotation) = rotation_option {
                     // camera_transform.rotation = Quat::from(rotation);
-                    camera_transform.rotate_around(target_pos, Quat::from(rotation));
+                    // camera_transform.rotate_around(target_pos, Quat::from(rotation));
+                    // camera_transform.rotate_y(rotation.0);
+                    // camera_transform.rotate_axis(,rotation.1);
+                    camera_transform.rotate_around(target_pos, Quat::from_rotation_z(rotation.0));
                     camera_transform.look_at(target_pos, Vec3::Y);
                 }
             }

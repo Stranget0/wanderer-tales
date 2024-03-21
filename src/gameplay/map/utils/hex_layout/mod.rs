@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::util_systems::positive_modulo;
+use crate::utils::positive_modulo;
 
 use super::{hex_vector::FractionalHexVector, layout_orientation::HexLayoutOrientation};
 

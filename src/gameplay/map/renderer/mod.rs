@@ -3,7 +3,7 @@ use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 use crate::{
     debug::switch_renderer::debug_switch_renderer,
     gameplay::player::systems::spawn_player,
-    util_systems::{hide_entity, spawn_default_with_parent},
+    utils::{hide_entity, spawn_default_with_parent},
 };
 
 use self::{

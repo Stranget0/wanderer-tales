@@ -31,17 +31,18 @@ impl From<&CameraOffset> for Vec3 {
 #[derive(Component, Debug, Default)]
 pub struct CameraRotation(pub f32, pub f32, pub f32);
 
-impl From<CameraRotation> for Quat {
-    fn from(val: CameraRotation) -> Self {
-        Quat::from_euler(EulerRot::YXZ, val.0, -val.1, val.2)
-    }
-}
+// impl From<CameraRotation> for Quat {
+//     fn from(val: CameraRotation) -> Self {
+//         // Quat::from_euler(EulerRot::ZXY, -val.0, -val.1, val.2)
+// 				Quat::from
+//     }
+// }
 
-impl From<&CameraRotation> for Quat {
-    fn from(val: &CameraRotation) -> Self {
-        Quat::from_euler(EulerRot::YXZ, val.0, -val.1, val.2)
-    }
-}
+// impl From<&CameraRotation> for Quat {
+//     fn from(val: &CameraRotation) -> Self {
+//         Quat::from_euler(EulerRot::ZXY, -val.0, -val.1, val.2)
+//     }
+// }
 
 #[derive(Component)]
 pub struct SourceCameraFollow;
