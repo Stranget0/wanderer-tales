@@ -4,9 +4,12 @@ use bevy::{
     utils::hashbrown::HashMap,
 };
 
-use crate::gameplay::map::{
-    renderer::components::{MaterialType, MeshType},
-    utils::{hex_layout::HexLayout, lexigraphical_cycle::LexigraphicalCycle},
+use crate::{
+    gameplay::map::{
+        renderer::components::{MaterialType, MeshType},
+        utils::{hex_layout::HexLayout, lexigraphical_cycle::LexigraphicalCycle},
+    },
+    utils::UP,
 };
 
 use super::traits::{CreateRenderBundle, RenderMap, RenderMapApi};
@@ -40,19 +43,21 @@ impl RenderMapApi for Renderer2D {
 impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
     fn create_render_bundle(
         &self,
-        pos: &Vec3,
+        pos_ref: &Vec3,
         material_type: &MaterialType,
         mesh_type: &MeshType,
     ) -> MaterialMesh2dBundle<ColorMaterial> {
-        let transform = Transform::from_xyz(
-            pos.x,
-            pos.y,
-            match mesh_type {
+        let base_pos = *pos_ref;
+        let flattened_pos = (Vec3::ONE - UP) * base_pos;
+        let height_vec = UP
+            * match mesh_type {
                 MeshType::HexMapTile(_) => 0.0,
                 MeshType::Player => 1.0,
                 MeshType::Debug => 2.0,
-            },
-        );
+            };
+        let pos = flattened_pos + height_vec;
+
+        let transform = Transform::from_xyz(pos.x, pos.y, pos.z);
 
         let material = self
             .materials_map

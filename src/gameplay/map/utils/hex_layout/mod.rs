@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::utils::positive_modulo;
+use crate::utils::{positive_modulo, to_3d_space, FORWARD, UP};
 
 use super::{hex_vector::FractionalHexVector, layout_orientation::HexLayoutOrientation};
 
@@ -30,7 +30,7 @@ pub fn get_hex_corner_3d(
         &height_differences[positive_modulo(index - 1, 6) as usize],
     ]);
 
-    [x, y, z]
+    to_3d_space(x, y, z)
 }
 
 fn get_hex_corner_z(heights: [&i8; 2]) -> f32 {
