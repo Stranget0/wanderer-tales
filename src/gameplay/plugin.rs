@@ -7,11 +7,11 @@ use super::{
             components::RenderGroup,
             renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
             state::RendererState,
-            RendererPlugin,
+            RendererPlugin, RendererSet,
         },
         spawner::{
             resources::{HexToMapSourceEntity, SeedTable},
-            MapAddEvent, MapSpawnerPlugin, MapSubEvent,
+            MapAddEvent, MapSpawnerPlugin, MapSpawnerSet, MapSubEvent,
         },
         utils::{hex_layout::HexLayout, layout_orientation::POINTY_TOP_ORIENTATION},
     },
@@ -35,6 +35,7 @@ impl Plugin for GameplayPlugin {
             .init_gizmo_group::<BaseGizmo>()
             .add_systems(Startup, initialize_map)
             .add_systems(Update, draw_base_gizmo)
+            .configure_sets(Update, RendererSet::RenderItems.after(MapSpawnerSet))
             .add_plugins((
                 FrameTimeDiagnosticsPlugin,
                 MapSpawnerPlugin,

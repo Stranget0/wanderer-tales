@@ -17,8 +17,6 @@ use self::{
     },
 };
 
-use super::spawner::systems::{add_hex_tile_offsets, despawn_map_data, spawn_map_data};
-
 mod bundles;
 pub mod components;
 pub mod debug;
@@ -28,6 +26,12 @@ mod systems;
 
 pub struct RendererPlugin;
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum RendererSet {
+    LayoutInit,
+    RenderItems,
+}
+
 impl Plugin for RendererPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
@@ -35,7 +39,8 @@ impl Plugin for RendererPlugin {
             (
                 spawn_default_with_parent::<Game3DCameraBundle, With<Renderer3D>>,
                 spawn_default_with_parent::<Game2DCameraBundle, With<Renderer2D>>,
-            ),
+            )
+                .in_set(RendererSet::LayoutInit),
         )
         .add_systems(
             OnEnter(RendererState::ThreeDimension),
@@ -47,10 +52,13 @@ impl Plugin for RendererPlugin {
         .add_systems(
             Update,
             (
-                render_static_map_items::<PbrBundle, Renderer3D>,
-                render_map_items::<PbrBundle, Renderer3D>,
-                clean_render_items::<Renderer3D>,
-                move_rendered_items::<Renderer3D>,
+                (
+                    render_static_map_items::<PbrBundle, Renderer3D>,
+                    render_map_items::<PbrBundle, Renderer3D>,
+                    clean_render_items::<Renderer3D>,
+                    move_rendered_items::<Renderer3D>,
+                )
+                    .in_set(RendererSet::RenderItems),
                 camera_update::<Renderer3D>.after(camera_look_around),
             )
                 .run_if(in_state(RendererState::ThreeDimension)),
@@ -60,7 +68,7 @@ impl Plugin for RendererPlugin {
             (
                 hide_entity::<Renderer3D>,
                 set_camera_state::<Camera3d, false>,
-                remove_moving_render_items::<Renderer3D>,
+                remove_moving_render_items::<Renderer3D>.in_set(RendererSet::RenderItems),
             ),
         )
         .add_systems(
@@ -73,10 +81,13 @@ impl Plugin for RendererPlugin {
         .add_systems(
             Update,
             (
-                render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
-                render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
-                clean_render_items::<Renderer2D>,
-                move_rendered_items::<Renderer2D>,
+                (
+                    render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
+                    render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
+                    clean_render_items::<Renderer2D>,
+                    move_rendered_items::<Renderer2D>,
+                )
+                    .in_set(RendererSet::RenderItems),
                 camera_update::<Renderer2D>.after(camera_look_around),
             )
                 .run_if(in_state(RendererState::TwoDimension)),
