@@ -32,7 +32,9 @@ impl Plugin for GameplayPlugin {
             .add_event::<MapSubEvent>()
             .add_event::<CharacterMovedEvent>()
             .add_event::<PlayerWithSightSpawnedEvent>()
+            .init_gizmo_group::<BaseGizmo>()
             .add_systems(Startup, initialize_map)
+            .add_systems(Update, draw_base_gizmo)
             .add_plugins((
                 FrameTimeDiagnosticsPlugin,
                 MapSpawnerPlugin,
@@ -86,4 +88,17 @@ fn initialize_map(
         preview_map_layout,
         RenderGroup::PreviewMap2D,
     ));
+}
+
+#[derive(Default, Reflect, GizmoConfigGroup)]
+struct BaseGizmo {}
+
+fn draw_base_gizmo(mut gizmos: Gizmos, player: Query<&Transform>) {
+    for t in player.iter() {
+        let offset = Vec3::from_array(t.translation.to_array());
+        let direction = t.rotation.to_axis_angle().0;
+        gizmos.arrow(offset, offset + direction, Color::RED);
+        gizmos.arrow(offset, offset + direction, Color::GREEN);
+        gizmos.arrow(offset, offset + direction, Color::BLUE);
+    }
 }
