@@ -6,7 +6,7 @@ use bevy::{
 
 use crate::gameplay::map::{
     renderer::components::{MaterialType, MeshType},
-    utils::hex_layout::HexLayout,
+    utils::{hex_layout::HexLayout, lexigraphical_cycle::LexigraphicalCycle},
 };
 
 use super::traits::{CreateRenderBundle, RenderMap, RenderMapApi};
@@ -62,9 +62,13 @@ impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
 
         let mesh = self
             .meshes_map
-            .get(match mesh_type {
-                MeshType::HexMapTile(_) => &MeshType::HexMapTile([0, 0, 0, 0, 0, 0]),
-                _ => mesh_type,
+            .get(&match mesh_type {
+                MeshType::HexMapTile(_) => {
+                    MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&[
+                        0, 0, 0, 0, 0, 0,
+                    ]))
+                }
+                _ => mesh_type.clone(),
             })
             .unwrap_or_else(|| self.meshes_map.get(&MeshType::Debug).unwrap())
             .clone();
@@ -102,12 +106,18 @@ impl Renderer2D {
             materials_map.insert(key, material_handle);
         }
 
-        let entries: [(MeshType, Mesh); 2] = [
+        let entries: [(MeshType, Mesh); 3] = [
             (
-                MeshType::HexMapTile([0, 0, 0, 0, 0, 0]),
+                MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&[
+                    0, 0, 0, 0, 0, 0,
+                ])),
                 RegularPolygon::new(layout.size.x, 6).into(),
             ),
             (MeshType::Player, Circle::new(3.0).into()),
+            (
+                MeshType::Debug,
+                RegularPolygon::new(layout.size.x, 3).into(),
+            ),
         ];
 
         for (key, mesh) in entries {

@@ -17,7 +17,7 @@ use self::{
     },
 };
 
-use super::spawner::systems::{despawn_map_data, spawn_map_data};
+use super::spawner::systems::{add_hex_tile_offsets, despawn_map_data, spawn_map_data};
 
 mod bundles;
 pub mod components;
@@ -47,9 +47,9 @@ impl Plugin for RendererPlugin {
         .add_systems(
             Update,
             (
-                render_static_map_items::<PbrBundle, Renderer3D>.before(spawn_map_data),
-                render_map_items::<PbrBundle, Renderer3D>.before(spawn_player),
-                clean_render_items::<Renderer3D>.before(despawn_map_data),
+                render_static_map_items::<PbrBundle, Renderer3D>,
+                render_map_items::<PbrBundle, Renderer3D>,
+                clean_render_items::<Renderer3D>,
                 move_rendered_items::<Renderer3D>,
                 camera_update::<Renderer3D>.after(camera_look_around),
             )
@@ -73,11 +73,9 @@ impl Plugin for RendererPlugin {
         .add_systems(
             Update,
             (
-                render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>
-                    .before(spawn_map_data),
-                render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>
-                    .before(spawn_player),
-                clean_render_items::<Renderer2D>.before(despawn_map_data),
+                render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
+                render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
+                clean_render_items::<Renderer2D>,
                 move_rendered_items::<Renderer2D>,
                 camera_update::<Renderer2D>.after(camera_look_around),
             )

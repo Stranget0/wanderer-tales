@@ -2,6 +2,7 @@ use bevy::{
     hierarchy::{BuildChildren, DespawnRecursiveExt},
     prelude::*,
 };
+use itertools::Itertools;
 use noise::core::perlin::perlin_2d;
 use rand::Rng;
 
@@ -12,6 +13,7 @@ use crate::gameplay::{
         utils::{
             hex_map_item::{Biome, Height, HexMapTileBundle, TileHeight},
             hex_vector::{iterators::HexVectorSpiral, HexVector},
+            lexigraphical_cycle::LexigraphicalCycle,
         },
     },
     player::{
@@ -58,7 +60,6 @@ pub fn spawn_map_data(
                 }
 
                 let bundle = create_map_tile_bundle(&hex, &seed_table);
-
                 let hex_entity = commands.spawn(bundle.clone()).id();
                 hex_to_map_source_entity.0.insert(hex, hex_entity);
                 additive_entities.push(hex_entity);
@@ -147,7 +148,6 @@ pub fn init_map_data(
                 if hex_to_map_source_entity.0.contains_key(&hex) {
                     continue;
                 }
-                println!("TESTETSTESTT");
                 let bundle = create_map_tile_bundle(&hex, &seed_table);
 
                 let hex_entity = commands.spawn(bundle.clone()).id();
@@ -171,6 +171,35 @@ pub fn init_map_data(
 pub fn clear_map_data(mut commands: Commands, layout_query: Query<Entity, With<SourceLayout>>) {
     for e in layout_query.iter() {
         commands.entity(e).despawn_recursive();
+    }
+}
+
+pub fn add_hex_tile_offsets(
+    mut commands: Commands,
+    tile_query: Query<(Entity, &Height, &HexPosition), With<Biome>>,
+    hex_to_map_source_entity: Res<HexToMapSourceEntity>,
+) {
+    for (entity, height, pos) in tile_query.iter() {
+        let heights: Option<[&Height; 6]> = (0..6)
+            .map_while(|i| {
+                let sibling = pos.0.get_sibling(5 - i);
+                let sibling_entity = hex_to_map_source_entity.0.get(&sibling)?;
+                match tile_query.get(*sibling_entity) {
+                    Ok((_, height, _)) => Some(height),
+                    Err(_) => None,
+                }
+            })
+            .collect_vec()
+            .try_into()
+            .ok();
+
+        if let Some(h) = heights {
+            let height_diffs = h.map(|h| (height.0 as i16 - h.0 as i16) as i8);
+            let mesh_type =
+                MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&height_diffs));
+
+            commands.entity(entity).insert(mesh_type);
+        }
     }
 }
 
@@ -246,7 +275,9 @@ fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMa
         height: Height(height.get_height()),
         tile_height: height,
         pos: HexPosition(hex.clone()),
-        mesh_type: MeshType::HexMapTile([0, 0, 0, 0, 0, 0]),
+        mesh_type: MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&[
+            0, 0, 0, 0, 0, 0,
+        ])),
         material_type,
     }
 }

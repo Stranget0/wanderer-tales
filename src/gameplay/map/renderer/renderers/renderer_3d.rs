@@ -1,11 +1,12 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
+use itertools::Itertools;
 
 use crate::gameplay::map::{
     renderer::{
         components::{MaterialType, MeshType},
         debug::uv_debug_texture,
     },
-    utils::hex_layout::HexLayout,
+    utils::{hex_layout::HexLayout, lexigraphical_cycle::LexigraphicalCycle},
 };
 
 use super::{
@@ -47,7 +48,7 @@ impl CreateRenderBundle<PbrBundle> for Renderer3D {
         material_type: &MaterialType,
         mesh_type: &MeshType,
     ) -> PbrBundle {
-        let transform = Transform::from_xyz(pos.x, pos.y, pos.z);
+        let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
 
         let material = self
             .materials_map
@@ -62,9 +63,22 @@ impl CreateRenderBundle<PbrBundle> for Renderer3D {
 
         let mesh = self
             .meshes_map
-            .get(mesh_type)
+            .get(&match mesh_type {
+                MeshType::HexMapTile(heigh_diffs) => {
+                    let normalized_diffs = LexigraphicalCycle::shiloah_minimal_rotation(
+                        &heigh_diffs.cycle.map(|r| r.clamp(-2, 2)),
+                    );
+                    transform.rotate_y(((normalized_diffs.rotation * 60) as f32).to_radians());
+                    MeshType::HexMapTile(normalized_diffs)
+                }
+                _ => mesh_type.clone(),
+            })
             .unwrap_or_else(|| {
-                error!("Could not get mesh {:?}", mesh_type);
+                error!(
+                    "Could not get mesh {:?} \n\tavailable: {:?}",
+                    mesh_type,
+                    self.meshes_map.keys().collect_vec()
+                );
                 self.meshes_map
                     .get(&MeshType::Debug)
                     .expect("Could not get debug mesh")
@@ -108,18 +122,23 @@ impl Renderer3D {
             materials_map.insert(key, debug_material.clone());
         }
 
-        let computed_entries = PRECOMPUTED_HEIGHT_DIFF.map(|h_diff| {
-            (
-                MeshType::HexMapTile(h_diff),
-                Hexagon3D::create_base(layout.size.x, layout.orientation.starting_angle, &h_diff),
-            )
-        });
-        let mut entries: Vec<(MeshType, Mesh)> =
-            vec![(MeshType::Player, Sphere::new(layout.size.x).into())];
-        entries.extend_from_slice(&computed_entries);
+        let entries: Vec<(MeshType, Mesh)> = vec![
+            (MeshType::Player, Sphere::new(layout.size.x).into()),
+            (MeshType::Debug, Sphere::new(layout.size.x / 3.0).into()),
+        ];
 
         for (key, mesh) in entries {
             meshes_map.insert(key, meshes.add(mesh));
+        }
+        for height_diff in PRECOMPUTED_HEIGHT_DIFF {
+            meshes_map.insert(
+                MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&height_diff)),
+                meshes.add(Hexagon3D::create_base(
+                    layout.size.x,
+                    layout.orientation.starting_angle,
+                    &height_diff,
+                )),
+            );
         }
 
         Self {

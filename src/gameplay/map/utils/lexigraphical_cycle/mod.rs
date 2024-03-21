@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Debug};
+use std::{cmp::Ordering, fmt::Debug, hash::Hash};
 
 #[derive(Debug, Clone, Eq)]
 pub struct LexigraphicalCycle<T, const COUNT: usize> {
@@ -35,8 +35,10 @@ where
         let mut i = 0;
         let mut j = 1;
         let mut k = 0;
+        let mut iterations = 0;
 
         while i < n && j < n && k < n {
+            iterations += 1;
             match arr[(i + k) % n].cmp(&arr[(j + k) % n]) {
                 Ordering::Equal => {
                     k += 1;
@@ -108,6 +110,12 @@ impl<T: PartialEq, const SIZE: usize> PartialEq for LexigraphicalCycle<T, SIZE> 
     }
 }
 
+impl<T: Hash, const SIZE: usize> Hash for LexigraphicalCycle<T, SIZE> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.cycle.hash(state);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use self::test_utils::*;
@@ -115,30 +123,31 @@ mod tests {
 
     #[test]
     fn cycle_naive_rotation() {
-        check_equality::<5>(LexigraphicalCycle::naive_minimal_rotation);
+        check_equality(LexigraphicalCycle::naive_minimal_rotation);
         check_correctness(LexigraphicalCycle::naive_minimal_rotation);
     }
 
     #[test]
     fn cycle_shiloah_rotation() {
-        check_equality::<5>(LexigraphicalCycle::shiloah_minimal_rotation);
+        check_equality(LexigraphicalCycle::shiloah_minimal_rotation);
         check_correctness(LexigraphicalCycle::shiloah_minimal_rotation);
     }
 
     #[test]
     fn cycle_booth_rotation() {
-        check_equality::<5>(LexigraphicalCycle::booth_minimal_rotation);
+        check_equality(LexigraphicalCycle::booth_minimal_rotation);
         check_correctness(LexigraphicalCycle::booth_minimal_rotation);
     }
 
     pub mod test_utils {
-        use crate::gameplay::map::utils::lexigraphical_cycle::LexigraphicalCycle;
+        use crate::gameplay::map::{
+            renderer::renderers::common::PRECOMPUTED_HEIGHT_DIFF,
+            utils::lexigraphical_cycle::LexigraphicalCycle,
+        };
         use itertools::Itertools;
 
-        pub fn check_equality<const SIZE: usize>(
-            calculate: fn(&[i8; SIZE]) -> LexigraphicalCycle<i8, SIZE>,
-        ) {
-            let inputs = get_inputs::<SIZE>();
+        pub fn check_equality(calculate: fn(&[i8; 6]) -> LexigraphicalCycle<i8, 6>) {
+            let inputs = get_inputs();
 
             let shifted_inputs = create_many_variations(inputs);
             for outputs in get_results(shifted_inputs, calculate) {
@@ -191,12 +200,8 @@ mod tests {
                 .collect()
         }
 
-        fn get_inputs<const SIZE: usize>() -> Vec<[i8; SIZE]> {
-            let inputs: Vec<[i8; SIZE]> = (-2..3)
-                .combinations_with_replacement(SIZE)
-                .map(|i| i.try_into().unwrap())
-                .collect();
-            inputs
+        fn get_inputs() -> Vec<[i8; 6]> {
+            PRECOMPUTED_HEIGHT_DIFF.to_vec()
         }
 
         fn get_input_expected() -> [([i8; 7], [i8; 7]); 1] {

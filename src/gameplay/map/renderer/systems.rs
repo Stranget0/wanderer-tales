@@ -27,13 +27,12 @@ pub(crate) fn render_static_map_items<
             }
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
             let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0.into());
+            let render_bundle = renderer.create_render_bundle(&pos, material_type, mesh_type);
 
             spawn_render_item(
                 &mut commands,
                 renderer,
-                pos,
-                material_type,
-                mesh_type,
+                render_bundle,
                 source_entity,
                 layout_entity,
             );
@@ -59,13 +58,12 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapAp
             }
             let pos_2d = layout.hex_to_pixel(&position.0);
             let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0.into());
+            let render_bundle = renderer.create_render_bundle(&pos, material_type, mesh_type);
 
             spawn_render_item(
                 &mut commands,
                 renderer,
-                pos,
-                material_type,
-                mesh_type,
+                render_bundle,
                 source_entity,
                 layout_entity,
             );
@@ -341,22 +339,24 @@ fn despawn_render_item<R: RenderMapApi + Component>(
 fn spawn_render_item<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
     commands: &mut Commands,
     mut renderer: Mut<R>,
-    pos: Vec3,
-    material_type: &MaterialType,
-    mesh_type: &MeshType,
+    bundle: T,
     source_entity: Entity,
     layout_entity: Entity,
-) {
-    let render_entity = commands
-        .spawn(renderer.create_render_bundle(&pos, material_type, mesh_type))
-        .id();
+) -> Entity {
+    let render_entity = commands.spawn(bundle).id();
 
-    debug!(
-        "Spawning map item {:?} {:?} for source {:?} -> {:?}",
-        mesh_type, material_type, source_entity, render_entity
-    );
+    debug_spawn(&source_entity, &render_entity);
 
     renderer.link_source_item(&source_entity, &render_entity);
 
     commands.entity(layout_entity).add_child(render_entity);
+
+    render_entity
+}
+
+fn debug_spawn(source_entity: &Entity, render_entity: &Entity) {
+    debug!(
+        "[Spawning map item {:?} -> {:?}]",
+        source_entity, render_entity
+    );
 }
