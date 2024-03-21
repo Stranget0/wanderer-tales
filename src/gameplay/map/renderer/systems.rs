@@ -1,10 +1,16 @@
-use crate::gameplay::{
-    map::utils::{hex_layout::HexLayout, hex_map_item::Height, hex_vector::FractionalHexVector},
-    player::components::{HexPosition, HexPositionFractional, HexPositionFractionalDelta},
+use crate::{
+    gameplay::{
+        map::utils::{
+            hex_layout::HexLayout, hex_map_item::Height, hex_vector::FractionalHexVector,
+        },
+        player::components::{HexPosition, HexPositionFractional, HexPositionFractionalDelta},
+    },
+    utils::{to_3d_space, EULER_ROT, FORWARD, UP},
 };
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
+    utils::info,
 };
 
 use super::{
@@ -26,7 +32,7 @@ pub(crate) fn render_static_map_items<
                 continue;
             }
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
-            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0.into());
+            let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
             let render_bundle = renderer.create_render_bundle(&pos, material_type, mesh_type);
 
             spawn_render_item(
@@ -57,7 +63,7 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapAp
                 continue;
             }
             let pos_2d = layout.hex_to_pixel(&position.0);
-            let pos = Vec3::new(pos_2d.x, pos_2d.y, height.0.into());
+            let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
             let render_bundle = renderer.create_render_bundle(&pos, material_type, mesh_type);
 
             spawn_render_item(
@@ -227,9 +233,14 @@ pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
             if let Some(render_entity) = render_entity_option {
                 if let Ok(mut transform) = transform_query.get_mut(*render_entity) {
                     let delta = layout.hex_to_pixel(&delta_pos.0);
-                    transform.translation.x += delta.x;
-                    transform.translation.y += delta.y;
-                    transform.translation.z = height.0.into();
+                    let [x, y, z] = to_3d_space(
+                        transform.translation.x + delta.x,
+                        transform.translation.y + delta.y,
+                        height.0.into(),
+                    );
+                    transform.translation.x = x;
+                    transform.translation.y = y;
+                    transform.translation.z = z;
                 }
             } else {
                 error!("Could not get character render entity");
@@ -277,12 +288,10 @@ pub(crate) fn camera_update<R: RenderMapApi + Component>(
                 }
 
                 if let Some(rotation) = rotation_option {
-                    // camera_transform.rotation = Quat::from(rotation);
-                    // camera_transform.rotate_around(target_pos, Quat::from(rotation));
-                    // camera_transform.rotate_y(rotation.0);
-                    // camera_transform.rotate_axis(,rotation.1);
-                    camera_transform.rotate_around(target_pos, Quat::from_rotation_z(rotation.0));
-                    camera_transform.look_at(target_pos, Vec3::Y);
+                    let rotation_1 = Quat::from_euler(EULER_ROT, 0.0, 0.0, -rotation.0);
+                    let rotation_2 = Quat::from_euler(EULER_ROT, -rotation.1, 0.0, 0.0);
+                    camera_transform.translate_around(target_pos, rotation_1 * rotation_2);
+                    camera_transform.look_at(target_pos, UP);
                 }
             }
         }
@@ -298,8 +307,9 @@ pub(crate) fn camera_look_around(
         let time_delta = time.delta_seconds();
         for (camera, mut camera_rotation) in camera_query.iter_mut() {
             if camera.is_active {
-                camera_rotation.0 += e.delta.x / 3.0 * time_delta;
-                camera_rotation.1 += e.delta.y / 3.0 * time_delta;
+                let sensitivity = 20.0;
+                camera_rotation.0 += (e.delta.x * time_delta * sensitivity).to_radians();
+                camera_rotation.1 += (e.delta.y * time_delta * sensitivity).to_radians();
             }
         }
     }

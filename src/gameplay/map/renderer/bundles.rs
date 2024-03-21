@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::gameplay::theme::constants::COLORS;
+use crate::{gameplay::theme::constants::COLORS, utils::to_3d_space};
 
 use super::components::{CameraOffset, CameraRotation};
 
@@ -14,6 +14,7 @@ pub struct Game2DCameraBundle(Camera2dBundle, CameraOffset, CameraRotation);
 
 impl Default for Game3DCameraBundle {
     fn default() -> Self {
+        let [x, y, z] = to_3d_space(0.0, -3.0, 3.0);
         Self(
             Camera3dBundle {
                 camera: Camera {
@@ -24,7 +25,7 @@ impl Default for Game3DCameraBundle {
                 },
                 ..default()
             },
-            CameraOffset(0.0, 5.0, -8.0),
+            CameraOffset(x, y, z),
             CameraRotation::default(),
         )
     }
