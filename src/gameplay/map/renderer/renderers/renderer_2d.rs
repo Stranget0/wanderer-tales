@@ -12,7 +12,7 @@ use crate::{
     utils::UP,
 };
 
-use super::traits::{CreateRenderBundle, RenderMap, RenderMapApi};
+use super::traits::{CreateRenderBundles, RenderMap, RenderMapApi};
 
 #[derive(Component)]
 pub struct Renderer2D {
@@ -40,13 +40,16 @@ impl RenderMapApi for Renderer2D {
     }
 }
 
-impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
+impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
     fn create_render_bundle(
         &self,
         pos_ref: &Vec3,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-    ) -> MaterialMesh2dBundle<ColorMaterial> {
+    ) -> (
+        MaterialMesh2dBundle<ColorMaterial>,
+        Option<Vec<MaterialMesh2dBundle<ColorMaterial>>>,
+    ) {
         let base_pos = *pos_ref;
         let flattened_pos = (Vec3::ONE - UP) * base_pos;
         let height_vec = UP
@@ -78,12 +81,15 @@ impl CreateRenderBundle<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
             .unwrap_or_else(|| self.meshes_map.get(&MeshType::Debug).unwrap())
             .clone();
 
-        MaterialMesh2dBundle {
-            mesh,
-            material,
-            transform,
-            ..Default::default()
-        }
+        (
+            MaterialMesh2dBundle {
+                mesh,
+                material,
+                transform,
+                ..Default::default()
+            },
+            None,
+        )
     }
 }
 

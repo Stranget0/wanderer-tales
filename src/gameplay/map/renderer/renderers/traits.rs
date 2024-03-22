@@ -1,15 +1,6 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::{
-    map::{
-        renderer::components::{MaterialType, MeshType},
-        utils::{
-            hex_layout::HexLayout,
-            hex_map_item::{Biome, TileHeight},
-        },
-    },
-    player::components::HexPosition,
-};
+use crate::gameplay::map::renderer::components::{MaterialType, MeshType};
 
 pub trait RenderMapApi {
     fn get_render_item(&self, source_entity: &Entity) -> Option<&Entity>;
@@ -21,23 +12,13 @@ pub trait RenderMapApi {
     ) -> Option<Entity>;
 }
 
-pub trait CreateMapRenderBundle<T: Bundle> {
-    fn create_map_render_bundle(
-        &self,
-        layout: &HexLayout,
-        pos: &HexPosition,
-        biome: &Biome,
-        height: &TileHeight,
-    ) -> T;
-}
-
-pub trait CreateRenderBundle<T: Bundle> {
+pub trait CreateRenderBundles<T: Bundle> {
     fn create_render_bundle(
         &self,
         pos: &Vec3,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-    ) -> T;
+    ) -> (T, Option<Vec<T>>);
 }
 
 #[derive(Debug, Default)]

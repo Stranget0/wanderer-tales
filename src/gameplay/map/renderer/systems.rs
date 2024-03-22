@@ -15,12 +15,12 @@ use bevy::{
 
 use super::{
     components::{CameraOffset, CameraRotation, MaterialType, MeshType, SourceCameraFollow},
-    renderers::traits::{CreateRenderBundle, RenderMapApi},
+    renderers::traits::{CreateRenderBundles, RenderMapApi},
 };
 
 pub(crate) fn render_static_map_items<
     T: Bundle,
-    R: CreateRenderBundle<T> + RenderMapApi + Component,
+    R: CreateRenderBundles<T> + RenderMapApi + Component,
 >(
     mut commands: Commands,
     render_type_query: Query<(Entity, &HexPosition, &Height, &MeshType, &MaterialType)>,
@@ -33,7 +33,8 @@ pub(crate) fn render_static_map_items<
             }
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let render_bundle = renderer.create_render_bundle(&pos, material_type, mesh_type);
+            let (render_bundle, render_children) =
+                renderer.create_render_bundle(&pos, material_type, mesh_type);
 
             spawn_render_item(
                 &mut commands,
@@ -41,12 +42,13 @@ pub(crate) fn render_static_map_items<
                 render_bundle,
                 source_entity,
                 layout_entity,
+                render_children,
             );
         }
     }
 }
 
-pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
+pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundles<T> + RenderMapApi + Component>(
     mut commands: Commands,
     render_type_query: Query<(
         Entity,
@@ -64,7 +66,8 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapAp
             }
             let pos_2d = layout.hex_to_pixel(&position.0);
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let render_bundle = renderer.create_render_bundle(&pos, material_type, mesh_type);
+            let (render_bundle, render_children) =
+                renderer.create_render_bundle(&pos, material_type, mesh_type);
 
             spawn_render_item(
                 &mut commands,
@@ -72,6 +75,7 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundle<T> + RenderMapAp
                 render_bundle,
                 source_entity,
                 layout_entity,
+                render_children,
             );
         }
     }
@@ -349,12 +353,13 @@ fn despawn_render_item<R: RenderMapApi + Component>(
     }
 }
 
-fn spawn_render_item<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Component>(
+fn spawn_render_item<T: Bundle, R: CreateRenderBundles<T> + RenderMapApi + Component>(
     commands: &mut Commands,
     mut renderer: Mut<R>,
     bundle: T,
     source_entity: Entity,
     layout_entity: Entity,
+    children: Option<Vec<T>>,
 ) -> Entity {
     let render_entity = commands.spawn(bundle).id();
 
@@ -363,6 +368,12 @@ fn spawn_render_item<T: Bundle, R: CreateRenderBundle<T> + RenderMapApi + Compon
     renderer.link_source_item(&source_entity, &render_entity);
 
     commands.entity(layout_entity).add_child(render_entity);
+    if let Some(bundles) = children {
+        for b in bundles {
+            let child = commands.spawn(b).id();
+            commands.entity(render_entity).add_child(child);
+        }
+    }
 
     render_entity
 }

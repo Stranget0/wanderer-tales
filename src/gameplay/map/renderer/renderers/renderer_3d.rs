@@ -12,7 +12,7 @@ use crate::gameplay::map::{
 use super::{
     common::PRECOMPUTED_HEIGHT_DIFF,
     meshes::Hexagon3D,
-    traits::{CreateRenderBundle, RenderMap, RenderMapApi},
+    traits::{CreateRenderBundles, RenderMap, RenderMapApi},
 };
 
 #[derive(Component)]
@@ -41,13 +41,13 @@ impl RenderMapApi for Renderer3D {
     }
 }
 
-impl CreateRenderBundle<PbrBundle> for Renderer3D {
+impl CreateRenderBundles<PbrBundle> for Renderer3D {
     fn create_render_bundle(
         &self,
         pos: &Vec3,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-    ) -> PbrBundle {
+    ) -> (PbrBundle, Option<Vec<PbrBundle>>) {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
 
         let material = self
@@ -84,12 +84,15 @@ impl CreateRenderBundle<PbrBundle> for Renderer3D {
             })
             .clone();
 
-        PbrBundle {
-            mesh,
-            material,
-            transform,
-            ..Default::default()
-        }
+        (
+            PbrBundle {
+                mesh,
+                material,
+                transform,
+                ..Default::default()
+            },
+            None,
+        )
     }
 }
 
