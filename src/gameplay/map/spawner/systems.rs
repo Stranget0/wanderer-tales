@@ -275,9 +275,6 @@ fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMa
         height: Height(height.get_height()),
         tile_height: height,
         pos: HexPosition(hex.clone()),
-        mesh_type: MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&[
-            0, 0, 0, 0, 0, 0,
-        ])),
         material_type,
     }
 }

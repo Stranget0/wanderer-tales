@@ -26,7 +26,7 @@ pub fn spawn_player(
 ) {
     for layout_entity in source_layout.iter() {
         let pos = HexPositionFractional(FractionalHexVector(0.0, 0.0, 0.0));
-        let sight = 1;
+        let sight = 2;
         let player_entity = commands
             .spawn((
                 WSADSteerable,

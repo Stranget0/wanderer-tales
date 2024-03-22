@@ -35,10 +35,8 @@ where
         let mut i = 0;
         let mut j = 1;
         let mut k = 0;
-        let mut iterations = 0;
 
         while i < n && j < n && k < n {
-            iterations += 1;
             match arr[(i + k) % n].cmp(&arr[(j + k) % n]) {
                 Ordering::Equal => {
                     k += 1;

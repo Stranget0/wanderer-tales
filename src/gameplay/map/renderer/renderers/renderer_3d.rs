@@ -68,7 +68,6 @@ impl CreateRenderBundle<PbrBundle> for Renderer3D {
                     let normalized_diffs = LexigraphicalCycle::shiloah_minimal_rotation(
                         &heigh_diffs.cycle.map(|r| r.clamp(-2, 2)),
                     );
-                    transform.rotate_y(((normalized_diffs.rotation * 60) as f32).to_radians());
                     MeshType::HexMapTile(normalized_diffs)
                 }
                 _ => mesh_type.clone(),

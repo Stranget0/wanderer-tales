@@ -1,9 +1,6 @@
 use bevy::prelude::*;
 
-use crate::gameplay::{
-    map::renderer::components::{MaterialType, MeshType},
-    player::components::HexPosition,
-};
+use crate::gameplay::{map::renderer::components::MaterialType, player::components::HexPosition};
 
 #[derive(Bundle, Clone, Debug)]
 pub struct HexMapTileBundle {
@@ -11,7 +8,6 @@ pub struct HexMapTileBundle {
     pub biome: Biome,
     pub tile_height: TileHeight,
     pub height: Height,
-    pub mesh_type: MeshType,
     pub material_type: MaterialType,
 }
 

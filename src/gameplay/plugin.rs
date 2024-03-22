@@ -94,12 +94,19 @@ fn initialize_map(
 #[derive(Default, Reflect, GizmoConfigGroup)]
 struct BaseGizmo {}
 
-fn draw_base_gizmo(mut gizmos: Gizmos, player: Query<&Transform>) {
+fn draw_base_gizmo(
+    mut gizmos: Gizmos,
+    player: Query<&Transform>,
+    renderer: Res<State<RendererState>>,
+) {
     for t in player.iter() {
+        let multiplier = match renderer.get() {
+            RendererState::TwoDimension => 100.0,
+            _ => 1.0,
+        };
         let offset = Vec3::from_array(t.translation.to_array());
-        let direction = t.rotation.to_axis_angle().0;
-        gizmos.arrow(offset, offset + direction, Color::RED);
-        gizmos.arrow(offset, offset + direction, Color::GREEN);
-        gizmos.arrow(offset, offset + direction, Color::BLUE);
+        gizmos.arrow(offset, offset + Vec3::X * multiplier, Color::RED);
+        gizmos.arrow(offset, offset + Vec3::Y * multiplier, Color::GREEN);
+        gizmos.arrow(offset, offset + Vec3::Z * multiplier, Color::BLUE);
     }
 }
