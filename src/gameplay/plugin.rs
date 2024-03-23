@@ -1,5 +1,7 @@
 use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, math::vec2, prelude::*};
 
+use crate::utils::{FORWARD, UP};
+
 use super::{
     map::{
         components::SourceLayout,
@@ -59,7 +61,7 @@ fn initialize_map(
     };
     let preview_map_layout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
-        size: vec2(16.0, 16.0),
+        size: vec2(200.0, 200.0),
         origin: vec2(0.0, 0.0),
     };
 
@@ -101,12 +103,26 @@ fn draw_base_gizmo(
 ) {
     for t in player.iter() {
         let multiplier = match renderer.get() {
-            RendererState::TwoDimension => 100.0,
+            RendererState::TwoDimension => {
+                continue;
+            }
             _ => 1.0,
         };
         let offset = Vec3::from_array(t.translation.to_array());
-        gizmos.arrow(offset, offset + Vec3::X * multiplier, Color::RED);
-        gizmos.arrow(offset, offset + Vec3::Y * multiplier, Color::GREEN);
-        gizmos.arrow(offset, offset + Vec3::Z * multiplier, Color::BLUE);
+        gizmos.arrow(
+            offset,
+            offset + t.rotation.mul_vec3(Vec3::X) * multiplier,
+            Color::RED,
+        );
+        gizmos.arrow(
+            offset,
+            offset + t.rotation.mul_vec3(FORWARD) * multiplier,
+            Color::GREEN,
+        );
+        gizmos.arrow(
+            offset,
+            offset + t.rotation.mul_vec3(UP) * multiplier,
+            Color::BLUE,
+        );
     }
 }

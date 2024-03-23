@@ -41,7 +41,7 @@ fn get_hex_corner_z(heights: [&i8; 2]) -> f32 {
         sum += h;
     }
 
-    f32::from(sum) / 3.0
+    f32::from(sum) / -3.0
 }
 
 impl HexLayout {

@@ -1,6 +1,9 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::map::renderer::components::{MaterialType, MeshType};
+use crate::gameplay::{
+    map::renderer::components::{MaterialType, MeshType},
+    player::components::Rotation,
+};
 
 pub trait RenderMapApi {
     fn get_render_item(&self, source_entity: &Entity) -> Option<&Entity>;
@@ -16,6 +19,7 @@ pub trait CreateRenderBundles<T: Bundle> {
     fn create_render_bundle(
         &self,
         pos: &Vec3,
+        rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
     ) -> (T, Option<Vec<T>>);

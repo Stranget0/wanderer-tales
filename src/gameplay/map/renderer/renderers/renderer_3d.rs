@@ -1,16 +1,22 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 use itertools::Itertools;
 
-use crate::gameplay::map::{
-    renderer::{
-        components::{MaterialType, MeshType},
-        debug::uv_debug_texture,
+use crate::{
+    gameplay::{
+        map::{
+            renderer::{
+                components::{MaterialType, MeshType},
+                debug::uv_debug_texture,
+            },
+            utils::hex_layout::HexLayout,
+        },
+        player::components::Rotation,
     },
-    utils::{hex_layout::HexLayout, lexigraphical_cycle::LexigraphicalCycle},
+    utils::EULER_ROT,
 };
 
 use super::{
-    common::PRECOMPUTED_HEIGHT_DIFF,
+    common::PRECOMPUTED_HEIGHT_CYCLES,
     meshes::Hexagon3D,
     traits::{CreateRenderBundles, RenderMap, RenderMapApi},
 };
@@ -45,10 +51,23 @@ impl CreateRenderBundles<PbrBundle> for Renderer3D {
     fn create_render_bundle(
         &self,
         pos: &Vec3,
+        rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
     ) -> (PbrBundle, Option<Vec<PbrBundle>>) {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
+        transform.rotation = Quat::from_euler(EULER_ROT, rotation.0.x, rotation.0.y, rotation.0.z);
+
+        // if let MeshType::HexMapTile(height_cycle) = mesh_type {
+        //     transform.rotate_y((height_cycle.rotation as f32 * 60.0).to_radians());
+        // };
+
+        let zero_type = MeshType::HexMapTile(default());
+
+        let mesh_type_debug = match mesh_type {
+            MeshType::HexMapTile(_) => &zero_type,
+            _ => mesh_type,
+        };
 
         let material = self
             .materials_map
@@ -63,15 +82,7 @@ impl CreateRenderBundles<PbrBundle> for Renderer3D {
 
         let mesh = self
             .meshes_map
-            .get(&match mesh_type {
-                MeshType::HexMapTile(heigh_diffs) => {
-                    let normalized_diffs = LexigraphicalCycle::shiloah_minimal_rotation(
-                        &heigh_diffs.cycle.map(|r| r.clamp(-2, 2)),
-                    );
-                    MeshType::HexMapTile(normalized_diffs)
-                }
-                _ => mesh_type.clone(),
-            })
+            .get(mesh_type)
             .unwrap_or_else(|| {
                 error!(
                     "Could not get mesh {:?} \n\tavailable: {:?}",
@@ -118,6 +129,7 @@ impl Renderer3D {
             MaterialType::Mountain,
             MaterialType::Water,
             MaterialType::Player,
+            MaterialType::Debug,
         ];
 
         for key in materials {
@@ -126,19 +138,19 @@ impl Renderer3D {
 
         let entries: Vec<(MeshType, Mesh)> = vec![
             (MeshType::Player, Sphere::new(layout.size.x).into()),
-            (MeshType::Debug, Sphere::new(layout.size.x / 3.0).into()),
+            (MeshType::Debug, Sphere::new(0.1).into()),
         ];
 
         for (key, mesh) in entries {
             meshes_map.insert(key, meshes.add(mesh));
         }
-        for height_diff in PRECOMPUTED_HEIGHT_DIFF {
+        for height_cycle in PRECOMPUTED_HEIGHT_CYCLES {
             meshes_map.insert(
-                MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&height_diff)),
+                MeshType::HexMapTile(height_cycle),
                 meshes.add(Hexagon3D::create_base(
                     layout.size.x,
                     layout.orientation.starting_angle,
-                    &height_diff,
+                    &height_cycle,
                 )),
             );
         }

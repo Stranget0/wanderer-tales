@@ -22,7 +22,7 @@ impl RenderMapApi for RenderMap {
     }
 }
 
-pub const PRECOMPUTED_HEIGHT_DIFF: [[i8; 6]; 2635] = [
+pub const PRECOMPUTED_HEIGHT_CYCLES: [[i8; 6]; 2635] = [
     [-2, -2, -2, -2, -2, -2],
     [-2, -2, -2, -2, -2, -1],
     [-2, -2, -2, -2, -2, 0],

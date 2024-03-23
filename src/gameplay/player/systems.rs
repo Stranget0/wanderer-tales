@@ -15,7 +15,9 @@ use crate::gameplay::{
 };
 
 use super::{
-    components::{HexPosition, MapSpeed, PlayerControllable, PlayerRoot, Sight, WSADSteerable},
+    components::{
+        HexPosition, MapSpeed, PlayerControllable, PlayerRoot, Rotation, Sight, WSADSteerable,
+    },
     events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent, WSADEvent},
 };
 
@@ -40,6 +42,7 @@ pub fn spawn_player(
                 MaterialType::Player,
                 pos.clone(),
                 HexPositionFractionalDelta::default(),
+                Rotation(Vec3::ZERO),
             ))
             .id();
 

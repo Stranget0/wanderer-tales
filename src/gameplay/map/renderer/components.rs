@@ -2,8 +2,6 @@ use std::fmt::Display;
 
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::map::utils::lexigraphical_cycle::LexigraphicalCycle;
-
 #[derive(Component, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RenderGroup {
     Gameplay3D,
@@ -49,7 +47,7 @@ pub struct SourceCameraFollow;
 
 #[derive(Component, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MeshType {
-    HexMapTile(LexigraphicalCycle<i8, 6>),
+    HexMapTile([i8; 6]),
     Player,
     Debug,
 }

@@ -18,7 +18,7 @@ pub struct HexVectorSpiral<'a> {
 pub struct HexCorners {
     pub size: f32,
     pub starting_angle: f32,
-    pub corner: i8,
+    pub corner: usize,
 }
 
 impl HexVectorRing {
@@ -103,14 +103,14 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
 }
 
 impl Iterator for HexCorners {
-    type Item = [f32; 2];
+    type Item = (usize, [f32; 2]);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let corner = get_hex_corner_2d(self.corner, self.starting_angle, self.size);
+        let corner = get_hex_corner_2d(self.corner as i8, self.starting_angle, self.size);
+        let index = self.corner;
+        self.corner += 1;
 
-        self.corner -= 1;
-
-        Some(corner)
+        Some((index, corner))
     }
 }
 
@@ -193,8 +193,8 @@ mod tests {
         let hex = RegularPolygon::new(1.0, 6);
         for a in hex.vertices(0.0) {
             let b = corners.next().unwrap();
-            assert_approx_eq!(f32, a.x, b[0], F_HEX_MARGIN);
-            assert_approx_eq!(f32, a.y, b[1], F_HEX_MARGIN);
+            assert_approx_eq!(f32, a.x, b[0].1, F_HEX_MARGIN);
+            assert_approx_eq!(f32, a.y, b[1].1, F_HEX_MARGIN);
         }
     }
 }

@@ -5,11 +5,14 @@ use bevy::{
 };
 
 use crate::{
-    gameplay::map::{
-        renderer::components::{MaterialType, MeshType},
-        utils::{hex_layout::HexLayout, lexigraphical_cycle::LexigraphicalCycle},
+    gameplay::{
+        map::{
+            renderer::components::{MaterialType, MeshType},
+            utils::hex_layout::HexLayout,
+        },
+        player::components::Rotation,
     },
-    utils::UP,
+    utils::{EULER_ROT, UP},
 };
 
 use super::traits::{CreateRenderBundles, RenderMap, RenderMapApi};
@@ -44,6 +47,7 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
     fn create_render_bundle(
         &self,
         pos_ref: &Vec3,
+        rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
     ) -> (
@@ -60,7 +64,8 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
             };
         let pos = flattened_pos + height_vec;
 
-        let transform = Transform::from_xyz(pos.x, pos.y, pos.z);
+        let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
+        transform.rotation = Quat::from_euler(EULER_ROT, rotation.0.x, rotation.0.y, rotation.0.z);
 
         let material = self
             .materials_map
@@ -71,11 +76,7 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
         let mesh = self
             .meshes_map
             .get(&match mesh_type {
-                MeshType::HexMapTile(_) => {
-                    MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&[
-                        0, 0, 0, 0, 0, 0,
-                    ]))
-                }
+                MeshType::HexMapTile(_) => MeshType::HexMapTile(default()),
                 _ => mesh_type.clone(),
             })
             .unwrap_or_else(|| self.meshes_map.get(&MeshType::Debug).unwrap())
@@ -119,9 +120,7 @@ impl Renderer2D {
 
         let entries: [(MeshType, Mesh); 3] = [
             (
-                MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&[
-                    0, 0, 0, 0, 0, 0,
-                ])),
+                MeshType::HexMapTile(default()),
                 RegularPolygon::new(layout.size.x, 6).into(),
             ),
             (MeshType::Player, Circle::new(3.0).into()),

@@ -6,20 +6,23 @@ use itertools::Itertools;
 use noise::core::perlin::perlin_2d;
 use rand::Rng;
 
-use crate::gameplay::{
-    map::{
-        components::SourceLayout,
-        renderer::components::{MeshType, RenderGroup},
-        utils::{
-            hex_map_item::{Biome, Height, HexMapTileBundle, TileHeight},
-            hex_vector::{iterators::HexVectorSpiral, HexVector},
-            lexigraphical_cycle::LexigraphicalCycle,
+use crate::{
+    gameplay::{
+        map::{
+            components::SourceLayout,
+            renderer::components::{MeshType, RenderGroup},
+            utils::{
+                hex_map_item::{Biome, Height, HexMapTileBundle, TileHeight},
+                hex_vector::{iterators::HexVectorSpiral, HexVector},
+                lexigraphical_cycle::LexigraphicalCycle,
+            },
+        },
+        player::{
+            components::{HexPosition, Rotation},
+            events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent},
         },
     },
-    player::{
-        components::HexPosition,
-        events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent},
-    },
+    utils::UP,
 };
 
 use super::{
@@ -180,25 +183,34 @@ pub fn add_hex_tile_offsets(
     hex_to_map_source_entity: Res<HexToMapSourceEntity>,
 ) {
     for (entity, height, pos) in tile_query.iter() {
-        let heights: Option<[&Height; 6]> = (0..6)
-            .map_while(|i| {
-                let sibling = pos.0.get_sibling(5 - i);
-                let sibling_entity = hex_to_map_source_entity.0.get(&sibling)?;
-                match tile_query.get(*sibling_entity) {
-                    Ok((_, height, _)) => Some(height),
-                    Err(_) => None,
-                }
-            })
-            .collect_vec()
-            .try_into()
-            .ok();
+        let mut heights = Vec::with_capacity(6);
+        for i in 0..6 {
+            let hex = pos.0.get_sibling(i);
+            let height_option = hex_to_map_source_entity
+                .0
+                .get(&hex)
+                .and_then(|entity| tile_query.get(*entity).ok())
+                .map(|(_, h, _)| h);
 
-        if let Some(h) = heights {
-            let height_diffs = h.map(|h| (height.0 as i16 - h.0 as i16) as i8);
-            let mesh_type =
-                MeshType::HexMapTile(LexigraphicalCycle::shiloah_minimal_rotation(&height_diffs));
+            if let Some(h) = height_option {
+                heights.push(h);
+            } else {
+                break;
+            };
+        }
 
-            commands.entity(entity).insert(mesh_type);
+        if heights.len() == 6 {
+            let height_diffs = heights
+                .iter()
+                .map(|h| (h.0 as i16 - height.0 as i16) as i8)
+                .collect_vec();
+            let minimal_cycle =
+                LexigraphicalCycle::shiloah_minimal_rotation(&height_diffs.try_into().unwrap());
+            let mesh_rotation =
+                Rotation(UP * ((minimal_cycle.rotation + 5) as f32 * 60.0).to_radians());
+            let mesh_type = MeshType::HexMapTile(minimal_cycle.cycle);
+
+            commands.entity(entity).insert((mesh_type, mesh_rotation));
         }
     }
 }

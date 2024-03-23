@@ -1,9 +1,13 @@
 use crate::{
     gameplay::{
         map::utils::{
-            hex_layout::HexLayout, hex_map_item::Height, hex_vector::FractionalHexVector,
+            hex_layout::{get_hex_corner_2d, HexLayout},
+            hex_map_item::Height,
+            hex_vector::FractionalHexVector,
         },
-        player::components::{HexPosition, HexPositionFractional, HexPositionFractionalDelta},
+        player::components::{
+            HexPosition, HexPositionFractional, HexPositionFractionalDelta, PlayerRoot, Rotation,
+        },
     },
     utils::{to_3d_space, EULER_ROT, FORWARD, UP},
 };
@@ -15,7 +19,12 @@ use bevy::{
 
 use super::{
     components::{CameraOffset, CameraRotation, MaterialType, MeshType, SourceCameraFollow},
-    renderers::traits::{CreateRenderBundles, RenderMapApi},
+    renderers::{
+        meshes::Hexagon3D,
+        renderer_2d::Renderer2D,
+        renderer_3d::Renderer3D,
+        traits::{CreateRenderBundles, RenderMapApi},
+    },
 };
 
 pub(crate) fn render_static_map_items<
@@ -23,10 +32,19 @@ pub(crate) fn render_static_map_items<
     R: CreateRenderBundles<T> + RenderMapApi + Component,
 >(
     mut commands: Commands,
-    render_type_query: Query<(Entity, &HexPosition, &Height, &MeshType, &MaterialType)>,
+    render_type_query: Query<(
+        Entity,
+        &HexPosition,
+        &Height,
+        &Rotation,
+        &MeshType,
+        &MaterialType,
+    )>,
     mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
 ) {
-    for (source_entity, position, height, mesh_type, material_type) in render_type_query.iter() {
+    for (source_entity, position, height, rotation, mesh_type, material_type) in
+        render_type_query.iter()
+    {
         for (layout_entity, layout, renderer) in layout_query.iter_mut() {
             if renderer.get_render_item(&source_entity).is_some() {
                 continue;
@@ -34,7 +52,7 @@ pub(crate) fn render_static_map_items<
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
             let (render_bundle, render_children) =
-                renderer.create_render_bundle(&pos, material_type, mesh_type);
+                renderer.create_render_bundle(&pos, &rotation, material_type, mesh_type);
 
             spawn_render_item(
                 &mut commands,
@@ -54,12 +72,15 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundles<T> + RenderMapA
         Entity,
         &HexPositionFractional,
         &Height,
+        &Rotation,
         &MeshType,
         &MaterialType,
     )>,
     mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
 ) {
-    for (source_entity, position, height, mesh_type, material_type) in render_type_query.iter() {
+    for (source_entity, position, height, rotation, mesh_type, material_type) in
+        render_type_query.iter()
+    {
         for (layout_entity, layout, renderer) in layout_query.iter_mut() {
             if renderer.get_render_item(&source_entity).is_some() {
                 continue;
@@ -67,7 +88,7 @@ pub(crate) fn render_map_items<T: Bundle, R: CreateRenderBundles<T> + RenderMapA
             let pos_2d = layout.hex_to_pixel(&position.0);
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
             let (render_bundle, render_children) =
-                renderer.create_render_bundle(&pos, material_type, mesh_type);
+                renderer.create_render_bundle(&pos, rotation, material_type, mesh_type);
 
             spawn_render_item(
                 &mut commands,
@@ -331,6 +352,105 @@ pub(crate) fn camera_zoom(
                 offset.0 = offset_vec.x;
                 offset.1 = offset_vec.y;
                 offset.2 = offset_vec.z;
+            }
+        }
+    }
+}
+
+pub(crate) fn debug_heights_2d(
+    mut commands: Commands,
+    height_query: Query<(Entity, &Height, &MeshType, &Rotation), Without<PlayerRoot>>,
+    player_query: Query<&Height, With<PlayerRoot>>,
+    renderer: Query<(&HexLayout, &Renderer2D)>,
+) {
+    for (source_entity, h, mesh_type, rotation) in height_query.iter() {
+        for (l, r) in renderer.iter() {
+            let player_h = player_query.single();
+            if let Some(render_entity) = r.get_render_item(&source_entity) {
+                if let MeshType::HexMapTile(cycle) = mesh_type {
+                    let relative_h = commands
+                        .spawn(Text2dBundle {
+                            text: Text::from_section(
+                                format!("{}", h.0 as i16 - player_h.0 as i16),
+                                TextStyle {
+                                    font_size: 24.0,
+                                    ..default()
+                                },
+                            ),
+                            transform: Transform::from_xyz(0.0, 0.0, 3.0),
+                            ..default()
+                        })
+                        .id();
+
+                    let ids =
+                        Hexagon3D::get_top_vertices(l.orientation.starting_angle, l.size.x, &cycle)
+                            .map(|[x, y, z]| {
+                                let mut transform = Transform::from_xyz(x * 0.8, y * 0.8, 3.0);
+                                transform.rotate(Quat::from_euler(
+                                    EULER_ROT,
+                                    -rotation.0.x,
+                                    -rotation.0.y,
+                                    -rotation.0.z,
+                                ));
+                                commands
+                                    .spawn(Text2dBundle {
+                                        text: Text::from_section(
+                                            format!("{:.1}", z),
+                                            TextStyle {
+                                                font_size: 14.0,
+                                                ..default()
+                                            },
+                                        ),
+                                        transform,
+                                        ..default()
+                                    })
+                                    .id()
+                            });
+
+                    commands
+                        .entity(*render_entity)
+                        .replace_children(&[[relative_h].to_vec(), ids.to_vec()].concat()[..]);
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn debug_heights_cycle_3d(
+    mut commands: Commands,
+    height_query: Query<(Entity, &MeshType)>,
+    renderer_query: Query<(&HexLayout, &Renderer3D)>,
+) {
+    for (source_entity, mesh_type) in height_query.iter() {
+        if let MeshType::HexMapTile(h_cycle) = mesh_type {
+            for (layout, renderer) in renderer_query.iter() {
+                if let Some(render_entity) = renderer.get_render_item(&source_entity) {
+                    for [x, y, z] in Hexagon3D::get_top_vertices(
+                        layout.orientation.starting_angle,
+                        layout.size.x,
+                        h_cycle,
+                    )
+                    .iter()
+                    .take(1)
+                    {
+                        let entity = commands
+                            .spawn(PbrBundle {
+                                mesh: renderer.meshes_map.get(&MeshType::Debug).unwrap().clone(),
+                                material: renderer
+                                    .materials_map
+                                    .get(&MaterialType::Debug)
+                                    .unwrap()
+                                    .clone(),
+                                transform: Transform::from_xyz(*x, *y, *z),
+                                ..default()
+                            })
+                            .id();
+
+                        commands
+                            .entity(*render_entity)
+                            .replace_children(&[entity][..]);
+                    }
+                }
             }
         }
     }

@@ -41,5 +41,8 @@ impl Default for HexPositionDelta {
     }
 }
 
+#[derive(Component, Debug, Clone, PartialEq)]
+pub struct Rotation(pub Vec3);
+
 #[derive(Component)]
 pub struct Character;

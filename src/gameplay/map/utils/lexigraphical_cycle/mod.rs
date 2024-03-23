@@ -6,7 +6,8 @@ pub struct LexigraphicalCycle<T, const COUNT: usize> {
     pub rotation: usize,
 }
 
-impl<T: Sized + Clone + Ord + Debug + Copy, const COUNT: usize> LexigraphicalCycle<T, COUNT>
+impl<T: Sized + Clone + Ord + Debug + Copy + Default, const COUNT: usize>
+    LexigraphicalCycle<T, COUNT>
 where
     [T; COUNT]: Debug + for<'a> TryFrom<&'a [T]>,
 {
@@ -26,6 +27,13 @@ where
         Self {
             cycle: min_rotation_arr,
             rotation: min_rotation,
+        }
+    }
+
+    pub fn zero() -> Self {
+        Self {
+            cycle: [Default::default(); COUNT],
+            rotation: 0,
         }
     }
 
@@ -139,7 +147,7 @@ mod tests {
 
     pub mod test_utils {
         use crate::gameplay::map::{
-            renderer::renderers::common::PRECOMPUTED_HEIGHT_DIFF,
+            renderer::renderers::common::PRECOMPUTED_HEIGHT_CYCLES,
             utils::lexigraphical_cycle::LexigraphicalCycle,
         };
         use itertools::Itertools;
@@ -199,7 +207,7 @@ mod tests {
         }
 
         fn get_inputs() -> Vec<[i8; 6]> {
-            PRECOMPUTED_HEIGHT_DIFF.to_vec()
+            PRECOMPUTED_HEIGHT_CYCLES.to_vec()
         }
 
         fn get_input_expected() -> [([i8; 7], [i8; 7]); 1] {
