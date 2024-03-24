@@ -3,11 +3,9 @@ use crate::{
         map::utils::{
             hex_layout::{get_hex_corner_2d, HexLayout},
             hex_map_item::Height,
-            hex_vector::FractionalHexVector,
+            hex_vector::{FractionalHexVector, HexVector},
         },
-        player::components::{
-            HexPosition, HexPositionFractional, HexPositionFractionalDelta, PlayerRoot, Rotation,
-        },
+        player::components::{HexPosition, HexPositionFractional, MapSpeed, PlayerRoot, Rotation},
     },
     utils::{to_3d_space, EULER_ROT, FORWARD, UP},
 };
@@ -16,6 +14,7 @@ use bevy::{
     prelude::*,
     utils::info,
 };
+use itertools::Itertools;
 
 use super::{
     components::{CameraOffset, CameraRotation, MaterialType, MeshType, SourceCameraFollow},
@@ -121,14 +120,7 @@ pub(crate) fn clean_render_items<R: RenderMapApi + Component>(
 
 pub(crate) fn remove_moving_render_items<R: RenderMapApi + Component>(
     mut commands: Commands,
-    source_item_query: Query<
-        Entity,
-        (
-            With<HexPositionFractionalDelta>,
-            With<MaterialType>,
-            With<MeshType>,
-        ),
-    >,
+    source_item_query: Query<Entity, (With<MapSpeed>, With<MaterialType>, With<MeshType>)>,
     mut layout_query: Query<&mut R>,
 ) {
     for mut renderer in layout_query.iter_mut() {
@@ -245,24 +237,24 @@ pub(crate) fn show_entity<E: Component>(mut commands: Commands, query: Query<Ent
 
 pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
     mut transform_query: Query<&mut Transform>,
-    moveable_query: Query<(Entity, &HexPositionFractionalDelta, &Height)>,
+    moveable_query: Query<
+        (Entity, &HexPositionFractional, &Height),
+        Or<(
+            Changed<HexPositionFractional>,
+            Added<HexPositionFractional>,
+            Changed<Height>,
+            Added<Height>,
+        )>,
+    >,
     layout_query: Query<(&HexLayout, &R)>,
 ) {
-    for (source_entity, delta_pos, height) in moveable_query.iter() {
-        if delta_pos.0.length() <= 0.0 {
-            debug!("Skip updating character move");
-            continue;
-        }
+    for (source_entity, pos, height) in moveable_query.iter() {
         for (layout, renderer) in layout_query.iter() {
             let render_entity_option = renderer.get_render_item(&source_entity);
             if let Some(render_entity) = render_entity_option {
                 if let Ok(mut transform) = transform_query.get_mut(*render_entity) {
-                    let delta = layout.hex_to_pixel(&delta_pos.0);
-                    let [x, y, z] = to_3d_space(
-                        transform.translation.x + delta.x,
-                        transform.translation.y + delta.y,
-                        height.0.into(),
-                    );
+                    let pos = layout.hex_to_pixel(&pos.0);
+                    let [x, y, z] = to_3d_space(pos.x, pos.y, height.0.into());
                     transform.translation.x = x;
                     transform.translation.y = y;
                     transform.translation.z = z;
@@ -357,105 +349,6 @@ pub(crate) fn camera_zoom(
     }
 }
 
-pub(crate) fn debug_heights_2d(
-    mut commands: Commands,
-    height_query: Query<(Entity, &Height, &MeshType, &Rotation), Without<PlayerRoot>>,
-    player_query: Query<&Height, With<PlayerRoot>>,
-    renderer: Query<(&HexLayout, &Renderer2D)>,
-) {
-    for (source_entity, h, mesh_type, rotation) in height_query.iter() {
-        for (l, r) in renderer.iter() {
-            let player_h = player_query.single();
-            if let Some(render_entity) = r.get_render_item(&source_entity) {
-                if let MeshType::HexMapTile(cycle) = mesh_type {
-                    let relative_h = commands
-                        .spawn(Text2dBundle {
-                            text: Text::from_section(
-                                format!("{}", h.0 as i16 - player_h.0 as i16),
-                                TextStyle {
-                                    font_size: 24.0,
-                                    ..default()
-                                },
-                            ),
-                            transform: Transform::from_xyz(0.0, 0.0, 3.0),
-                            ..default()
-                        })
-                        .id();
-
-                    let ids =
-                        Hexagon3D::get_top_vertices(l.orientation.starting_angle, l.size.x, &cycle)
-                            .map(|[x, y, z]| {
-                                let mut transform = Transform::from_xyz(x * 0.8, y * 0.8, 3.0);
-                                transform.rotate(Quat::from_euler(
-                                    EULER_ROT,
-                                    -rotation.0.x,
-                                    -rotation.0.y,
-                                    -rotation.0.z,
-                                ));
-                                commands
-                                    .spawn(Text2dBundle {
-                                        text: Text::from_section(
-                                            format!("{:.1}", z),
-                                            TextStyle {
-                                                font_size: 14.0,
-                                                ..default()
-                                            },
-                                        ),
-                                        transform,
-                                        ..default()
-                                    })
-                                    .id()
-                            });
-
-                    commands
-                        .entity(*render_entity)
-                        .replace_children(&[[relative_h].to_vec(), ids.to_vec()].concat()[..]);
-                }
-            }
-        }
-    }
-}
-
-pub(crate) fn debug_heights_cycle_3d(
-    mut commands: Commands,
-    height_query: Query<(Entity, &MeshType)>,
-    renderer_query: Query<(&HexLayout, &Renderer3D)>,
-) {
-    for (source_entity, mesh_type) in height_query.iter() {
-        if let MeshType::HexMapTile(h_cycle) = mesh_type {
-            for (layout, renderer) in renderer_query.iter() {
-                if let Some(render_entity) = renderer.get_render_item(&source_entity) {
-                    for [x, y, z] in Hexagon3D::get_top_vertices(
-                        layout.orientation.starting_angle,
-                        layout.size.x,
-                        h_cycle,
-                    )
-                    .iter()
-                    .take(1)
-                    {
-                        let entity = commands
-                            .spawn(PbrBundle {
-                                mesh: renderer.meshes_map.get(&MeshType::Debug).unwrap().clone(),
-                                material: renderer
-                                    .materials_map
-                                    .get(&MaterialType::Debug)
-                                    .unwrap()
-                                    .clone(),
-                                transform: Transform::from_xyz(*x, *y, *z),
-                                ..default()
-                            })
-                            .id();
-
-                        commands
-                            .entity(*render_entity)
-                            .replace_children(&[entity][..]);
-                    }
-                }
-            }
-        }
-    }
-}
-
 fn despawn_render_item<R: RenderMapApi + Component>(
     renderer: &mut Mut<R>,
     source_entity: &Entity,
@@ -503,4 +396,149 @@ fn debug_spawn(source_entity: &Entity, render_entity: &Entity) {
         "[Spawning map item {:?} -> {:?}]",
         source_entity, render_entity
     );
+}
+
+pub(crate) fn debug_heights_2d(
+    mut commands: Commands,
+    hex_query: Query<(Entity, &Height, &MeshType, &Rotation, &HexPosition), Without<PlayerRoot>>,
+    renderer: Query<(&HexLayout, &Renderer2D)>,
+    mut logged_entities: Local<Vec<Entity>>,
+) {
+    for (source_entity, h, mesh_type, rotation, position) in hex_query.iter() {
+        // let player_pos = HexVector::from(&player_query.single().0 .0);
+        if logged_entities.contains(&source_entity) {
+            continue;
+        }
+        for (l, r) in renderer.iter() {
+            if let Some(render_entity) = r.get_render_item(&source_entity) {
+                if let MeshType::HexMapTile(cycle) = mesh_type {
+                    logged_entities.push(source_entity);
+                    let heights = commands
+                        .spawn(Text2dBundle {
+                            text: Text::from_section(
+                                format!("{}", h.0),
+                                TextStyle {
+                                    font_size: 24.0,
+                                    ..default()
+                                },
+                            ),
+                            transform: Transform::from_xyz(0.0, 0.0, 3.0),
+                            ..default()
+                        })
+                        .id();
+
+                    let corner_heights =
+                        Hexagon3D::get_top_vertices(l.orientation.starting_angle, l.size.x, cycle)
+                            .map(|[x, y, z]| {
+                                let mut transform = Transform::from_xyz(x * 0.8, y * 0.8, 3.0);
+                                transform.rotate(Quat::from_euler(
+                                    EULER_ROT,
+                                    -rotation.0.x,
+                                    -rotation.0.y,
+                                    -rotation.0.z,
+                                ));
+                                commands
+                                    .spawn(Text2dBundle {
+                                        text: Text::from_section(
+                                            format!("{:.1}", z + h.0 as f32),
+                                            TextStyle {
+                                                font_size: 14.0,
+                                                ..default()
+                                            },
+                                        ),
+                                        transform,
+                                        ..default()
+                                    })
+                                    .id()
+                            })
+                            .to_vec();
+
+                    // let sibling_order = (0..6)
+                    //     .map(|i| {
+                    //         let pos = l.hex_to_pixel(&FractionalHexVector::from(
+                    //             position.0.get_sibling(i),
+                    //         ));
+                    //         commands
+                    //             .spawn(Text2dBundle {
+                    //                 text: Text::from_section(
+                    //                     format!("{} \n {} {}", i, pos.x, pos.y),
+                    //                     TextStyle {
+                    //                         font_size: 24.0,
+                    //                         ..default()
+                    //                     },
+                    //                 ),
+                    //                 transform: Transform::from_xyz(pos.x, pos.y, 3.0),
+                    //                 ..default()
+                    //             })
+                    //             .id()
+                    //     })
+                    //     .collect_vec();
+
+                    let corner_order = (0..6)
+                        .map(|i| {
+                            let [x, y] =
+                                get_hex_corner_2d(i, l.orientation.starting_angle, l.size.x);
+                            commands
+                                .spawn(Text2dBundle {
+                                    text: Text::from_section(
+                                        format!("{}", i),
+                                        TextStyle {
+                                            font_size: 16.0,
+                                            ..default()
+                                        },
+                                    ),
+                                    transform: Transform::from_xyz(x * 0.9, y * 0.9, 3.0),
+                                    ..default()
+                                })
+                                .id()
+                        })
+                        .collect_vec();
+
+                    commands.entity(*render_entity).replace_children(
+                        &[vec![heights], corner_heights, corner_order].concat()[..],
+                    );
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn debug_heights_cycle_3d(
+    mut commands: Commands,
+    height_query: Query<(Entity, &MeshType)>,
+    renderer_query: Query<(&HexLayout, &Renderer3D)>,
+) {
+    for (source_entity, mesh_type) in height_query.iter() {
+        if let MeshType::HexMapTile(h_cycle) = mesh_type {
+            for (layout, renderer) in renderer_query.iter() {
+                if let Some(render_entity) = renderer.get_render_item(&source_entity) {
+                    for [x, y, z] in Hexagon3D::get_top_vertices(
+                        layout.orientation.starting_angle,
+                        layout.size.x,
+                        h_cycle,
+                    )
+                    .iter()
+                    .take(1)
+                    {
+                        let entity = commands
+                            .spawn(PbrBundle {
+                                mesh: renderer.meshes_map.get(&MeshType::Debug).unwrap().clone(),
+                                material: renderer
+                                    .materials_map
+                                    .get(&MaterialType::Debug)
+                                    .unwrap()
+                                    .clone(),
+                                transform: Transform::from_xyz(*x, *y, *z),
+                                ..default()
+                            })
+                            .id();
+
+                        commands
+                            .entity(*render_entity)
+                            .replace_children(&[entity][..]);
+                    }
+                }
+            }
+        }
+    }
 }

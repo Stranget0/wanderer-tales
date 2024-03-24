@@ -3,7 +3,9 @@ use bevy::{
     math::Vec2,
 };
 
-use super::components::{HexPositionFractional, HexPositionFractionalDelta, Sight};
+use crate::gameplay::map::utils::hex_vector::FractionalHexVector;
+
+use super::components::{HexPositionFractional, Sight};
 
 #[derive(Event)]
 pub struct WSADEvent(pub Vec2);
@@ -12,7 +14,7 @@ pub struct WSADEvent(pub Vec2);
 pub struct CharacterMovedEvent {
     pub source_entity: Entity,
     pub pos: HexPositionFractional,
-    pub delta_pos: HexPositionFractionalDelta,
+    pub delta_pos: FractionalHexVector,
     pub sight: Option<Sight>,
     pub is_player_controllable: bool,
 }

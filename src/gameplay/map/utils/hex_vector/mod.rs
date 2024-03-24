@@ -4,7 +4,7 @@ use std::{
     ops::{Add, Mul, Sub},
 };
 
-use bevy::math::Vec2;
+use bevy::{math::Vec2, reflect::Reflect};
 
 pub mod iterators;
 
@@ -19,7 +19,7 @@ pub const HEX_DIRECTIONS: [HexVector; 6] = [
     HexVector::new(-1, 0, 1),
 ];
 
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Reflect)]
 pub struct HexVector(pub i16, pub i16, pub i16);
 
 #[derive(Debug, Clone)]

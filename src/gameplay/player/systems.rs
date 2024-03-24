@@ -11,7 +11,7 @@ use crate::gameplay::{
             hex_vector::{FractionalHexVector, HexVector},
         },
     },
-    player::components::{HexPositionFractional, HexPositionFractionalDelta},
+    player::components::HexPositionFractional,
 };
 
 use super::{
@@ -41,7 +41,6 @@ pub fn spawn_player(
                 MeshType::Player,
                 MaterialType::Player,
                 pos.clone(),
-                HexPositionFractionalDelta::default(),
                 Rotation(Vec3::ZERO),
             ))
             .id();
@@ -67,7 +66,6 @@ pub fn move_interaction(
         let x: f32 = f32::from(is_right) - f32::from(is_left);
         let y = f32::from(is_up) - f32::from(is_down);
         let move_direction = Vec2::new(x, y).normalize();
-
         wsad_event.send(WSADEvent(move_direction));
     };
 }
@@ -75,7 +73,6 @@ pub fn move_interaction(
 type CharacterMoveComponents<'a> = (
     Entity,
     &'a mut HexPositionFractional,
-    &'a mut HexPositionFractionalDelta,
     &'a MapSpeed,
     &'a mut Height,
     Option<&'a Sight>,
@@ -90,23 +87,15 @@ pub fn move_2d_handle(
     height_query: Query<&Height, With<HexPosition>>,
     time: Res<Time>,
 ) {
-    if wsad_event.is_empty() {
-        for (_, _, mut delta, _, _, _) in items_to_move.iter_mut() {
-            if delta.0.length() <= 0.0 {
-                continue;
-            }
-            delta.0 = FractionalHexVector(0.0, 0.0, 0.0);
-        }
-    }
     for direction in wsad_event.read() {
         let mut events_to_send: Vec<CharacterMovedEvent> = vec![];
         for layout in source_layout.iter() {
-            for (entity, mut position, mut position_delta, speed, mut height, sight_option) in
-                items_to_move.iter_mut()
+            for (entity, mut position, speed, mut height, sight_option) in items_to_move.iter_mut()
             {
                 let new_position_delta =
                     layout.pixel_to_hex(direction.0) * speed.0 * time.delta_seconds();
-                position_delta.0 = new_position_delta.clone();
+
+                debug!("Move player {:?}", new_position_delta);
                 position.0 = &position.0 + &new_position_delta;
                 let k: HexVector = (&position.0).into();
                 match hex_to_map_source_entity
@@ -125,7 +114,7 @@ pub fn move_2d_handle(
                 events_to_send.push(CharacterMovedEvent {
                     source_entity: entity,
                     pos: position.clone(),
-                    delta_pos: position_delta.clone(),
+                    delta_pos: new_position_delta,
                     sight: sight_option.cloned(),
                     is_player_controllable: true,
                 });

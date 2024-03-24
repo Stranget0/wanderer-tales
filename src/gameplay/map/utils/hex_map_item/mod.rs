@@ -55,5 +55,5 @@ impl TileHeight {
     }
 }
 
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct Height(pub u8);

@@ -18,6 +18,7 @@ use super::{
         utils::{hex_layout::HexLayout, layout_orientation::POINTY_TOP_ORIENTATION},
     },
     player::{
+        components::HexPosition,
         events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent},
         PlayerPlugin,
     },
@@ -30,6 +31,7 @@ impl Plugin for GameplayPlugin {
         app.insert_state(RendererState::ThreeDimension)
             .insert_resource(SeedTable::default())
             .insert_resource(HexToMapSourceEntity::default())
+            .register_type::<HexPosition>()
             .add_event::<MapAddEvent>()
             .add_event::<MapSubEvent>()
             .add_event::<CharacterMovedEvent>()
@@ -61,7 +63,7 @@ fn initialize_map(
     };
     let preview_map_layout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
-        size: vec2(200.0, 200.0),
+        size: vec2(150.0, 150.0),
         origin: vec2(0.0, 0.0),
     };
 
@@ -71,7 +73,7 @@ fn initialize_map(
         origin: vec2(0.0, 0.0),
     };
 
-    commands.spawn((source_layout, SourceLayout));
+    commands.spawn((source_layout, SourceLayout, Name::new("MapSourceData")));
 
     commands.spawn((
         SpatialBundle::default(),
@@ -83,6 +85,7 @@ fn initialize_map(
         ),
         gameplay_map_layout,
         RenderGroup::Gameplay3D,
+        Name::new("GameplayMapLayout"),
     ));
 
     commands.spawn((
@@ -90,6 +93,7 @@ fn initialize_map(
         Renderer2D::new(&preview_map_layout, &mut materials_2d, &mut meshes),
         preview_map_layout,
         RenderGroup::PreviewMap2D,
+        Name::new("PreviewMapLayout"),
     ));
 }
 

@@ -56,7 +56,6 @@ impl Plugin for RendererPlugin {
                     render_map_items::<PbrBundle, Renderer3D>,
                     clean_render_items::<Renderer3D>,
                     move_rendered_items::<Renderer3D>,
-                    debug_heights_cycle_3d,
                 )
                     .in_set(RendererSet::RenderItems),
                 camera_update::<Renderer3D>.after(camera_look_around),
@@ -86,7 +85,6 @@ impl Plugin for RendererPlugin {
                     render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
                     clean_render_items::<Renderer2D>,
                     move_rendered_items::<Renderer2D>,
-                    debug_heights_2d,
                 )
                     .in_set(RendererSet::RenderItems),
                 camera_update::<Renderer2D>.after(camera_look_around),

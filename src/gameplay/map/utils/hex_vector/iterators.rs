@@ -15,12 +15,6 @@ pub struct HexVectorSpiral<'a> {
     origin: &'a HexVector,
 }
 
-pub struct HexCorners {
-    pub size: f32,
-    pub starting_angle: f32,
-    pub corner: usize,
-}
-
 impl HexVectorRing {
     pub fn new(origin: &HexVector, range: u16) -> Self {
         let direction = &HEX_DIRECTIONS[4];
@@ -102,29 +96,18 @@ impl<'a> Iterator for HexVectorSpiral<'a> {
     }
 }
 
-impl Iterator for HexCorners {
-    type Item = (usize, [f32; 2]);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let corner = get_hex_corner_2d(self.corner as i8, self.starting_angle, self.size);
-        let index = self.corner;
-        self.corner += 1;
-
-        Some((index, corner))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use bevy::math::primitives::RegularPolygon;
     use bevy::prelude::*;
     use float_cmp::assert_approx_eq;
+    use itertools::Itertools;
 
     use crate::gameplay::map::utils::hex_vector::{
         iterators::HexVectorRing, F_HEX_MARGIN, HEX_DIRECTIONS,
     };
 
-    use super::{HexCorners, HexVector, HexVectorSpiral};
+    use super::{HexVector, HexVectorSpiral};
 
     #[test]
     fn hex_circle() {
@@ -181,20 +164,5 @@ mod tests {
         }
         assert_eq!(iterator.next(), Some(origin.clone()));
         assert_eq!(iterator.next(), None);
-    }
-
-    #[test]
-    fn hex_corners() {
-        let mut corners: HexCorners = HexCorners {
-            corner: 0,
-            size: 1.0,
-            starting_angle: 0.0,
-        };
-        let hex = RegularPolygon::new(1.0, 6);
-        for a in hex.vertices(0.0) {
-            let b = corners.next().unwrap();
-            assert_approx_eq!(f32, a.x, b[0].1, F_HEX_MARGIN);
-            assert_approx_eq!(f32, a.y, b[1].1, F_HEX_MARGIN);
-        }
     }
 }

@@ -1,6 +1,4 @@
-use crate::gameplay::map::utils::{
-    hex_layout::get_hex_corner_3d, hex_vector::iterators::HexCorners,
-};
+use crate::gameplay::map::utils::hex_layout::{get_hex_corner_2d, get_hex_corner_3d};
 use bevy::{
     prelude::*,
     render::{
@@ -16,7 +14,6 @@ impl Hexagon3D {
     pub fn create_base(size: f32, starting_angle: f32, height_differences: &[i8; 6]) -> Mesh {
         let mut top_vertices: [[f32; 3]; 6] =
             Self::get_top_vertices(starting_angle, size, height_differences);
-        top_vertices.reverse();
 
         Mesh::new(
             PrimitiveTopology::TriangleList,
@@ -53,21 +50,62 @@ impl Hexagon3D {
         size: f32,
         height_differences: &[i8; 6],
     ) -> [[f32; 3]; 6] {
-        HexCorners {
-            corner: 0,
-            size,
-            starting_angle,
-        }
-        .take(6)
-        .map(|(i, [x, y])| {
-            [
-                x,
-                y,
-                ((height_differences[(i + 9) % 6] + height_differences[(i + 10) % 6]) as f32 / 3.0),
-            ]
-        })
-        .collect_vec()
-        .try_into()
-        .unwrap()
+        (0..6)
+            .map(|i: usize| get_hex_corner_3d(i, starting_angle, size, height_differences))
+            .collect_vec()
+            .try_into()
+            .unwrap()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::gameplay::map::utils::{
+        hex_layout::get_hex_corner_2d, hex_map_item::Height, hex_vector::HEX_DIRECTIONS,
+        lexigraphical_cycle::LexigraphicalCycle,
+    };
+
+    // #[test]
+    // fn test_height_diff() {
+    //     let height = Height(32);
+
+    //     let hexes = [
+    //         (HEX_DIRECTIONS[0], Height(32)),
+    //         (HEX_DIRECTIONS[1], Height(32)),
+    //         (HEX_DIRECTIONS[2], Height(32)),
+    //         (HEX_DIRECTIONS[3], Height(32)),
+    //         (HEX_DIRECTIONS[4], Height(32)),
+    //         (HEX_DIRECTIONS[5], Height(33)),
+    //     ];
+
+    //     let height_diffs = hexes
+    //         .iter()
+    //         .map(|h| (h.1 .0 as i16 - height.0 as i16) as i8)
+    //         .collect_vec();
+
+    //     assert_eq!(height.0 + height_diffs[5], hexes[5].1 .0)
+    // }
+
+    // #[test]
+    // fn test_height_corner() {
+    //     let height = Height(32);
+
+    //     let hexes = [
+    //         (HEX_DIRECTIONS[0], Height(32)),
+    //         (HEX_DIRECTIONS[1], Height(32)),
+    //         (HEX_DIRECTIONS[2], Height(32)),
+    //         (HEX_DIRECTIONS[3], Height(32)),
+    //         (HEX_DIRECTIONS[4], Height(32)),
+    //         (HEX_DIRECTIONS[5], Height(33)),
+    //     ];
+
+    //     let height_diffs = hexes
+    //         .iter()
+    //         .map(|(_, h)| (h.0 as i16 - height.0 as i16) as i8)
+    //         .collect_vec();
+
+    //     let height_diffs_cycle = LexigraphicalCycle::shiloah_minimal_rotation(height_diffs);
+
+    //     // for (i, h) in height_diffs.iter().enumerate() {}
+    // }
 }

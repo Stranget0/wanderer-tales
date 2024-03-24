@@ -11,29 +11,48 @@ pub struct HexLayout {
     pub origin: Vec2,
 }
 
-pub fn get_hex_corner_2d(index: i8, starting_angle: f32, size: f32) -> [f32; 2] {
-    let angle: f32 = 2.0 * std::f32::consts::PI * (starting_angle + f32::from(index)) / 6.0;
+impl HexLayout {
+    pub fn hex_to_pixel(&self, h: &FractionalHexVector) -> Vec2 {
+        let matrix = &self.orientation.matrix;
+        let result = matrix.mul_vec2(Vec2::new(h.0, h.1)) * self.size;
+        result + self.origin
+    }
+
+    pub fn pixel_to_hex(&self, p: Vec2) -> FractionalHexVector {
+        let matrix = &self.orientation.matrix.inverse(); // Get the inverse matrix
+        let pt = (p - self.origin) / self.size;
+        let result = matrix.mul_vec2(pt);
+        FractionalHexVector(result.x, result.y, -result.x - result.y)
+    }
+}
+
+pub fn get_hex_corner_2d(index: usize, starting_angle: f32, size: f32) -> [f32; 2] {
+    let angle: f32 = 2.0 * std::f32::consts::PI * (starting_angle - index as f32 - 2.0) / 6.0;
 
     [size * angle.sin(), size * angle.cos()]
 }
 
 pub fn get_hex_corner_3d(
-    index: i8,
+    index: usize,
     starting_angle: f32,
     size: f32,
     height_differences: &[i8; 6],
 ) -> [f32; 3] {
     let [x, y] = get_hex_corner_2d(index, starting_angle, size);
 
-    let z = get_hex_corner_z([
-        &height_differences[positive_modulo(index, 6) as usize],
-        &height_differences[positive_modulo(index - 1, 6) as usize],
-    ]);
+    let z = get_hex_corner_z(get_corner_heights(height_differences, index));
 
     to_3d_space(x, y, z)
 }
 
-fn get_hex_corner_z(heights: [&i8; 2]) -> f32 {
+pub fn get_corner_heights(height_differences: &[i8; 6], index: usize) -> [&i8; 2] {
+    [
+        &height_differences[positive_modulo(index, 6) as usize],
+        &height_differences[positive_modulo(index as i16 - 1, 6) as usize],
+    ]
+}
+
+pub fn get_hex_corner_z(heights: [&i8; 2]) -> f32 {
     // base is always 0
     let mut sum = 0;
 
@@ -41,37 +60,15 @@ fn get_hex_corner_z(heights: [&i8; 2]) -> f32 {
         sum += h;
     }
 
-    f32::from(sum) / -3.0
+    f32::from(sum) / 3.0
 }
-
-impl HexLayout {
-    pub fn hex_to_pixel(&self, h: &FractionalHexVector) -> Vec2 {
-        let matrix = &self.orientation;
-        let x = (matrix.f0 * h.0 + matrix.f1 * h.1) * self.size.x;
-        let y = (matrix.f2 * h.0 + matrix.f3 * h.1) * self.size.y;
-        Vec2::from_array([x, y])
-    }
-
-    pub fn pixel_to_hex(&self, p: Vec2) -> FractionalHexVector {
-        let matrix = &self.orientation;
-        let pt = Vec2::new(
-            (p.x - self.origin.x) / self.size.x,
-            (p.y - self.origin.y) / self.size.y,
-        );
-
-        let q: f32 = matrix.b0 * pt.x + matrix.b1 * pt.y;
-        let r: f32 = matrix.b2 * pt.x + matrix.b3 * pt.y;
-
-        FractionalHexVector(q, r, -q - r)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use bevy::math::vec2;
 
     use crate::gameplay::map::utils::{
-        hex_vector::HexVector, layout_orientation::POINTY_TOP_ORIENTATION,
+        hex_vector::{FractionalHexVector, HexVector, HEX_DIRECTIONS},
+        layout_orientation::POINTY_TOP_ORIENTATION,
     };
 
     use super::HexLayout;
@@ -125,6 +122,30 @@ mod tests {
 
         for (hex, pos) in input_output {
             let result = layout.hex_to_pixel(&hex.into());
+            assert_eq!(result, pos);
+        }
+    }
+
+    #[test]
+    fn hex_to_pixel_test2() {
+        let input_output = vec![
+            (&HEX_DIRECTIONS[0], vec2(-173.20508, 300.0)),
+            (&HEX_DIRECTIONS[1], vec2(173.20508, 300.0)),
+            (&HEX_DIRECTIONS[2], vec2(346.41016, 0.0)),
+            (&HEX_DIRECTIONS[3], vec2(173.20508, -300.0)),
+            (&HEX_DIRECTIONS[4], vec2(-173.20508, -300.0)),
+            (&HEX_DIRECTIONS[5], vec2(-346.41016, 0.0)),
+        ];
+        let layout = HexLayout {
+            orientation: POINTY_TOP_ORIENTATION,
+            size: vec2(200.0, 200.0),
+            origin: vec2(0.0, 0.0),
+        };
+
+        for (hex, pos) in input_output {
+            let fractional_hex = FractionalHexVector::from(hex);
+            let result = layout.hex_to_pixel(&fractional_hex);
+            println!("{}, {}", result.x, result.y);
             assert_eq!(result, pos);
         }
     }

@@ -12,17 +12,18 @@ use crate::{
             components::SourceLayout,
             renderer::components::{MeshType, RenderGroup},
             utils::{
+                hex_layout::{get_corner_heights, get_hex_corner_3d, get_hex_corner_z},
                 hex_map_item::{Biome, Height, HexMapTileBundle, TileHeight},
                 hex_vector::{iterators::HexVectorSpiral, HexVector},
                 lexigraphical_cycle::LexigraphicalCycle,
             },
         },
         player::{
-            components::{HexPosition, Rotation},
+            components::{HexPosition, HexPositionFractional, PlayerRoot, Rotation},
             events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent},
         },
     },
-    utils::UP,
+    utils::positive_modulo,
 };
 
 use super::{
@@ -42,7 +43,7 @@ pub fn spawn_map_data(
     seed_table: Res<SeedTable>,
 ) {
     for e in character_moved_event.read() {
-        let origin: HexVector = (&e.pos.0 - &e.delta_pos.0).into();
+        let origin: HexVector = (&e.pos.0 - &e.delta_pos).into();
         let new_origin: HexVector = (&e.pos.0).into();
         let distance = origin.distance_to(&new_origin);
         if is_moved_event_irrelevant(e) || distance < 1 {
@@ -63,7 +64,9 @@ pub fn spawn_map_data(
                 }
 
                 let bundle = create_map_tile_bundle(&hex, &seed_table);
-                let hex_entity = commands.spawn(bundle.clone()).id();
+                let hex_entity = commands
+                    .spawn((bundle.clone(), Name::new("TileSource")))
+                    .id();
                 hex_to_map_source_entity.0.insert(hex, hex_entity);
                 additive_entities.push(hex_entity);
                 additive_hexes.push((hex_entity, bundle));
@@ -89,7 +92,7 @@ pub fn despawn_map_data(
     layout_query: Query<Entity, With<SourceLayout>>,
 ) {
     for e in character_moved_event.read() {
-        let origin: HexVector = (&e.pos.0 - &e.delta_pos.0).into();
+        let origin: HexVector = (&e.pos.0 - &e.delta_pos).into();
         let new_origin: HexVector = (&e.pos.0).into();
         let distance = origin.distance_to(&new_origin);
         if is_moved_event_irrelevant(e) || distance < 1 {
@@ -153,7 +156,9 @@ pub fn init_map_data(
                 }
                 let bundle = create_map_tile_bundle(&hex, &seed_table);
 
-                let hex_entity = commands.spawn(bundle.clone()).id();
+                let hex_entity = commands
+                    .spawn((bundle.clone(), Name::from("TileSource")))
+                    .id();
                 hex_to_map_source_entity.0.insert(hex, hex_entity);
                 additive_entities.push(hex_entity);
                 additive_hexes.push((hex_entity, bundle));
@@ -180,12 +185,21 @@ pub fn clear_map_data(mut commands: Commands, layout_query: Query<Entity, With<S
 pub fn add_hex_tile_offsets(
     mut commands: Commands,
     tile_query: Query<(Entity, &Height, &HexPosition), With<Biome>>,
+    player_query: Query<&HexPositionFractional, With<PlayerRoot>>,
     hex_to_map_source_entity: Res<HexToMapSourceEntity>,
+    mut has_logged: Local<bool>,
 ) {
+    let player_pos_o = player_query.get_single();
+    if player_pos_o.is_err() {
+        return;
+    }
+
+    let player_pos = &player_pos_o.unwrap().0;
     for (entity, height, pos) in tile_query.iter() {
-        let mut heights = Vec::with_capacity(6);
+        let mut sibling_data = Vec::with_capacity(6);
         for i in 0..6 {
             let hex = pos.0.get_sibling(i);
+
             let height_option = hex_to_map_source_entity
                 .0
                 .get(&hex)
@@ -193,22 +207,58 @@ pub fn add_hex_tile_offsets(
                 .map(|(_, h, _)| h);
 
             if let Some(h) = height_option {
-                heights.push(h);
+                sibling_data.push((hex, h));
             } else {
                 break;
             };
         }
 
-        if heights.len() == 6 {
-            let height_diffs = heights
+        if sibling_data.len() == 6 {
+            let height_diffs: [i8; 6] = sibling_data
                 .iter()
-                .map(|h| (h.0 as i16 - height.0 as i16) as i8)
-                .collect_vec();
-            let minimal_cycle =
-                LexigraphicalCycle::shiloah_minimal_rotation(&height_diffs.try_into().unwrap());
+                .map(|h| (h.1 .0 as i16 - height.0 as i16) as i8)
+                .collect_vec()
+                .try_into()
+                .unwrap();
+
+            if pos.0 == HexVector::from(player_pos) && !*has_logged {
+                *has_logged = true;
+
+                let corners = (0..6)
+                    .map(|index| get_hex_corner_z(get_corner_heights(&height_diffs, index)))
+                    .collect_vec();
+
+                let debug = (0..6)
+                    .map(|i| {
+                        let [a, b] = get_corner_heights(&height_diffs, i);
+                        let str = format!(
+                            "{:?} ({:?}) [{:?} {:?} {:?}] -> {:.1}",
+                            sibling_data[i].1,
+                            sibling_data[i].0,
+                            height.0,
+                            height.0 as i16 + *a as i16,
+                            height.0 as i16 + *b as i16,
+                            height.0 as f32 + corners[i]
+                        );
+
+                        str
+                    })
+                    .collect_vec();
+
+                println!("{:#?}", debug);
+                // .reduce(|acc, curr| {
+                //     let str = format!("{}\n{}", acc, curr);
+                //     // &str[..]
+                // })
+                // .unwrap();
+            }
+            // let minimal_cycle =
+            //     LexigraphicalCycle::shiloah_minimal_rotation(&height_diffs.try_into().unwrap());
             let mesh_rotation =
-                Rotation(UP * ((minimal_cycle.rotation + 5) as f32 * 60.0).to_radians());
-            let mesh_type = MeshType::HexMapTile(minimal_cycle.cycle);
+                // Rotation(UP * ((minimal_cycle.rotation + 5) as f32 * 60.0).to_radians());
+                Rotation(Vec3::ZERO);
+            // let mesh_type = MeshType::HexMapTile(minimal_cycle.cycle);
+            let mesh_type = MeshType::HexMapTile(height_diffs);
 
             commands.entity(entity).insert((mesh_type, mesh_rotation));
         }

@@ -20,16 +20,7 @@ pub struct Sight(pub u16);
 #[derive(Component, Debug, Clone, PartialEq)]
 pub struct HexPositionFractional(pub FractionalHexVector);
 
-#[derive(Component, Debug, Clone, PartialEq)]
-pub struct HexPositionFractionalDelta(pub FractionalHexVector);
-
-impl Default for HexPositionFractionalDelta {
-    fn default() -> Self {
-        Self(FractionalHexVector(0.0, 0.0, 0.0))
-    }
-}
-
-#[derive(Component, Debug, Clone, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, PartialEq, Eq, Reflect)]
 pub struct HexPosition(pub HexVector);
 
 #[derive(Component, Debug, Clone, PartialEq, Eq)]
