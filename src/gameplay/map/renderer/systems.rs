@@ -3,7 +3,7 @@ use crate::{
         map::utils::{
             hex_layout::{get_hex_corner_2d, HexLayout},
             hex_map_item::Height,
-            hex_vector::{FractionalHexVector, HexVector},
+            hex_vector::FractionalHexVector,
         },
         player::components::{HexPosition, HexPositionFractional, MapSpeed, PlayerRoot, Rotation},
     },
@@ -12,7 +12,6 @@ use crate::{
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
-    utils::info,
 };
 use itertools::Itertools;
 
