@@ -1,7 +1,7 @@
 use crate::gameplay::components::*;
 use crate::gameplay::map::utils::*;
 use crate::utils::*;
-use bevy::{ecs::query::QueryFilter, prelude::*, transform::commands};
+use bevy::{ecs::query::QueryFilter, prelude::*};
 
 use super::{
     components::*,
@@ -38,7 +38,7 @@ pub(crate) fn render_static_map_items<
             }
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let (render_bundle, render_children) =
+            let render_bundle =
                 renderer.create_render_bundle(&pos, rotation, material_type, mesh_type);
 
             spawn_render_item(
@@ -47,7 +47,6 @@ pub(crate) fn render_static_map_items<
                 render_bundle,
                 source_entity,
                 layout_entity,
-                render_children,
             );
         }
     }
@@ -83,7 +82,7 @@ pub(crate) fn render_map_items<
             }
             let pos_2d = layout.hex_to_pixel(&position.0);
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let (render_bundle, render_children) =
+            let render_bundle =
                 renderer.create_render_bundle(&pos, rotation, material_type, mesh_type);
 
             spawn_render_item(
@@ -92,7 +91,6 @@ pub(crate) fn render_map_items<
                 render_bundle,
                 source_entity,
                 layout_entity,
-                render_children,
             );
         }
     }
@@ -221,7 +219,6 @@ fn spawn_render_item<T: Bundle, R: CreateRenderBundles<T> + RenderMapApi + Compo
     bundle: T,
     source_entity: Entity,
     layout_entity: Entity,
-    children: Option<Vec<T>>,
 ) -> Entity {
     let render_entity = commands.spawn(bundle).id();
 
@@ -230,12 +227,6 @@ fn spawn_render_item<T: Bundle, R: CreateRenderBundles<T> + RenderMapApi + Compo
     renderer.link_source_item(&source_entity, &render_entity);
 
     commands.entity(layout_entity).add_child(render_entity);
-    if let Some(bundles) = children {
-        for b in bundles {
-            let child = commands.spawn(b).id();
-            commands.entity(render_entity).add_child(child);
-        }
-    }
 
     render_entity
 }

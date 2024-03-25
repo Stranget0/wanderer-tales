@@ -51,7 +51,7 @@ impl Plugin for RendererPlugin {
         )
         .add_systems(
             Update,
-            (camera_update::<Renderer3D>.after(camera_look_around),)
+            (camera_update::<Renderer3D>.after(camera_look_around))
                 .run_if(in_state(RendererState::ThreeDimension)),
         )
         .add_systems(

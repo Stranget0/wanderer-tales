@@ -50,10 +50,7 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-    ) -> (
-        MaterialMesh2dBundle<ColorMaterial>,
-        Option<Vec<MaterialMesh2dBundle<ColorMaterial>>>,
-    ) {
+    ) -> MaterialMesh2dBundle<ColorMaterial> {
         let pos = zero_up_vec(pos_3d) + type_to_up(mesh_type);
 
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
@@ -74,15 +71,12 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
             .unwrap_or_else(|| self.meshes_map.get(&MeshType::Debug).unwrap())
             .clone();
 
-        (
-            MaterialMesh2dBundle {
-                mesh,
-                material,
-                transform,
-                ..Default::default()
-            },
-            None,
-        )
+        MaterialMesh2dBundle {
+            mesh,
+            material,
+            transform,
+            ..Default::default()
+        }
     }
 }
 

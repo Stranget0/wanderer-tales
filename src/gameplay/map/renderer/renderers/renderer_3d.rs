@@ -50,7 +50,7 @@ impl CreateRenderBundles<PbrBundle> for Renderer3D {
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-    ) -> (PbrBundle, Option<Vec<PbrBundle>>) {
+    ) -> PbrBundle {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
         transform.rotation = rotation.0;
 
@@ -69,26 +69,18 @@ impl CreateRenderBundles<PbrBundle> for Renderer3D {
             .meshes_map
             .get(mesh_type)
             .unwrap_or_else(|| {
-                // error!(
-                //     "Could not get mesh {:?} \n\tavailable: {:?}",
-                //     mesh_type,
-                //     self.meshes_map.keys().collect_vec()
-                // );
                 self.meshes_map
                     .get(&MeshType::Debug)
                     .expect("Could not get debug mesh")
             })
             .clone();
 
-        (
-            PbrBundle {
-                mesh,
-                material,
-                transform,
-                ..Default::default()
-            },
-            None,
-        )
+        PbrBundle {
+            mesh,
+            material,
+            transform,
+            ..Default::default()
+        }
     }
 }
 

@@ -22,7 +22,7 @@ pub trait CreateRenderBundles<T: Bundle> {
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-    ) -> (T, Option<Vec<T>>);
+    ) -> T;
 }
 
 #[derive(Debug, Default)]
