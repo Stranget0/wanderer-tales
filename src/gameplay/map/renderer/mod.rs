@@ -1,22 +1,16 @@
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 
-use crate::{
-    debug::switch_renderer::debug_switch_renderer,
-    utils::{hide_entity, spawn_default_with_parent},
-};
+use crate::debug::switch_renderer::debug_switch_renderer;
+use crate::utils::*;
 
-use self::{
-    bundles::{Game2DCameraBundle, Game3DCameraBundle},
-    renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
-    state::RendererState,
-    systems::{
-        camera_look_around, camera_update, camera_zoom, clean_render_items, move_rendered_items,
-        remove_moving_render_items, render_map_items, render_static_map_items, set_camera_state,
-        show_entity,
-    },
-};
+use self::camera::bundles::*;
+use self::camera::systems::{camera_look_around, camera_update, camera_zoom};
+use self::components::{MaterialType, MeshType};
+use self::renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D};
+use self::state::RendererState;
+use self::systems::*;
 
-mod bundles;
+pub mod camera;
 pub mod components;
 pub mod debug;
 pub mod renderers;
@@ -30,6 +24,13 @@ pub enum RendererSet {
     LayoutInit,
     RenderItems,
 }
+
+type ChangedRenderFilter = Or<(
+    Added<MeshType>,
+    Changed<MeshType>,
+    Added<MaterialType>,
+    Changed<MaterialType>,
+)>;
 
 impl Plugin for RendererPlugin {
     fn build(&self, app: &mut App) {
@@ -46,16 +47,22 @@ impl Plugin for RendererPlugin {
             (
                 show_entity::<Renderer3D>,
                 set_camera_state::<Camera3d, true>,
+                (
+                    render_static_map_items::<PbrBundle, Renderer3D, ()>,
+                    render_map_items::<PbrBundle, Renderer3D, ()>,
+                )
+                    .in_set(RendererSet::RenderItems),
             ),
         )
         .add_systems(
             Update,
             (
                 (
-                    render_static_map_items::<PbrBundle, Renderer3D>,
-                    render_map_items::<PbrBundle, Renderer3D>,
+                    render_static_map_items::<PbrBundle, Renderer3D, ChangedRenderFilter>,
+                    render_map_items::<PbrBundle, Renderer3D, ChangedRenderFilter>,
                     clean_render_items::<Renderer3D>,
                     move_rendered_items::<Renderer3D>,
+                    rotate_rendered_items::<Renderer3D>,
                 )
                     .in_set(RendererSet::RenderItems),
                 camera_update::<Renderer3D>.after(camera_look_around),
@@ -67,7 +74,7 @@ impl Plugin for RendererPlugin {
             (
                 hide_entity::<Renderer3D>,
                 set_camera_state::<Camera3d, false>,
-                remove_moving_render_items::<Renderer3D>.in_set(RendererSet::RenderItems),
+                clear_all_render_items::<Renderer3D>,
             ),
         )
         .add_systems(
@@ -75,16 +82,30 @@ impl Plugin for RendererPlugin {
             (
                 show_entity::<Renderer2D>,
                 set_camera_state::<Camera2d, true>,
+                (
+                    render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D, ()>,
+                    render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D, ()>,
+                )
+                    .in_set(RendererSet::RenderItems),
             ),
         )
         .add_systems(
             Update,
             (
                 (
-                    render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
-                    render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D>,
+                    render_static_map_items::<
+                        MaterialMesh2dBundle<ColorMaterial>,
+                        Renderer2D,
+                        ChangedRenderFilter,
+                    >,
+                    render_map_items::<
+                        MaterialMesh2dBundle<ColorMaterial>,
+                        Renderer2D,
+                        ChangedRenderFilter,
+                    >,
                     clean_render_items::<Renderer2D>,
                     move_rendered_items::<Renderer2D>,
+                    rotate_rendered_items::<Renderer2D>,
                 )
                     .in_set(RendererSet::RenderItems),
                 camera_update::<Renderer2D>.after(camera_look_around),
@@ -96,7 +117,7 @@ impl Plugin for RendererPlugin {
             (
                 set_camera_state::<Camera2d, false>,
                 hide_entity::<Renderer2D>,
-                remove_moving_render_items::<Renderer2D>,
+                clear_all_render_items::<Renderer2D>,
             ),
         )
         .add_systems(

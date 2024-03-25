@@ -6,13 +6,13 @@ use bevy::{
 
 use crate::{
     gameplay::{
+        components::Rotation,
         map::{
             renderer::components::{MaterialType, MeshType},
             utils::hex_layout::HexLayout,
         },
-        player::components::Rotation,
     },
-    utils::{EULER_ROT, UP},
+    utils::UP,
 };
 
 use super::traits::{CreateRenderBundles, RenderMap, RenderMapApi};
@@ -46,7 +46,7 @@ impl RenderMapApi for Renderer2D {
 impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
     fn create_render_bundle(
         &self,
-        pos_ref: &Vec3,
+        pos_3d: &Vec3,
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
@@ -54,18 +54,10 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
         MaterialMesh2dBundle<ColorMaterial>,
         Option<Vec<MaterialMesh2dBundle<ColorMaterial>>>,
     ) {
-        let base_pos = *pos_ref;
-        let flattened_pos = (Vec3::ONE - UP) * base_pos;
-        let height_vec = UP
-            * match mesh_type {
-                MeshType::HexMapTile(_) => 0.0,
-                MeshType::Player => 1.0,
-                MeshType::Debug => 2.0,
-            };
-        let pos = flattened_pos + height_vec;
+        let pos = zero_up_vec(pos_3d) + type_to_up(mesh_type);
 
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
-        transform.rotation = Quat::from_euler(EULER_ROT, rotation.0.x, rotation.0.y, rotation.0.z);
+        transform.rotation = rotation.0;
 
         let material = self
             .materials_map
@@ -92,6 +84,20 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>> for Renderer2D {
             None,
         )
     }
+}
+
+fn type_to_up(mesh_type: &MeshType) -> Vec3 {
+    UP * match mesh_type {
+        MeshType::HexMapTile(_) => 0.0,
+        MeshType::Player => 1.0,
+        MeshType::Debug => 2.0,
+    }
+}
+
+fn zero_up_vec(pos_ref: &Vec3) -> Vec3 {
+    let base_pos = *pos_ref;
+
+    (Vec3::ONE - UP) * base_pos
 }
 
 impl Renderer2D {

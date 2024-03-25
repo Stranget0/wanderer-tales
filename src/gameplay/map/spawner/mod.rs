@@ -9,7 +9,7 @@ use crate::global_state::SceneState;
 pub use events::*;
 
 use self::systems::{
-    add_hex_tile_offsets, clear_map_data, despawn_map_data, init_map_data, spawn_map_data,
+    add_hex_tile_offsets, clear_map_data, despawn_map_data, fill_map_data_on_sight, spawn_map_data,
 };
 
 pub struct MapSpawnerPlugin;
@@ -24,7 +24,7 @@ impl Plugin for MapSpawnerPlugin {
             (
                 spawn_map_data,
                 despawn_map_data,
-                init_map_data,
+                fill_map_data_on_sight,
                 add_hex_tile_offsets
                     .after(spawn_map_data)
                     .after(despawn_map_data),

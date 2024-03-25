@@ -1,6 +1,5 @@
-use crate::gameplay::map::utils::hex_layout::get_hex_corner_2d;
-
 use super::{HexVector, HEX_DIRECTIONS};
+
 pub struct HexVectorRing {
     current: HexVector,
     range: u16,

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{gameplay::theme::constants::COLORS, utils::to_3d_space};
 
-use super::components::{CameraOffset, CameraRotation};
+use super::components::*;
 
 const CLEAR_COLOR: ClearColorConfig = ClearColorConfig::Custom(COLORS.gray.l900);
 
@@ -10,7 +10,7 @@ const CLEAR_COLOR: ClearColorConfig = ClearColorConfig::Custom(COLORS.gray.l900)
 pub struct Game3DCameraBundle(Camera3dBundle, CameraOffset, CameraRotation);
 
 #[derive(Bundle)]
-pub struct Game2DCameraBundle(Camera2dBundle);
+pub struct Game2DCameraBundle(Camera2dBundle, CameraOffset, CameraRotation);
 
 impl Default for Game3DCameraBundle {
     fn default() -> Self {
@@ -43,8 +43,8 @@ impl Default for Game2DCameraBundle {
                 },
                 ..default()
             },
-            // CameraOffset::default(),
-            // CameraRotation::default(),
+            CameraOffset::default(),
+            CameraRotation::default(),
         )
     }
 }

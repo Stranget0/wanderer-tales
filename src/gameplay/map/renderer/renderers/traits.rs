@@ -1,8 +1,8 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 use crate::gameplay::{
+    components::*,
     map::renderer::components::{MaterialType, MeshType},
-    player::components::Rotation,
 };
 
 pub trait RenderMapApi {

@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::gameplay::{map::renderer::components::MaterialType, player::components::HexPosition};
+use crate::gameplay::{
+    components::HexPosition,
+    map::renderer::components::{MaterialType, MeshType},
+};
 
 #[derive(Bundle, Clone, Debug)]
 pub struct HexMapTileBundle {
@@ -9,6 +12,7 @@ pub struct HexMapTileBundle {
     pub tile_height: TileHeight,
     pub height: Height,
     pub material_type: MaterialType,
+    pub mesh_type: MeshType,
 }
 
 #[derive(Component, Clone, Debug, Copy)]
@@ -26,10 +30,6 @@ pub struct TileHeight {
 }
 
 impl TileHeight {
-    fn get_difference(&self) -> i16 {
-        ((self.midpoint as f32) - self.offset) as i16
-    }
-
     pub fn get_height(&self) -> u8 {
         (self.midpoint as i16 / 4 + (self.offset * 2.0) as i16 * 10) as u8
     }

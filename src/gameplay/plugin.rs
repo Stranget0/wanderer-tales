@@ -1,8 +1,9 @@
 use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, math::vec2, prelude::*};
 
-use crate::utils::{FORWARD, UP};
+use crate::debug::local_position_gizmo::draw_local_gizmos;
 
 use super::{
+    components::HexPosition,
     map::{
         components::SourceLayout,
         renderer::{
@@ -17,11 +18,7 @@ use super::{
         },
         utils::{hex_layout::HexLayout, layout_orientation::POINTY_TOP_ORIENTATION},
     },
-    player::{
-        components::HexPosition,
-        events::{CharacterMovedEvent, PlayerWithSightSpawnedEvent},
-        PlayerPlugin,
-    },
+    player::{events::CharacterMovedEvent, PlayerPlugin},
 };
 
 pub struct GameplayPlugin;
@@ -35,11 +32,9 @@ impl Plugin for GameplayPlugin {
             .add_event::<MapAddEvent>()
             .add_event::<MapSubEvent>()
             .add_event::<CharacterMovedEvent>()
-            .add_event::<PlayerWithSightSpawnedEvent>()
-            .init_gizmo_group::<BaseGizmo>()
             .add_systems(Startup, initialize_map)
-            .add_systems(Update, draw_base_gizmo)
-            .configure_sets(Update, RendererSet::RenderItems.after(MapSpawnerSet))
+            .add_systems(Update, draw_local_gizmos)
+            .configure_sets(Update, RendererSet::RenderItems.before(MapSpawnerSet))
             .add_plugins((
                 FrameTimeDiagnosticsPlugin,
                 MapSpawnerPlugin,
@@ -61,9 +56,10 @@ fn initialize_map(
         size: vec2(1.0, 1.0),
         origin: vec2(0.0, 0.0),
     };
+
     let preview_map_layout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
-        size: vec2(150.0, 150.0),
+        size: vec2(8.0, 8.0),
         origin: vec2(0.0, 0.0),
     };
 
@@ -95,38 +91,4 @@ fn initialize_map(
         RenderGroup::PreviewMap2D,
         Name::new("PreviewMapLayout"),
     ));
-}
-
-#[derive(Default, Reflect, GizmoConfigGroup)]
-struct BaseGizmo {}
-
-fn draw_base_gizmo(
-    mut gizmos: Gizmos,
-    player: Query<&Transform>,
-    renderer: Res<State<RendererState>>,
-) {
-    for t in player.iter() {
-        let multiplier = match renderer.get() {
-            RendererState::TwoDimension => {
-                continue;
-            }
-            _ => 1.0,
-        };
-        let offset = Vec3::from_array(t.translation.to_array());
-        gizmos.arrow(
-            offset,
-            offset + t.rotation.mul_vec3(Vec3::X) * multiplier,
-            Color::RED,
-        );
-        gizmos.arrow(
-            offset,
-            offset + t.rotation.mul_vec3(FORWARD) * multiplier,
-            Color::GREEN,
-        );
-        gizmos.arrow(
-            offset,
-            offset + t.rotation.mul_vec3(UP) * multiplier,
-            Color::BLUE,
-        );
-    }
 }

@@ -3,9 +3,9 @@ use bevy::{
     math::Vec2,
 };
 
-use crate::gameplay::map::utils::hex_vector::FractionalHexVector;
+use crate::gameplay::{components::*, map::utils::hex_vector::FractionalHexVector};
 
-use super::components::{HexPositionFractional, Sight};
+use super::components::Sight;
 
 #[derive(Event)]
 pub struct WSADEvent(pub Vec2);
@@ -17,10 +17,4 @@ pub struct CharacterMovedEvent {
     pub delta_pos: FractionalHexVector,
     pub sight: Option<Sight>,
     pub is_player_controllable: bool,
-}
-
-#[derive(Event)]
-pub struct PlayerWithSightSpawnedEvent {
-    pub sight: Sight,
-    pub pos: HexPositionFractional,
 }

@@ -1,18 +1,14 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
-use itertools::Itertools;
 
-use crate::{
-    gameplay::{
-        map::{
-            renderer::{
-                components::{MaterialType, MeshType},
-                debug::uv_debug_texture,
-            },
-            utils::hex_layout::HexLayout,
+use crate::gameplay::{
+    components::*,
+    map::{
+        renderer::{
+            components::{MaterialType, MeshType},
+            debug::uv_debug_texture,
         },
-        player::components::Rotation,
+        utils::hex_layout::HexLayout,
     },
-    utils::EULER_ROT,
 };
 
 use super::{
@@ -56,18 +52,7 @@ impl CreateRenderBundles<PbrBundle> for Renderer3D {
         mesh_type: &MeshType,
     ) -> (PbrBundle, Option<Vec<PbrBundle>>) {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
-        transform.rotation = Quat::from_euler(EULER_ROT, rotation.0.x, rotation.0.y, rotation.0.z);
-
-        // if let MeshType::HexMapTile(height_cycle) = mesh_type {
-        //     transform.rotate_y((height_cycle.rotation as f32 * 60.0).to_radians());
-        // };
-
-        let zero_type = MeshType::HexMapTile(default());
-
-        let mesh_type_debug = match mesh_type {
-            MeshType::HexMapTile(_) => &zero_type,
-            _ => mesh_type,
-        };
+        transform.rotation = rotation.0;
 
         let material = self
             .materials_map
@@ -84,11 +69,11 @@ impl CreateRenderBundles<PbrBundle> for Renderer3D {
             .meshes_map
             .get(mesh_type)
             .unwrap_or_else(|| {
-                error!(
-                    "Could not get mesh {:?} \n\tavailable: {:?}",
-                    mesh_type,
-                    self.meshes_map.keys().collect_vec()
-                );
+                // error!(
+                //     "Could not get mesh {:?} \n\tavailable: {:?}",
+                //     mesh_type,
+                //     self.meshes_map.keys().collect_vec()
+                // );
                 self.meshes_map
                     .get(&MeshType::Debug)
                     .expect("Could not get debug mesh")
@@ -137,7 +122,7 @@ impl Renderer3D {
         }
 
         let entries: Vec<(MeshType, Mesh)> = vec![
-            (MeshType::Player, Sphere::new(layout.size.x).into()),
+            (MeshType::Player, Sphere::new(0.3).into()),
             (MeshType::Debug, Sphere::new(0.1).into()),
         ];
 
