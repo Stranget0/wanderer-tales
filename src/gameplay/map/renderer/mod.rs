@@ -47,26 +47,11 @@ impl Plugin for RendererPlugin {
             (
                 show_entity::<Renderer3D>,
                 set_camera_state::<Camera3d, true>,
-                (
-                    render_static_map_items::<PbrBundle, Renderer3D, ()>,
-                    render_map_items::<PbrBundle, Renderer3D, ()>,
-                )
-                    .in_set(RendererSet::RenderItems),
             ),
         )
         .add_systems(
             Update,
-            (
-                (
-                    render_static_map_items::<PbrBundle, Renderer3D, ChangedRenderFilter>,
-                    render_map_items::<PbrBundle, Renderer3D, ChangedRenderFilter>,
-                    clean_render_items::<Renderer3D>,
-                    move_rendered_items::<Renderer3D>,
-                    rotate_rendered_items::<Renderer3D>,
-                )
-                    .in_set(RendererSet::RenderItems),
-                camera_update::<Renderer3D>.after(camera_look_around),
-            )
+            (camera_update::<Renderer3D>.after(camera_look_around),)
                 .run_if(in_state(RendererState::ThreeDimension)),
         )
         .add_systems(
@@ -74,7 +59,6 @@ impl Plugin for RendererPlugin {
             (
                 hide_entity::<Renderer3D>,
                 set_camera_state::<Camera3d, false>,
-                clear_all_render_items::<Renderer3D>,
             ),
         )
         .add_systems(
@@ -82,17 +66,34 @@ impl Plugin for RendererPlugin {
             (
                 show_entity::<Renderer2D>,
                 set_camera_state::<Camera2d, true>,
-                (
-                    render_static_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D, ()>,
-                    render_map_items::<MaterialMesh2dBundle<ColorMaterial>, Renderer2D, ()>,
-                )
-                    .in_set(RendererSet::RenderItems),
+            ),
+        )
+        .add_systems(
+            Update,
+            (camera_update::<Renderer2D>.after(camera_look_around))
+                .run_if(in_state(RendererState::TwoDimension)),
+        )
+        .add_systems(
+            OnExit(RendererState::TwoDimension),
+            (
+                set_camera_state::<Camera2d, false>,
+                hide_entity::<Renderer2D>,
             ),
         )
         .add_systems(
             Update,
             (
+                debug_switch_renderer,
+                camera_look_around,
+                camera_zoom,
                 (
+                    move_rendered_items::<Renderer2D>,
+                    rotate_rendered_items::<Renderer2D>,
+                    move_rendered_items::<Renderer3D>,
+                    rotate_rendered_items::<Renderer3D>,
+                    render_static_map_items::<PbrBundle, Renderer3D, ChangedRenderFilter>,
+                    render_map_items::<PbrBundle, Renderer3D, ChangedRenderFilter>,
+                    clean_render_items::<Renderer3D>,
                     render_static_map_items::<
                         MaterialMesh2dBundle<ColorMaterial>,
                         Renderer2D,
@@ -104,25 +105,9 @@ impl Plugin for RendererPlugin {
                         ChangedRenderFilter,
                     >,
                     clean_render_items::<Renderer2D>,
-                    move_rendered_items::<Renderer2D>,
-                    rotate_rendered_items::<Renderer2D>,
                 )
                     .in_set(RendererSet::RenderItems),
-                camera_update::<Renderer2D>.after(camera_look_around),
-            )
-                .run_if(in_state(RendererState::TwoDimension)),
-        )
-        .add_systems(
-            OnExit(RendererState::TwoDimension),
-            (
-                set_camera_state::<Camera2d, false>,
-                hide_entity::<Renderer2D>,
-                clear_all_render_items::<Renderer2D>,
             ),
-        )
-        .add_systems(
-            Update,
-            (debug_switch_renderer, camera_look_around, camera_zoom),
         );
     }
 }
