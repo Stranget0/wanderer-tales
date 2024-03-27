@@ -94,13 +94,6 @@ impl Plugin for RendererPlugin {
                     clean_render_items::<Renderer3D>,
                     clean_render_items::<Renderer2D>,
                     render_map_items::<PbrBundle, StandardMaterial,Renderer3D, ChangedRenderFilter>,
-                    render_static_map_items::<PbrBundle, StandardMaterial,Renderer3D, ChangedRenderFilter>,
-                    render_static_map_items::<
-                        MaterialMesh2dBundle<ColorMaterial>,
-												ColorMaterial,
-                        Renderer2D,
-                        ChangedRenderFilter,
-                    >,
                     render_map_items::<
                         MaterialMesh2dBundle<ColorMaterial>,
 												ColorMaterial,

@@ -17,10 +17,10 @@ pub const HEX_DIRECTIONS: [HexVector; 6] = [
     HexVector::new(-1, 0, 1),
 ];
 
-#[derive(Debug, Clone, Eq, Reflect)]
+#[derive(Debug, Clone, Copy, Eq, Reflect)]
 pub struct HexVector(pub i16, pub i16, pub i16);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FractionalHexVector(pub f32, pub f32, pub f32);
 
 impl HexVector {

@@ -8,7 +8,7 @@ use super::{
     renderers::traits::{CreateRenderBundles, RenderMapApi},
 };
 
-pub(crate) fn render_static_map_items<
+pub(crate) fn render_map_items<
     T: Bundle,
     M: Asset,
     R: CreateRenderBundles<T, M> + RenderMapApi + Component,
@@ -18,7 +18,7 @@ pub(crate) fn render_static_map_items<
     render_type_query: Query<
         (
             Entity,
-            &HexPosition,
+            AnyOf<(&HexPosition, &HexPositionFractional)>,
             &Height,
             &Rotation,
             &MeshType,
@@ -41,65 +41,11 @@ pub(crate) fn render_static_map_items<
                 commands.entity(*render_entity).despawn();
                 renderer.remove_render_item(&source_entity);
             }
-            let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
-            let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let render_bundle = renderer.create_render_bundle(
-                &pos,
-                rotation,
-                material_type,
-                mesh_type,
-                layout,
-                &mut materials,
-                &mut images,
-                &mut meshes,
-                &asset_server,
-            );
-
-            spawn_render_item(
-                &mut commands,
-                renderer,
-                render_bundle,
-                source_entity,
-                layout_entity,
-            );
-        }
-    }
-}
-
-pub(crate) fn render_map_items<
-    T: Bundle,
-    M: Asset,
-    R: CreateRenderBundles<T, M> + RenderMapApi + Component,
-    F: QueryFilter,
->(
-    mut commands: Commands,
-    render_type_query: Query<
-        (
-            Entity,
-            &HexPositionFractional,
-            &Height,
-            &Rotation,
-            &MeshType,
-            &MaterialType,
-        ),
-        F,
-    >,
-    mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
-    mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<M>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    asset_server: Res<AssetServer>,
-) {
-    for (source_entity, position, height, rotation, mesh_type, material_type) in
-        render_type_query.iter()
-    {
-        for (layout_entity, layout, mut renderer) in layout_query.iter_mut() {
-            if let Some(render_entity) = renderer.get_render_item(&source_entity) {
-                warn!("changing already rendered item by despawning");
-                commands.entity(*render_entity).despawn();
-                renderer.remove_render_item(&source_entity);
-            }
-            let pos_2d = layout.hex_to_pixel(&position.0);
+            let pos = match position.0 {
+                Some(pos) => FractionalHexVector::from(&pos.0),
+                None => position.1.unwrap().0,
+            };
+            let pos_2d = layout.hex_to_pixel(&pos);
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
             let render_bundle = renderer.create_render_bundle(
                 &pos,
