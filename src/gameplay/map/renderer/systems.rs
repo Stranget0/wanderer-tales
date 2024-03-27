@@ -10,7 +10,8 @@ use super::{
 
 pub(crate) fn render_static_map_items<
     T: Bundle,
-    R: CreateRenderBundles<T> + RenderMapApi + Component,
+    M: Asset,
+    R: CreateRenderBundles<T, M> + RenderMapApi + Component,
     F: QueryFilter,
 >(
     mut commands: Commands,
@@ -26,6 +27,10 @@ pub(crate) fn render_static_map_items<
         F,
     >,
     mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<M>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
 ) {
     for (source_entity, position, height, rotation, mesh_type, material_type) in
         render_type_query.iter()
@@ -38,8 +43,17 @@ pub(crate) fn render_static_map_items<
             }
             let pos_2d = layout.hex_to_pixel(&FractionalHexVector::from(&position.0));
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let render_bundle =
-                renderer.create_render_bundle(&pos, rotation, material_type, mesh_type);
+            let render_bundle = renderer.create_render_bundle(
+                &pos,
+                rotation,
+                material_type,
+                mesh_type,
+                layout,
+                &mut materials,
+                &mut images,
+                &mut meshes,
+                &asset_server,
+            );
 
             spawn_render_item(
                 &mut commands,
@@ -54,7 +68,8 @@ pub(crate) fn render_static_map_items<
 
 pub(crate) fn render_map_items<
     T: Bundle,
-    R: CreateRenderBundles<T> + RenderMapApi + Component,
+    M: Asset,
+    R: CreateRenderBundles<T, M> + RenderMapApi + Component,
     F: QueryFilter,
 >(
     mut commands: Commands,
@@ -70,20 +85,33 @@ pub(crate) fn render_map_items<
         F,
     >,
     mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<M>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
 ) {
     for (source_entity, position, height, rotation, mesh_type, material_type) in
         render_type_query.iter()
     {
         for (layout_entity, layout, mut renderer) in layout_query.iter_mut() {
             if let Some(render_entity) = renderer.get_render_item(&source_entity) {
-                debug!("changing already rendered item by despawning");
+                warn!("changing already rendered item by despawning");
                 commands.entity(*render_entity).despawn();
                 renderer.remove_render_item(&source_entity);
             }
             let pos_2d = layout.hex_to_pixel(&position.0);
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let render_bundle =
-                renderer.create_render_bundle(&pos, rotation, material_type, mesh_type);
+            let render_bundle = renderer.create_render_bundle(
+                &pos,
+                rotation,
+                material_type,
+                mesh_type,
+                layout,
+                &mut materials,
+                &mut images,
+                &mut meshes,
+                &asset_server,
+            );
 
             spawn_render_item(
                 &mut commands,
@@ -171,7 +199,7 @@ pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
                 transform.translation.y = y;
                 transform.translation.z = z;
             } else {
-                error!("Could not move render item");
+                debug!("Could not move render item");
             }
         }
     }
@@ -190,7 +218,7 @@ pub(crate) fn rotate_rendered_items<R: RenderMapApi + Component>(
                     transform.rotation = rotation.0;
                 }
             } else {
-                error!("Could not rotate render item");
+                debug!("Could not rotate render item");
             }
         }
     }
@@ -209,11 +237,19 @@ fn despawn_render_item<R: RenderMapApi + Component>(
             source_entity, render_entity
         );
     } else {
-        warn!("Could not clean render item {:?}", source_entity);
+        debug!(
+            "Could not clean render item {:?} [count {}]",
+            source_entity,
+            renderer.count()
+        );
     }
 }
 
-fn spawn_render_item<T: Bundle, R: CreateRenderBundles<T> + RenderMapApi + Component>(
+fn spawn_render_item<
+    T: Bundle,
+    M: Asset,
+    R: CreateRenderBundles<T, M> + RenderMapApi + Component,
+>(
     commands: &mut Commands,
     mut renderer: Mut<R>,
     bundle: T,
@@ -222,20 +258,15 @@ fn spawn_render_item<T: Bundle, R: CreateRenderBundles<T> + RenderMapApi + Compo
 ) -> Entity {
     let render_entity = commands.spawn(bundle).id();
 
-    debug_spawn(&source_entity, &render_entity);
-
+    debug!(
+        "[Spawning map item {:?} -> {:?}]",
+        source_entity, render_entity
+    );
     renderer.link_source_item(&source_entity, &render_entity);
 
     commands.entity(layout_entity).add_child(render_entity);
 
     render_entity
-}
-
-fn debug_spawn(source_entity: &Entity, render_entity: &Entity) {
-    debug!(
-        "[Spawning map item {:?} -> {:?}]",
-        source_entity, render_entity
-    );
 }
 
 // #region old debug

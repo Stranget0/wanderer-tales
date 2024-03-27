@@ -20,6 +20,10 @@ impl RenderMapApi for RenderMap {
     ) -> Option<Entity> {
         self.0.insert(source_entity.index(), *render_entity)
     }
+
+    fn count(&self) -> usize {
+        self.0.len()
+    }
 }
 
 pub const PRECOMPUTED_HEIGHT_CYCLES: [[i8; 6]; 2635] = [

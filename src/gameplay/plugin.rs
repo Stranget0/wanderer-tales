@@ -48,8 +48,6 @@ fn initialize_map(
     mut commands: Commands,
     mut materials_2d: ResMut<Assets<ColorMaterial>>,
     mut materials_3d: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
-    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let source_layout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
@@ -73,12 +71,7 @@ fn initialize_map(
 
     commands.spawn((
         SpatialBundle::default(),
-        Renderer3D::new(
-            &gameplay_map_layout,
-            &mut materials_3d,
-            &mut images,
-            &mut meshes,
-        ),
+        Renderer3D::default(),
         gameplay_map_layout,
         RenderGroup::Gameplay3D,
         Name::new("GameplayMapLayout"),
@@ -86,7 +79,7 @@ fn initialize_map(
 
     commands.spawn((
         SpatialBundle::default(),
-        Renderer2D::new(&preview_map_layout, &mut materials_2d, &mut meshes),
+        Renderer2D::default(),
         preview_map_layout,
         RenderGroup::PreviewMap2D,
         Name::new("PreviewMapLayout"),

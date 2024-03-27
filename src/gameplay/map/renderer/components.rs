@@ -11,7 +11,7 @@ pub enum RenderGroup {
 #[derive(Component)]
 pub struct RenderMap(pub HashMap<u32, Entity>);
 
-#[derive(Component, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MeshType {
     HexMapTile([i8; 6]),
     Player,

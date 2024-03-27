@@ -2,7 +2,10 @@ use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 use crate::gameplay::{
     components::*,
-    map::renderer::components::{MaterialType, MeshType},
+    map::{
+        renderer::components::{MaterialType, MeshType},
+        utils::HexLayout,
+    },
 };
 
 pub trait RenderMapApi {
@@ -13,15 +16,22 @@ pub trait RenderMapApi {
         source_entity: &Entity,
         render_entity: &Entity,
     ) -> Option<Entity>;
+    fn count(&self) -> usize;
 }
 
-pub trait CreateRenderBundles<T: Bundle> {
+pub trait CreateRenderBundles<T: Bundle, M: Asset> {
     fn create_render_bundle(
-        &self,
+        &mut self,
         pos: &Vec3,
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
+
+        layout: &HexLayout,
+        materials: &mut ResMut<Assets<M>>,
+        images: &mut ResMut<Assets<Image>>,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        asset_server: &Res<AssetServer>,
     ) -> T;
 }
 
@@ -43,5 +53,9 @@ impl RenderMapApi for RenderMap {
         render_entity: &Entity,
     ) -> Option<Entity> {
         self.0.insert(source_entity.index(), *render_entity)
+    }
+
+    fn count(&self) -> usize {
+        self.0.len()
     }
 }

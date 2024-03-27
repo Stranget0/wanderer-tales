@@ -12,16 +12,15 @@ use crate::gameplay::{
 };
 
 use super::{
-    common::PRECOMPUTED_HEIGHT_CYCLES,
     meshes::Hexagon3D,
     traits::{CreateRenderBundles, RenderMap, RenderMapApi},
 };
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct Renderer3D {
     renders_map: RenderMap,
-    pub materials_map: HashMap<MaterialType, Handle<StandardMaterial>>,
-    pub meshes_map: HashMap<MeshType, Handle<Mesh>>,
+    pub materials_map: HashMap<MaterialType, AssetId<StandardMaterial>>,
+    pub meshes_map: HashMap<MeshType, AssetId<Mesh>>,
 }
 
 impl RenderMapApi for Renderer3D {
@@ -41,39 +40,31 @@ impl RenderMapApi for Renderer3D {
         self.renders_map
             .link_source_item(source_entity, render_entity)
     }
+
+    fn count(&self) -> usize {
+        self.renders_map.count()
+    }
 }
 
-impl CreateRenderBundles<PbrBundle> for Renderer3D {
+impl CreateRenderBundles<PbrBundle, StandardMaterial> for Renderer3D {
     fn create_render_bundle(
-        &self,
+        &mut self,
         pos: &Vec3,
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
+
+        layout: &HexLayout,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        images: &mut ResMut<Assets<Image>>,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        asset_server: &Res<AssetServer>,
     ) -> PbrBundle {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
         transform.rotation = rotation.0;
 
-        let material = self
-            .materials_map
-            .get(material_type)
-            .unwrap_or_else(|| {
-                error!("Could not get material {:?}", material_type);
-                self.materials_map
-                    .get(&MaterialType::Debug)
-                    .expect("Could not get debug material")
-            })
-            .clone();
-
-        let mesh = self
-            .meshes_map
-            .get(mesh_type)
-            .unwrap_or_else(|| {
-                self.meshes_map
-                    .get(&MeshType::Debug)
-                    .expect("Could not get debug mesh")
-            })
-            .clone();
+        let material = self.get_or_create_material(materials, images, material_type, asset_server);
+        let mesh = self.get_or_create_mesh(meshes, mesh_type, layout, asset_server);
 
         PbrBundle {
             mesh,
@@ -85,57 +76,102 @@ impl CreateRenderBundles<PbrBundle> for Renderer3D {
 }
 
 impl Renderer3D {
-    pub fn new(
-        layout: &HexLayout,
+    fn get_or_create_material(
+        &mut self,
         materials: &mut ResMut<Assets<StandardMaterial>>,
         images: &mut ResMut<Assets<Image>>,
-        meshes: &mut ResMut<Assets<Mesh>>,
-    ) -> Self {
-        let mut materials_map = HashMap::default();
-        let mut meshes_map = HashMap::default();
-
-        let debug_material = materials.add(StandardMaterial {
-            base_color_texture: Some(images.add(uv_debug_texture())),
-            ..default()
-        });
-
-        let materials = [
-            MaterialType::Beach,
-            MaterialType::Grass,
-            MaterialType::Forest,
-            MaterialType::Mountain,
-            MaterialType::Water,
-            MaterialType::Player,
-            MaterialType::Debug,
-        ];
-
-        for key in materials {
-            materials_map.insert(key, debug_material.clone());
+        material_type: &MaterialType,
+        asset_server: &Res<AssetServer>,
+    ) -> Handle<StandardMaterial> {
+        if let Some(handle) = self
+            .materials_map
+            .get(material_type)
+            .and_then(|asset_id| asset_server.get_id_handle(*asset_id))
+        {
+            return handle.clone();
         }
+        debug!("Create new material 3d");
 
-        let entries: Vec<(MeshType, Mesh)> = vec![
-            (MeshType::Player, Sphere::new(0.3).into()),
-            (MeshType::Debug, Sphere::new(0.1).into()),
-        ];
+        let material = match material_type {
+            _ => StandardMaterial {
+                base_color_texture: Some(images.add(uv_debug_texture())),
+                ..default()
+            },
+        };
 
-        for (key, mesh) in entries {
-            meshes_map.insert(key, meshes.add(mesh));
-        }
-        for height_cycle in PRECOMPUTED_HEIGHT_CYCLES {
-            meshes_map.insert(
-                MeshType::HexMapTile(height_cycle),
-                meshes.add(Hexagon3D::create_base(
-                    layout.size.x,
-                    layout.orientation.starting_angle,
-                    &height_cycle,
-                )),
-            );
-        }
+        let handle = asset_server.add(material);
+        self.materials_map.insert(*material_type, handle.id());
 
-        Self {
-            renders_map: RenderMap::default(),
-            materials_map,
-            meshes_map,
-        }
+        handle
     }
+
+    fn get_or_create_mesh(
+        &mut self,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        mesh_type: &MeshType,
+        layout: &HexLayout,
+        asset_server: &Res<AssetServer>,
+    ) -> Handle<Mesh> {
+        if let Some(handle) = self
+            .meshes_map
+            .get(mesh_type)
+            .and_then(|asset_id| asset_server.get_id_handle(*asset_id))
+        {
+            return handle.clone();
+        }
+
+        debug!("Create new mesh 3d");
+        let mesh: Mesh = match mesh_type {
+            MeshType::HexMapTile(height_cycle) => Hexagon3D::create_base(
+                layout.size.x,
+                layout.orientation.starting_angle,
+                height_cycle,
+            ),
+            MeshType::Player => Sphere::new(0.3).into(),
+            MeshType::Debug => Sphere::new(0.1).into(),
+        };
+
+        let handle = asset_server.add(mesh);
+        self.meshes_map.insert(*mesh_type, handle.id());
+
+        handle
+    }
+
+    // let debug_material = materials.add(StandardMaterial {
+    //     base_color_texture: Some(images.add(uv_debug_texture())),
+    //     ..default()
+    // });
+
+    // let materials = [
+    //     MaterialType::Beach,
+    //     MaterialType::Grass,
+    //     MaterialType::Forest,
+    //     MaterialType::Mountain,
+    //     MaterialType::Water,
+    //     MaterialType::Player,
+    //     MaterialType::Debug,
+    // ];
+
+    // for key in materials {
+    //     materials_map.insert(key, debug_material.clone());
+    // }
+
+    // let entries: Vec<(MeshType, Mesh)> = vec![
+    //     (MeshType::Player, Sphere::new(0.3).into()),
+    //     (MeshType::Debug, Sphere::new(0.1).into()),
+    // ];
+
+    // for (key, mesh) in entries {
+    //     meshes_map.insert(key, meshes.add(mesh));
+    // }
+    // for height_cycle in PRECOMPUTED_HEIGHT_CYCLES {
+    //     meshes_map.insert(
+    //         MeshType::HexMapTile(height_cycle),
+    // meshes.add(Hexagon3D::create_base(
+    //             layout.size.x,
+    //             layout.orientation.starting_angle,
+    //             &height_cycle,
+    //         )),
+    //     );
+    // }
 }

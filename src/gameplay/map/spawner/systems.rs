@@ -193,7 +193,6 @@ fn spawn_map_part(
         let hex_entity = commands
             .spawn((bundle.clone(), Name::from("TileSource")))
             .id();
-        info!("spawn map tile {:?}", hex);
         hex_to_map_source_entity.0.insert(hex, hex_entity);
         additive_entities.push(hex_entity);
     }
