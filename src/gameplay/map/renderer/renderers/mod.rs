@@ -1,3 +1,4 @@
+pub use traits::RenderMapApi;
 pub(crate) mod common;
 pub mod meshes;
 pub mod renderer_2d;

@@ -1,5 +1,6 @@
-use bevy::prelude::*;
+use bevy::{input::mouse::MouseMotion, prelude::*};
 
+use crate::debug::local_position_gizmo::LocalGizmoSource;
 use crate::gameplay::components::*;
 use crate::gameplay::map::components::*;
 use crate::gameplay::map::renderer::camera::components::SourceCameraFollow;
@@ -7,10 +8,7 @@ use crate::gameplay::map::renderer::components::*;
 use crate::gameplay::map::spawner::resources::HexToMapSourceEntity;
 use crate::gameplay::map::utils::*;
 
-use super::{
-    components::{MapSpeed, PlayerControllable, PlayerRoot, Sight, WSADSteerable},
-    events::{CharacterMovedEvent, WSADEvent},
-};
+use super::{components::*, events::*};
 
 pub fn spawn_player(mut commands: Commands, source_layout: Query<Entity, With<SourceLayout>>) {
     for layout_entity in source_layout.iter() {
@@ -19,14 +17,16 @@ pub fn spawn_player(mut commands: Commands, source_layout: Query<Entity, With<So
         let player_entity = commands
             .spawn((
                 WSADSteerable,
-                MapSpeed(10.0),
+                MapSpeed(50.0),
                 Sight(sight),
                 Height(50),
                 PlayerRoot,
                 PlayerControllable,
                 SourceCameraFollow,
+                MouseRotatable(3.0),
                 MeshType::Player,
                 MaterialType::Player,
+                LocalGizmoSource,
                 pos.clone(),
                 Rotation::default(),
                 Name::new("PlayerSource"),
@@ -78,11 +78,10 @@ pub fn move_2d_handle(
             for (entity, mut position, rotation, speed, mut height, sight_option) in
                 items_to_move.iter_mut()
             {
-                let rotated_vec = rotation.get_rotated_vec2(&direction.0);
-                // info!("{:?} -> {:?}", direction.0, rotated_vec);
+                let rotated_vec = rotation.get_rotated_vec2_x(&direction.0);
                 let hex_delta_f = layout.pixel_to_hex(rotated_vec) * speed.0 * time.delta_seconds();
 
-                position.0 = &position.0 + &hex_delta_f;
+                position.0 = position.0 + hex_delta_f;
                 debug!("Move player {:?}", hex_delta_f);
 
                 let k: HexVector = (&position.0).into();
@@ -110,5 +109,18 @@ pub fn move_2d_handle(
         }
 
         character_moved_event.send_batch(events_to_send);
+    }
+}
+
+pub fn rotate_controlled_source(
+    mut rotatables_query: Query<(&mut Rotation, &MouseRotatable)>,
+    mut motion_evr: EventReader<MouseMotion>,
+    time: Res<Time>,
+) {
+    for motion in motion_evr.read() {
+        let delta_seconds = time.delta_seconds();
+        for (mut rotation, rotatable) in rotatables_query.iter_mut() {
+            rotation.rotate_2d_x(rotatable.0 * -motion.delta.x * delta_seconds);
+        }
     }
 }

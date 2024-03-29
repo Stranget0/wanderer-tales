@@ -10,6 +10,9 @@ pub struct PlayerControllable;
 pub struct WSADSteerable;
 
 #[derive(Component, Debug, Clone, PartialEq)]
+pub struct MouseRotatable(pub f32);
+
+#[derive(Component, Debug, Clone, PartialEq)]
 pub struct MapSpeed(pub f32);
 
 #[derive(Component, Debug, Clone, PartialEq, Eq)]

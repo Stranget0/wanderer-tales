@@ -4,7 +4,10 @@ use crate::debug::switch_renderer::debug_switch_renderer;
 use crate::utils::*;
 
 use self::camera::bundles::*;
-use self::camera::systems::{camera_look_around, camera_update, camera_zoom};
+use self::camera::states::CameraMode;
+use self::camera::systems::{
+    camera_follow_rotation, camera_look_around, camera_update, camera_zoom,
+};
 use self::components::{MaterialType, MeshType};
 use self::renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D};
 use self::state::RendererState;
@@ -84,7 +87,8 @@ impl Plugin for RendererPlugin {
             Update,
             (
                 debug_switch_renderer,
-                camera_look_around,
+								camera_follow_rotation.run_if(in_state(CameraMode::Follow)),
+                camera_look_around.run_if(in_state(CameraMode::LookAround)),
                 camera_zoom,
                 (
                     move_rendered_items::<Renderer2D>,

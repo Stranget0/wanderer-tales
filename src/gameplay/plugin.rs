@@ -7,6 +7,7 @@ use super::{
     map::{
         components::SourceLayout,
         renderer::{
+            camera::states::CameraMode,
             components::RenderGroup,
             renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
             state::RendererState,
@@ -26,6 +27,7 @@ pub struct GameplayPlugin;
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
         app.insert_state(RendererState::ThreeDimension)
+            .insert_state(CameraMode::Follow)
             .insert_resource(SeedTable::default())
             .insert_resource(HexToMapSourceEntity::default())
             .register_type::<HexPosition>()
@@ -33,7 +35,13 @@ impl Plugin for GameplayPlugin {
             .add_event::<MapSubEvent>()
             .add_event::<CharacterMovedEvent>()
             .add_systems(Startup, initialize_map)
-            .add_systems(Update, draw_local_gizmos)
+            .add_systems(
+                Update,
+                (
+                    draw_local_gizmos::<Renderer3D>,
+                    draw_local_gizmos::<Renderer2D>,
+                ),
+            )
             .configure_sets(Update, RendererSet::RenderItems.before(MapSpawnerSet))
             .add_plugins((
                 FrameTimeDiagnosticsPlugin,
@@ -44,11 +52,7 @@ impl Plugin for GameplayPlugin {
     }
 }
 
-fn initialize_map(
-    mut commands: Commands,
-    mut materials_2d: ResMut<Assets<ColorMaterial>>,
-    mut materials_3d: ResMut<Assets<StandardMaterial>>,
-) {
+fn initialize_map(mut commands: Commands) {
     let source_layout = HexLayout {
         orientation: POINTY_TOP_ORIENTATION,
         size: vec2(1.0, 1.0),

@@ -1,5 +1,5 @@
 use super::map::utils::*;
-use crate::utils::{EULER_ROT, FORWARD};
+use crate::utils::{EULER_ROT, FORWARD, UP};
 use bevy::prelude::*;
 
 #[derive(Component, Debug, Clone, PartialEq)]
@@ -17,7 +17,7 @@ impl Default for HexPositionDelta {
     }
 }
 
-#[derive(Component, Debug, Clone, PartialEq, Default)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Default)]
 pub struct Rotation(pub Quat);
 
 impl Rotation {
@@ -25,15 +25,15 @@ impl Rotation {
         Self(Quat::from_euler(EULER_ROT, vec.x, vec.y, vec.z))
     }
 
-    pub fn get_rotated_vec3(&self, vec: &Vec2) -> Vec3 {
+    pub fn get_rotated_vec2_x(&self, vec: &Vec2) -> Vec2 {
         let direction_3d = vec.x * Vec3::X + vec.y * FORWARD;
-
-        self.0.mul_vec3(direction_3d)
-    }
-
-    pub fn get_rotated_vec2(&self, vec: &Vec2) -> Vec2 {
-        let vec_3d = self.get_rotated_vec3(vec);
+        let vec_3d = self.0.mul_vec3(direction_3d);
 
         Vec2::new(vec_3d.x, vec_3d.y)
+    }
+
+    pub fn rotate_2d_x(&mut self, angle: f32) {
+        let [x, y, z] = (UP * angle).to_array();
+        self.0 = Quat::from_euler(EULER_ROT, x, y, z) * self.0;
     }
 }

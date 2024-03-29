@@ -1,6 +1,6 @@
 use super::components::*;
 use crate::{
-    gameplay::map::renderer::renderers::traits::*,
+    gameplay::{components::Rotation, map::renderer::renderers::traits::*},
     utils::{EULER_ROT, UP},
 };
 use bevy::{
@@ -50,22 +50,11 @@ pub fn camera_update<R: RenderMapApi + Component>(
                     let rotation_2 = Quat::from_euler(EULER_ROT, rotation.1, 0.0, 0.0);
                     let combined_rotation = rotation_1 * rotation_2;
 
-                    debug_rotation(&camera_transform, combined_rotation);
                     camera_transform.translate_around(target_pos, combined_rotation);
                     camera_transform.look_at(target_pos, UP);
                 }
             }
         }
-    }
-}
-
-fn debug_rotation(camera_transform: &Mut<Transform>, combined_rotation: Quat) {
-    if camera_transform.rotation.to_euler(EULER_ROT) != combined_rotation.to_euler(EULER_ROT) {
-        // info!(
-        //     "Camera rotation {:?} -> {:?}",
-        //     camera_transform.rotation.to_euler(EULER_ROT),
-        //     combined_rotation.to_euler(EULER_ROT)
-        // );
     }
 }
 
@@ -80,8 +69,35 @@ pub fn camera_look_around(
             if camera.is_active {
                 let sensitivity = 20.0;
                 camera_rotation.0 += (e.delta.x * time_delta * sensitivity).to_radians();
-                camera_rotation.1 += (e.delta.y * time_delta * sensitivity).to_radians();
+                camera_rotation.1 += (-e.delta.y * time_delta * sensitivity).to_radians();
             }
+        }
+    }
+}
+
+pub fn camera_follow_rotation(
+    mut camera_query: Query<(&Camera, &mut CameraRotation)>,
+    target_query: Query<Ref<Rotation>, With<SourceCameraFollow>>,
+    mut motion_evr: EventReader<MouseMotion>,
+    time: Res<Time>,
+) {
+    for (camera, mut cam_rotation) in camera_query.iter_mut() {
+        if !camera.is_active {
+            continue;
+        }
+        match target_query.get_single() {
+            Ok(target_rotation) => {
+                if !target_rotation.is_changed() {
+                    continue;
+                }
+                let time_delta = time.delta_seconds();
+                cam_rotation.0 = -target_rotation.0.to_euler(EULER_ROT).2;
+
+                for e in motion_evr.read() {
+                    cam_rotation.1 += (-e.delta.y * time_delta * 20.0).to_radians()
+                }
+            }
+            Err(err) => error!("{}", err),
         }
     }
 }
