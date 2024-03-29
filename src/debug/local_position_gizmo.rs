@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-use crate::gameplay::map::renderer::renderers::RenderMapApi;
-use crate::gameplay::map::renderer::state::RendererState;
+use crate::gameplay::renderer::renderers::RenderMapApi;
+use crate::gameplay::renderer::state::RendererState;
 use crate::utils::*;
 
 #[derive(Component)]

@@ -1,16 +1,12 @@
+use crate::gameplay::data_source_layer::utils::HexLayout;
+use crate::{
+    gameplay::{data_source_layer::map::components::Rotation, renderer::components::*},
+    utils::UP,
+};
 use bevy::{
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
     utils::hashbrown::HashMap,
-};
-
-use crate::{
-    gameplay::map::{
-        data_source_layer::components::Rotation,
-        renderer::components::{MaterialType, MeshType},
-        utils::hex_layout::HexLayout,
-    },
-    utils::UP,
 };
 
 use super::traits::{CreateRenderBundles, RenderMap, RenderMapApi};

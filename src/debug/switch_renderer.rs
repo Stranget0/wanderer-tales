@@ -1,6 +1,5 @@
+use crate::gameplay::renderer::state::RendererState;
 use bevy::prelude::*;
-
-use crate::gameplay::map::renderer::state::RendererState;
 
 pub fn debug_switch_renderer(
     state: Res<State<RendererState>>,

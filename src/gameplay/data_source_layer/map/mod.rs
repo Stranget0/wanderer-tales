@@ -1,11 +1,9 @@
 pub mod components;
-pub mod events;
 pub mod resources;
 pub mod systems;
 use self::systems::*;
 use crate::global_state::SceneState;
 use bevy::prelude::*;
-pub use events::*;
 
 pub struct DataSourceLayerPlugin;
 

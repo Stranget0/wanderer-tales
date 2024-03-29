@@ -1,11 +1,10 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::map::{
-    data_source_layer::components::Rotation,
+use crate::gameplay::data_source_layer::utils::HexLayout;
+use crate::gameplay::{
+    data_source_layer::map::components::Rotation,
     renderer::components::{MaterialType, MeshType},
-    utils::HexLayout,
 };
-
 pub trait RenderMapApi {
     fn get_render_item(&self, source_entity: &Entity) -> Option<&Entity>;
     fn remove_render_item(&mut self, source_entity: &Entity) -> Option<Entity>;

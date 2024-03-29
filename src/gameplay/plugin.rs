@@ -3,22 +3,22 @@ use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, math::vec2, prelude::*};
 use crate::debug::local_position_gizmo::draw_local_gizmos;
 
 use super::{
-    map::{
-        data_source_layer::{
+    data_source_layer::{
+        map::{
             components::*,
             resources::{HexToMapSourceEntity, SeedTable},
-            DataSourceLayerPlugin, MapAddEvent, MapSubEvent, SourceLayerSet,
+            DataSourceLayerPlugin, SourceLayerSet,
         },
-        renderer::{
-            camera::states::CameraMode,
-            components::RenderGroup,
-            renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
-            state::RendererState,
-            RendererPlugin, RendererSet,
-        },
+        player::{events::CharacterMovedEvent, PlayerPlugin},
         utils::{hex_layout::HexLayout, layout_orientation::POINTY_TOP_ORIENTATION},
     },
-    player::{events::CharacterMovedEvent, PlayerPlugin},
+    renderer::{
+        camera::states::CameraMode,
+        components::RenderGroup,
+        renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
+        state::RendererState,
+        RendererPlugin, RendererSet,
+    },
 };
 
 pub struct GameplayPlugin;
@@ -30,8 +30,6 @@ impl Plugin for GameplayPlugin {
             .insert_resource(SeedTable::default())
             .insert_resource(HexToMapSourceEntity::default())
             .register_type::<HexPosition>()
-            .add_event::<MapAddEvent>()
-            .add_event::<MapSubEvent>()
             .add_event::<CharacterMovedEvent>()
             .add_systems(Startup, initialize_map)
             .add_systems(

@@ -1,7 +1,7 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 use noise::permutationtable::PermutationTable;
 
-use crate::gameplay::map::utils::hex_vector::HexVector;
+use crate::gameplay::data_source_layer::utils::hex_vector::HexVector;
 
 #[derive(Resource)]
 pub struct HexToMapSourceEntity(pub HashMap<HexVector, Entity>);

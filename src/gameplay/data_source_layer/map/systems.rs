@@ -1,9 +1,10 @@
 use self::hex_vector::iterators::HexVectorSpiral;
 use super::components::*;
 use super::resources::{HexToMapSourceEntity, SeedTable};
-use crate::gameplay::map::utils::*;
-use crate::gameplay::player::events::CharacterMovedEvent;
-use crate::gameplay::{map::renderer::components::MeshType, player::components::Sight};
+use crate::gameplay::data_source_layer::player::components::Sight;
+use crate::gameplay::data_source_layer::player::events::CharacterMovedEvent;
+use crate::gameplay::data_source_layer::utils::*;
+use crate::gameplay::renderer::components::MeshType;
 use crate::utils::UP;
 use bevy::{
     hierarchy::{BuildChildren, DespawnRecursiveExt},

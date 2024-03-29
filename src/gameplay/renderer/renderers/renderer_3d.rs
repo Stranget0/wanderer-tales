@@ -1,18 +1,12 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::map::{
-    data_source_layer::components::Rotation,
-    renderer::{
-        components::{MaterialType, MeshType},
-        debug::uv_debug_texture,
-    },
-    utils::hex_layout::HexLayout,
-};
-
 use super::{
     meshes::Hexagon3D,
     traits::{CreateRenderBundles, RenderMap, RenderMapApi},
 };
+use crate::gameplay::data_source_layer::{map::components::Rotation, utils::HexLayout};
+use crate::gameplay::renderer::components::*;
+use crate::gameplay::renderer::debug::uv_debug_texture;
 
 #[derive(Component, Default)]
 pub struct Renderer3D {

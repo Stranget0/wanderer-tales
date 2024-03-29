@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 
-use crate::gameplay::map::{
-    data_source_layer::components::HexPosition,
-    renderer::components::{MaterialType, MeshType},
-};
+use crate::gameplay::data_source_layer::map::components::*;
+use crate::gameplay::renderer::components::*;
 
 #[derive(Bundle, Clone, Debug)]
 pub struct HexMapTileBundle {

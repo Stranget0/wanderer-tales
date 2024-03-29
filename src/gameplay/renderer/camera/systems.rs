@@ -1,13 +1,11 @@
-use super::components::*;
-use crate::{
-    gameplay::map::{data_source_layer::components::Rotation, renderer::renderers::traits::*},
-    utils::{EULER_ROT, UP},
-};
+use crate::gameplay::data_source_layer::map::components::*;
+use crate::gameplay::renderer::camera::components::*;
+use crate::gameplay::renderer::renderers::RenderMapApi;
+use crate::utils::*;
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
-
 pub fn camera_update<R: RenderMapApi + Component>(
     mut camera_query: Query<(
         &Camera,

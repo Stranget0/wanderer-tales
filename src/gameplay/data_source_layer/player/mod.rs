@@ -7,7 +7,7 @@ use self::{
     systems::{move_2d_handle, move_interaction, rotate_controlled_source, spawn_player},
 };
 
-use super::map::data_source_layer::SourceLayerSet;
+use super::map::SourceLayerSet;
 
 pub mod components;
 pub mod events;

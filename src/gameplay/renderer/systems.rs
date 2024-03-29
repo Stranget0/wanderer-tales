@@ -1,5 +1,5 @@
-use crate::gameplay::map::data_source_layer::components::*;
-use crate::gameplay::map::utils::*;
+use crate::gameplay::data_source_layer::map::components::*;
+use crate::gameplay::data_source_layer::utils::*;
 use crate::utils::*;
 use bevy::{ecs::query::QueryFilter, prelude::*};
 
