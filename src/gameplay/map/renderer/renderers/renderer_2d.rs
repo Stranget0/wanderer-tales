@@ -5,12 +5,10 @@ use bevy::{
 };
 
 use crate::{
-    gameplay::{
-        components::Rotation,
-        map::{
-            renderer::components::{MaterialType, MeshType},
-            utils::hex_layout::HexLayout,
-        },
+    gameplay::map::{
+        data_source_layer::components::Rotation,
+        renderer::components::{MaterialType, MeshType},
+        utils::hex_layout::HexLayout,
     },
     utils::UP,
 };

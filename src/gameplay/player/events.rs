@@ -3,7 +3,9 @@ use bevy::{
     math::Vec2,
 };
 
-use crate::gameplay::{components::*, map::utils::hex_vector::FractionalHexVector};
+use crate::gameplay::map::{
+    data_source_layer::components::HexPositionFractional, utils::hex_vector::FractionalHexVector,
+};
 
 use super::components::Sight;
 

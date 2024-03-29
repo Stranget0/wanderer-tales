@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
-use crate::gameplay::{
-    components::HexPosition,
-    map::renderer::components::{MaterialType, MeshType},
+use crate::gameplay::map::{
+    data_source_layer::components::HexPosition,
+    renderer::components::{MaterialType, MeshType},
 };
 
 #[derive(Bundle, Clone, Debug)]

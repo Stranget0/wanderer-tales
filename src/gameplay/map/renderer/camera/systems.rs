@@ -1,6 +1,6 @@
 use super::components::*;
 use crate::{
-    gameplay::{components::Rotation, map::renderer::renderers::traits::*},
+    gameplay::map::{data_source_layer::components::Rotation, renderer::renderers::traits::*},
     utils::{EULER_ROT, UP},
 };
 use bevy::{

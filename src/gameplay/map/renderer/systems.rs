@@ -1,4 +1,4 @@
-use crate::gameplay::components::*;
+use crate::gameplay::map::data_source_layer::components::*;
 use crate::gameplay::map::utils::*;
 use crate::utils::*;
 use bevy::{ecs::query::QueryFilter, prelude::*};

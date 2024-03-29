@@ -1,14 +1,12 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::{
-    components::*,
-    map::{
-        renderer::{
-            components::{MaterialType, MeshType},
-            debug::uv_debug_texture,
-        },
-        utils::hex_layout::HexLayout,
+use crate::gameplay::map::{
+    data_source_layer::components::Rotation,
+    renderer::{
+        components::{MaterialType, MeshType},
+        debug::uv_debug_texture,
     },
+    utils::hex_layout::HexLayout,
 };
 
 use super::{

@@ -3,10 +3,9 @@ use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, math::vec2, prelude::*};
 use crate::debug::local_position_gizmo::draw_local_gizmos;
 
 use super::{
-    components::HexPosition,
     map::{
-        components::SourceLayout,
         data_source_layer::{
+            components::*,
             resources::{HexToMapSourceEntity, SeedTable},
             DataSourceLayerPlugin, MapAddEvent, MapSubEvent, SourceLayerSet,
         },

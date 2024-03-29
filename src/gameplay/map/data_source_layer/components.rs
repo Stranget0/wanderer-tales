@@ -1,4 +1,4 @@
-use super::map::utils::*;
+use crate::gameplay::map::utils::*;
 use crate::utils::{EULER_ROT, FORWARD, UP};
 use bevy::prelude::*;
 
@@ -37,3 +37,6 @@ impl Rotation {
         self.0 = Quat::from_euler(EULER_ROT, x, y, z) * self.0;
     }
 }
+
+#[derive(Component)]
+pub struct SourceLayout;

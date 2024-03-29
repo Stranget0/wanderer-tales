@@ -1,11 +1,9 @@
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
-use crate::gameplay::{
-    components::*,
-    map::{
-        renderer::components::{MaterialType, MeshType},
-        utils::HexLayout,
-    },
+use crate::gameplay::map::{
+    data_source_layer::components::Rotation,
+    renderer::components::{MaterialType, MeshType},
+    utils::HexLayout,
 };
 
 pub trait RenderMapApi {
