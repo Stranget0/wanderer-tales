@@ -1,23 +1,20 @@
 pub mod events;
 pub mod resources;
 pub mod systems;
-
-use bevy::prelude::*;
-
+use self::systems::*;
 use crate::global_state::SceneState;
-
+use bevy::prelude::*;
 pub use events::*;
 
-use self::systems::{
-    add_hex_tile_offsets, clear_map_data, despawn_map_data, fill_map_data_on_sight, spawn_map_data,
-};
-
-pub struct MapSpawnerPlugin;
+pub struct DataSourceLayerPlugin;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MapSpawnerSet;
+pub enum SourceLayerSet {
+    PlayerInput,
+    Data,
+}
 
-impl Plugin for MapSpawnerPlugin {
+impl Plugin for DataSourceLayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
@@ -29,7 +26,7 @@ impl Plugin for MapSpawnerPlugin {
                     .after(spawn_map_data)
                     .after(despawn_map_data),
             )
-                .in_set(MapSpawnerSet)
+                .in_set(SourceLayerSet::Data)
                 .run_if(in_state(SceneState::Game)),
         )
         .add_systems(OnExit(SceneState::Menu), clear_map_data);

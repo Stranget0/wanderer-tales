@@ -6,16 +6,16 @@ use super::{
     components::HexPosition,
     map::{
         components::SourceLayout,
+        data_source_layer::{
+            resources::{HexToMapSourceEntity, SeedTable},
+            DataSourceLayerPlugin, MapAddEvent, MapSubEvent, SourceLayerSet,
+        },
         renderer::{
             camera::states::CameraMode,
             components::RenderGroup,
             renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D},
             state::RendererState,
             RendererPlugin, RendererSet,
-        },
-        spawner::{
-            resources::{HexToMapSourceEntity, SeedTable},
-            MapAddEvent, MapSpawnerPlugin, MapSpawnerSet, MapSubEvent,
         },
         utils::{hex_layout::HexLayout, layout_orientation::POINTY_TOP_ORIENTATION},
     },
@@ -42,10 +42,17 @@ impl Plugin for GameplayPlugin {
                     draw_local_gizmos::<Renderer2D>,
                 ),
             )
-            .configure_sets(Update, RendererSet::RenderItems.before(MapSpawnerSet))
+            .configure_sets(
+                Update,
+                SourceLayerSet::PlayerInput.before(SourceLayerSet::Data),
+            )
+            .configure_sets(
+                Update,
+                RendererSet::RenderItems.before(SourceLayerSet::Data),
+            )
             .add_plugins((
                 FrameTimeDiagnosticsPlugin,
-                MapSpawnerPlugin,
+                DataSourceLayerPlugin,
                 RendererPlugin,
                 PlayerPlugin,
             ));

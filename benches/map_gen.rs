@@ -5,7 +5,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use wanderer_tales::gameplay::{
     map::{
         components::SourceLayout,
-        spawner::{
+        data_source_layer::{
             resources::{HexToMapSourceEntity, SeedTable},
             systems::spawn_map_data,
             MapAddEvent, MapSubEvent,

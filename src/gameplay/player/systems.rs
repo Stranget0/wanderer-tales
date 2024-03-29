@@ -3,9 +3,9 @@ use bevy::{input::mouse::MouseMotion, prelude::*};
 use crate::debug::local_position_gizmo::LocalGizmoSource;
 use crate::gameplay::components::*;
 use crate::gameplay::map::components::*;
+use crate::gameplay::map::data_source_layer::resources::HexToMapSourceEntity;
 use crate::gameplay::map::renderer::camera::components::SourceCameraFollow;
 use crate::gameplay::map::renderer::components::*;
-use crate::gameplay::map::spawner::resources::HexToMapSourceEntity;
 use crate::gameplay::map::utils::*;
 
 use super::{components::*, events::*};

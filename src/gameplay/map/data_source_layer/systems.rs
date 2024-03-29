@@ -54,7 +54,7 @@ pub fn despawn_map_data(
     mut character_moved_event: EventReader<CharacterMovedEvent>,
 ) {
     for e in character_moved_event.read() {
-        let origin: HexVector = (&e.pos.0 - &e.delta_pos).into();
+        let origin: HexVector = (e.pos.0 - e.delta_pos).into();
         let new_origin: HexVector = (&e.pos.0).into();
         let distance = origin.distance_to(&new_origin);
         if is_moved_event_irrelevant(e) || distance < 1 {

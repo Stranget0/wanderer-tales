@@ -7,6 +7,8 @@ use self::{
     systems::{move_2d_handle, move_interaction, rotate_controlled_source, spawn_player},
 };
 
+use super::map::data_source_layer::SourceLayerSet;
+
 pub mod components;
 pub mod events;
 pub mod systems;
@@ -19,7 +21,10 @@ impl Plugin for PlayerPlugin {
             .add_systems(OnEnter(SceneState::Game), spawn_player)
             .add_systems(
                 Update,
-                (move_interaction, move_2d_handle, rotate_controlled_source),
+                (
+                    move_interaction.in_set(SourceLayerSet::PlayerInput),
+                    (move_2d_handle, rotate_controlled_source).in_set(SourceLayerSet::Data),
+                ),
             );
     }
 }
