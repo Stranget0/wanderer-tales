@@ -7,7 +7,6 @@ use crate::gameplay::renderer::components::*;
 pub struct HexMapTileBundle {
     pub pos: HexPosition,
     pub biome: Biome,
-    pub tile_height: TileHeight,
     pub height: Height,
     pub material_type: MaterialType,
     pub mesh_type: MeshType,

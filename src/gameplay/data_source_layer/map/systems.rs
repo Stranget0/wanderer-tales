@@ -22,7 +22,7 @@ pub fn spawn_map_data(
     seed_table: Res<SeedTable>,
 ) {
     for e in character_moved_event.read() {
-        let origin: HexVector = (&e.pos.0 - &e.delta_pos).into();
+        let origin: HexVector = (e.pos.0 - e.delta_pos).into();
         let new_origin: HexVector = (&e.pos.0).into();
         let distance = origin.distance_to(&new_origin);
         if is_moved_event_irrelevant(e) || distance < 1 {
@@ -112,21 +112,23 @@ pub fn add_hex_tile_offsets(
     )>,
     hex_to_map_source_entity: Res<HexToMapSourceEntity>,
 ) {
-    // First get hexes that spawner / changed their height.
-    let mut hexes_to_iter = Vec::with_capacity(64);
+    // First get hexes that spawned / changed their height.
+    let mut hexes_to_iter: Vec<&Entity> = Vec::with_capacity(64);
     for changed_hex in height_changed_query.p0().iter() {
-        // Their siblings need to be recalculated
+        // Get their siblings
         for i in 0..6 {
             if let Some(entity) = hex_to_map_source_entity
                 .0
                 .get(&changed_hex.0.get_sibling(i))
             {
-                hexes_to_iter.push(entity);
+                if !hexes_to_iter.contains(&entity) {
+                    hexes_to_iter.push(entity);
+                }
             }
         }
     }
 
-    // Map this into data
+    // Map entities into their data
     let mut data_to_iter = Vec::with_capacity(64);
     for entity in hexes_to_iter {
         if let Ok((height, pos)) = height_changed_query.p1().get(*entity) {
@@ -167,8 +169,6 @@ pub fn add_hex_tile_offsets(
             let mesh_type = MeshType::HexMapTile(minimal_cycle.cycle);
 
             commands.entity(entity).insert((mesh_type, mesh_rotation));
-        } else {
-            // info!("FAILED TILE OFFSETS {:?}", pos);
         }
     }
 }
@@ -201,9 +201,9 @@ fn spawn_map_part(
 }
 
 fn remove_map_part<F: Fn(&HexVector) -> bool>(
-    commands: &mut Commands<'_, '_>,
-    iter: HexVectorSpiral<'_>,
-    hex_to_map_source_entity: &mut ResMut<'_, HexToMapSourceEntity>,
+    commands: &mut Commands,
+    iter: HexVectorSpiral,
+    hex_to_map_source_entity: &mut ResMut<HexToMapSourceEntity>,
     check: F,
 ) {
     let mut substractive_entities: Vec<Entity> = vec![];
@@ -221,6 +221,23 @@ fn remove_map_part<F: Fn(&HexVector) -> bool>(
 
     for e in &substractive_entities {
         commands.entity(*e).despawn_recursive();
+    }
+}
+
+fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMapTileBundle {
+    let height = TileHeight {
+        midpoint: get_height_midpoint(hex, seed_table),
+        offset: get_height_offset(hex, seed_table),
+    };
+
+    let material_type = height.get_material();
+
+    HexMapTileBundle {
+        biome: get_biome(hex),
+        height: Height(height.get_height()),
+        pos: HexPosition(*hex),
+        mesh_type: MeshType::Debug,
+        material_type,
     }
 }
 
@@ -282,21 +299,4 @@ fn get_biome(_hex: &HexVector) -> Biome {
 
 fn is_moved_event_irrelevant(e: &CharacterMovedEvent) -> bool {
     !e.is_player_controllable || e.sight.is_none()
-}
-
-fn create_map_tile_bundle(hex: &HexVector, seed_table: &Res<SeedTable>) -> HexMapTileBundle {
-    let height = TileHeight {
-        midpoint: get_height_midpoint(hex, seed_table),
-        offset: get_height_offset(hex, seed_table),
-    };
-    let material_type = height.get_material();
-
-    HexMapTileBundle {
-        biome: get_biome(hex),
-        height: Height(height.get_height()),
-        tile_height: height,
-        pos: HexPosition(hex.clone()),
-        mesh_type: MeshType::Debug,
-        material_type,
-    }
 }
