@@ -82,30 +82,6 @@ pub(crate) fn clean_render_items<R: RenderMapApi + Component>(
     }
 }
 
-pub(crate) fn clear_unrelevant_render_items<R: RenderMapApi + Component>(
-    mut commands: Commands,
-    source_items: Query<Entity, With<MeshType>>,
-    mut layout_query: Query<&mut R>,
-) {
-    for source_entity in source_items.iter() {
-        for mut renderer in layout_query.iter_mut() {
-            despawn_render_item(&mut renderer, &source_entity, &mut commands);
-        }
-    }
-}
-
-pub(crate) fn clear_all_render_items<R: RenderMapApi + Component>(
-    mut commands: Commands,
-    source_items: Query<Entity, With<MeshType>>,
-    mut layout_query: Query<&mut R>,
-) {
-    for source_entity in source_items.iter() {
-        for mut renderer in layout_query.iter_mut() {
-            despawn_render_item(&mut renderer, &source_entity, &mut commands);
-        }
-    }
-}
-
 pub(crate) fn set_camera_state<W: Component, const IS_ACTIVE: bool>(
     mut camera_query: Query<&mut Camera, With<W>>,
 ) {
@@ -215,7 +191,7 @@ fn spawn_render_item<
     render_entity
 }
 
-// #region old debug
+// #region debug
 // pub(crate) fn debug_heights_2d(
 //     mut commands: Commands,
 //     hex_query: Query<(Entity, &Height, &MeshType, &Rotation, &HexPosition), Without<PlayerRoot>>,
