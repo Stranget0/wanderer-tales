@@ -81,6 +81,7 @@ pub fn player_rotation<C: Component, R: RenderMapApi + Component>(
     )>,
     layout: Query<&HexLayout, With<R>>,
     time: Res<Time>,
+    mut last_x_rotation: Local<f32>,
 ) {
     for (camera, mut cam_transform) in camera_query.iter_mut() {
         if !camera.is_active {
@@ -88,28 +89,34 @@ pub fn player_rotation<C: Component, R: RenderMapApi + Component>(
         }
 
         let time_delta = time.delta_seconds();
-        for e in mouse_motion.read() {
-            if let Ok((mut target_rotation, position, height, rotatable)) =
-                target_query.get_single_mut()
-            {
-                if let Ok(layout) = layout.get_single() {
-                    target_rotation.rotate_right(rotatable.0 * e.delta.x * time_delta);
 
-                    let [x, y] = layout.hex_to_pixel(&position.0).to_array();
-                    let z = height.0;
-                    let player_pos = Vec3::new(x, y, z.into());
-                    let cam_pos = player_pos + Vec3::new(0.0, -3.0, 1.5);
+        if let Ok((mut target_rotation, position, height, rotatable)) =
+            target_query.get_single_mut()
+        {
+            if let Ok(layout) = layout.get_single() {
+                let delta = mouse_motion
+                    .read()
+                    .last()
+                    .map(|e| e.delta)
+                    .unwrap_or_default();
 
-                    cam_transform.translation = cam_pos;
-                    cam_transform.rotate_around(
-                        player_pos,
-                        Quat::from_rotation_z(target_rotation.0.to_euler(EULER_ROT).2),
-                    );
-                    cam_transform
-                        .rotate_around(player_pos, Quat::from_rotation_x(e.delta.y * time_delta));
+                target_rotation.rotate_right(rotatable.0 * delta.x * time_delta);
 
-                    cam_transform.look_at(player_pos, UP);
-                }
+                let [x, y] = layout.hex_to_pixel(&position.0).to_array();
+                let z = height.0;
+                let player_pos = Vec3::new(x, y, z.into());
+                let cam_pos = player_pos + Vec3::new(0.0, -3.0, 1.5);
+                let new_x_rotation = *last_x_rotation - rotatable.0 * delta.y * time_delta;
+
+                cam_transform.translation = cam_pos;
+                cam_transform.rotate_around(
+                    player_pos,
+                    Quat::from_rotation_z(target_rotation.0.to_euler(EULER_ROT).2)
+                        * Quat::from_rotation_x(new_x_rotation),
+                );
+                *last_x_rotation = new_x_rotation;
+
+                cam_transform.look_at(player_pos, UP);
             }
         }
     }

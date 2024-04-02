@@ -33,7 +33,7 @@ impl Rotation {
     }
 
     pub fn rotate_right(&mut self, angle: f32) {
-        let [x, y, z] = (UP * angle).to_array();
+        let [x, y, z] = (UP * -angle).to_array();
         self.0 = Quat::from_euler(EULER_ROT, x, y, z) * self.0;
     }
 }
