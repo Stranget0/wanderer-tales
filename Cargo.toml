@@ -16,6 +16,7 @@ panic = 'abort'
 
 [dependencies]
 auto-impl-ops = "0.2.1"
+bevy_easings = "0.13.1"
 bevy_editor_pls = "0.8.0"
 float-cmp = "0.9.0"
 itertools = "0.12.1"

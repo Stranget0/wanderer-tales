@@ -5,13 +5,13 @@ use crate::utils::*;
 
 use self::camera::bundles::*;
 use self::camera::states::CameraMode;
-use self::camera::systems::{
-    camera_follow_rotation, camera_look_around, camera_update, camera_zoom,
-};
+use self::camera::systems::{camera_look_around, camera_zoom, player_rotation};
 use self::components::{MaterialType, MeshType};
 use self::renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D};
 use self::state::RendererState;
 use self::systems::*;
+
+use super::data_source_layer::map::SourceLayerSet;
 
 pub mod camera;
 pub mod components;
@@ -53,11 +53,6 @@ impl Plugin for RendererPlugin {
             ),
         )
         .add_systems(
-            Update,
-            (camera_update::<Renderer3D>.after(camera_look_around))
-                .run_if(in_state(RendererState::ThreeDimension)),
-        )
-        .add_systems(
             OnExit(RendererState::ThreeDimension),
             (
                 hide_entity::<Renderer3D>,
@@ -72,11 +67,6 @@ impl Plugin for RendererPlugin {
             ),
         )
         .add_systems(
-            Update,
-            (camera_update::<Renderer2D>.after(camera_look_around))
-                .run_if(in_state(RendererState::TwoDimension)),
-        )
-        .add_systems(
             OnExit(RendererState::TwoDimension),
             (
                 set_camera_state::<Camera2d, false>,
@@ -87,7 +77,7 @@ impl Plugin for RendererPlugin {
             Update,
             (
                 debug_switch_renderer,
-								camera_follow_rotation.run_if(in_state(CameraMode::Follow)),
+								(player_rotation::<Camera3d, Renderer3D>,).run_if(in_state(CameraMode::Follow)).in_set(SourceLayerSet::Data),
                 camera_look_around.run_if(in_state(CameraMode::LookAround)),
                 camera_zoom,
                 (

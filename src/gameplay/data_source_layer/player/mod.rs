@@ -4,7 +4,7 @@ use crate::global_state::SceneState;
 
 use self::{
     events::WSADEvent,
-    systems::{move_2d_handle, move_interaction, rotate_controlled_source, spawn_player},
+    systems::{move_2d_handle, move_interaction, spawn_player},
 };
 
 use super::map::SourceLayerSet;
@@ -23,7 +23,7 @@ impl Plugin for PlayerPlugin {
                 Update,
                 (
                     move_interaction.in_set(SourceLayerSet::PlayerInput),
-                    (move_2d_handle, rotate_controlled_source).in_set(SourceLayerSet::Data),
+                    (move_2d_handle).in_set(SourceLayerSet::Data),
                 ),
             );
     }

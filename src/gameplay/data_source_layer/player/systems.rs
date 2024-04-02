@@ -75,7 +75,7 @@ pub fn move_2d_handle(
             for (entity, mut position, rotation, speed, mut height, sight_option) in
                 items_to_move.iter_mut()
             {
-                let rotated_vec = rotation.get_rotated_vec2_x(&direction.0);
+                let rotated_vec = rotation.get_rotated_right(&direction.0);
                 let hex_delta_f = layout.pixel_to_hex(rotated_vec) * speed.0 * time.delta_seconds();
 
                 position.0 = position.0 + hex_delta_f;
@@ -106,18 +106,5 @@ pub fn move_2d_handle(
         }
 
         character_moved_event.send_batch(events_to_send);
-    }
-}
-
-pub fn rotate_controlled_source(
-    mut rotatables_query: Query<(&mut Rotation, &MouseRotatable)>,
-    mut motion_evr: EventReader<MouseMotion>,
-    time: Res<Time>,
-) {
-    for motion in motion_evr.read() {
-        let delta_seconds = time.delta_seconds();
-        for (mut rotation, rotatable) in rotatables_query.iter_mut() {
-            rotation.rotate_2d_x(rotatable.0 * -motion.delta.x * delta_seconds);
-        }
     }
 }

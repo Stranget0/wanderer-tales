@@ -556,6 +556,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_easings"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fceae82d8edb0ab344e0231e35aff21c3da2cf137b73d945faea9e97a8d75c9"
+dependencies = [
+ "bevy",
+ "interpolation",
+]
+
+[[package]]
 name = "bevy_ecs"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2452,6 +2462,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a257582fdcde896fd96463bf2d40eefea0580021c0712a0e2b028b60b47a837a"
 
 [[package]]
+name = "interpolation"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9c13ae9d91148fcb4aab6654c4c2a7d02a15395ea9e23f65170f175f8b269ce"
+
+[[package]]
 name = "is-terminal"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4092,6 +4108,7 @@ version = "0.1.0"
 dependencies = [
  "auto-impl-ops",
  "bevy",
+ "bevy_easings",
  "bevy_editor_pls",
  "criterion",
  "float-cmp",
