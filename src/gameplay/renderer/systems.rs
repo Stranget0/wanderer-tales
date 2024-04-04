@@ -28,9 +28,6 @@ pub(crate) fn render_map_items<
         F,
     >,
     mut layout_query: Query<(Entity, &HexLayout, &mut R)>,
-    mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<M>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
 ) {
     for (source_entity, source_name, position, height, rotation, mesh_type, material_type) in
