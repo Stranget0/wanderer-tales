@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul, Sub};
 
-use bevy::utils::default;
+use bevy::prelude::*;
 use bevy_easings::*;
 
 #[derive(Debug)]
@@ -23,11 +23,15 @@ where
     }
 
     pub fn step_factor(&mut self, delta_f: f32) {
-        self.factor = (self.factor + delta_f).clamp(0.0, 1.0);
+        self.set_factor(self.factor + delta_f);
     }
 
     pub fn get_value(&self) -> T {
         self.min.lerp(&self.max, &self.factor)
+    }
+
+    pub fn set_factor(&mut self, f: f32) {
+        self.factor = f.clamp(0.0, 1.0);
     }
 }
 
@@ -35,7 +39,7 @@ impl<T: Default> RangeBetween<T> {
     pub fn from_max(max: T) -> Self {
         Self {
             max,
-            factor: default(),
+            factor: 0.5,
             min: default(),
         }
     }

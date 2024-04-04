@@ -4112,6 +4112,7 @@ dependencies = [
  "bevy_editor_pls",
  "criterion",
  "float-cmp",
+ "interpolation",
  "itertools 0.12.1",
  "noise",
  "rand 0.8.5",

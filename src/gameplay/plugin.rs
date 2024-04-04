@@ -30,6 +30,7 @@ impl Plugin for GameplayPlugin {
             .insert_resource(SeedTable::default())
             .insert_resource(HexToMapSourceEntity::default())
             .register_type::<HexPosition>()
+            .register_type::<Rotation>()
             .add_event::<CharacterMovedEvent>()
             .add_systems(Startup, initialize_map)
             .add_systems(

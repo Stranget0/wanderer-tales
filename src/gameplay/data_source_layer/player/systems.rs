@@ -5,12 +5,12 @@ use crate::gameplay::data_source_layer::map::resources::HexToMapSourceEntity;
 use crate::gameplay::data_source_layer::utils::*;
 use crate::gameplay::renderer::camera::components::SourceCameraFollow;
 use crate::gameplay::renderer::components::*;
-use bevy::{input::mouse::MouseMotion, prelude::*};
+use bevy::prelude::*;
 
 pub fn spawn_player(mut commands: Commands, source_layout: Query<Entity, With<SourceLayout>>) {
     for layout_entity in source_layout.iter() {
         let pos = HexPositionFractional(FractionalHexVector(0.0, 0.0, 0.0));
-        let sight = 64;
+        let sight = 3;
         let player_entity = commands
             .spawn((
                 WSADSteerable,

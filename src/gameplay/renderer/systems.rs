@@ -18,6 +18,7 @@ pub(crate) fn render_map_items<
     render_type_query: Query<
         (
             Entity,
+            &Name,
             AnyOf<(&HexPosition, &HexPositionFractional)>,
             &Height,
             &Rotation,
@@ -32,7 +33,7 @@ pub(crate) fn render_map_items<
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
 ) {
-    for (source_entity, position, height, rotation, mesh_type, material_type) in
+    for (source_entity, source_name, position, height, rotation, mesh_type, material_type) in
         render_type_query.iter()
     {
         for (layout_entity, layout, mut renderer) in layout_query.iter_mut() {
@@ -63,6 +64,7 @@ pub(crate) fn render_map_items<
                 &mut commands,
                 renderer,
                 render_bundle,
+                source_name.clone(),
                 source_entity,
                 layout_entity,
             );
@@ -129,18 +131,21 @@ pub(crate) fn move_rendered_items<R: RenderMapApi + Component>(
 
 pub(crate) fn rotate_rendered_items<R: RenderMapApi + Component>(
     mut transform_query: Query<&mut Transform>,
-    rotatable_query: Query<(Entity, &Rotation), Or<(Changed<Rotation>, Added<Rotation>)>>,
+    rotatable_query: Query<(Entity, &Rotation, &Name), Or<(Changed<Rotation>, Added<Rotation>)>>,
     layout_query: Query<&R>,
 ) {
-    for (source_entity, rotation) in rotatable_query.iter() {
+    for (source_entity, rotation, name) in rotatable_query.iter() {
         for renderer in layout_query.iter() {
             let render_entity_option = renderer.get_render_item(&source_entity);
             if let Some(render_entity) = render_entity_option {
-                if let Ok(mut transform) = transform_query.get_mut(*render_entity) {
-                    transform.rotation = rotation.0;
+                match transform_query.get_mut(*render_entity) {
+                    Ok(mut transform) => {
+                        transform.rotation = rotation.0;
+                    }
+                    Err(err) => error!("{} {}", name, err),
                 }
             } else {
-                debug!("Could not rotate render item");
+                error!("Could not get render item to rotate element {}", name);
             }
         }
     }
@@ -175,15 +180,17 @@ fn spawn_render_item<
     commands: &mut Commands,
     mut renderer: Mut<R>,
     bundle: T,
+    name: Name,
     source_entity: Entity,
     layout_entity: Entity,
 ) -> Entity {
-    let render_entity = commands.spawn(bundle).id();
+    let render_entity = commands.spawn((bundle, name.clone())).id();
 
     debug!(
-        "[Spawning map item {:?} -> {:?}]",
-        source_entity, render_entity
+        "[Spawning map item {} {:?} -> {:?}]",
+        name, source_entity, render_entity
     );
+
     renderer.link_source_item(&source_entity, &render_entity);
 
     commands.entity(layout_entity).add_child(render_entity);

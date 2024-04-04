@@ -55,8 +55,8 @@ impl CreateRenderBundles<PbrBundle, StandardMaterial> for Renderer3D {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
         transform.rotation = rotation.0;
 
-        let material = self.get_or_create_material(materials, images, material_type, asset_server);
-        let mesh = self.get_or_create_mesh(meshes, mesh_type, layout, asset_server);
+        let material = self.get_or_create_material(material_type, asset_server);
+        let mesh = self.get_or_create_mesh(mesh_type, layout, asset_server);
 
         PbrBundle {
             mesh,
@@ -70,8 +70,6 @@ impl CreateRenderBundles<PbrBundle, StandardMaterial> for Renderer3D {
 impl Renderer3D {
     fn get_or_create_material(
         &mut self,
-        materials: &mut ResMut<Assets<StandardMaterial>>,
-        images: &mut ResMut<Assets<Image>>,
         material_type: &MaterialType,
         asset_server: &Res<AssetServer>,
     ) -> Handle<StandardMaterial> {
@@ -86,7 +84,7 @@ impl Renderer3D {
 
         let material = match material_type {
             _ => StandardMaterial {
-                base_color_texture: Some(images.add(uv_debug_texture())),
+                base_color_texture: Some(asset_server.add(uv_debug_texture())),
                 ..default()
             },
         };
@@ -99,7 +97,6 @@ impl Renderer3D {
 
     fn get_or_create_mesh(
         &mut self,
-        meshes: &mut ResMut<Assets<Mesh>>,
         mesh_type: &MeshType,
         layout: &HexLayout,
         asset_server: &Res<AssetServer>,

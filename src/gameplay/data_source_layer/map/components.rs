@@ -17,7 +17,7 @@ impl Default for HexPositionDelta {
     }
 }
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Default, Reflect)]
 pub struct Rotation(pub Quat);
 
 impl Rotation {

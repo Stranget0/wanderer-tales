@@ -4,14 +4,13 @@ use crate::debug::switch_renderer::debug_switch_renderer;
 use crate::utils::*;
 
 use self::camera::bundles::*;
-use self::camera::states::CameraMode;
-use self::camera::systems::{camera_look_around, camera_zoom, player_rotation};
+use self::camera::systems::{
+    camera_follow, camera_rotation, camera_transform, camera_zoom, followed_rotation,
+};
 use self::components::{MaterialType, MeshType};
 use self::renderers::{renderer_2d::Renderer2D, renderer_3d::Renderer3D};
 use self::state::RendererState;
 use self::systems::*;
-
-use super::data_source_layer::map::SourceLayerSet;
 
 pub mod camera;
 pub mod components;
@@ -77,14 +76,20 @@ impl Plugin for RendererPlugin {
             Update,
             (
                 debug_switch_renderer,
-								(player_rotation::<Camera3d, Renderer3D>,).run_if(in_state(CameraMode::Follow)).in_set(SourceLayerSet::Data),
-                camera_look_around.run_if(in_state(CameraMode::LookAround)),
-                camera_zoom,
                 (
+									camera_zoom,camera_rotation,
+									camera_follow::<Camera3d, Renderer3D>,
+									camera_follow::<Camera2d, Renderer2D>,
+									followed_rotation.before(RendererSet::RenderItems),
+								).before(camera_transform),
+								camera_transform,
+								(
+									rotate_rendered_items::<Renderer2D>,
+									rotate_rendered_items::<Renderer3D>).after(RendererSet::RenderItems
+								),
+								(
                     move_rendered_items::<Renderer2D>,
-                    rotate_rendered_items::<Renderer2D>,
                     move_rendered_items::<Renderer3D>,
-                    rotate_rendered_items::<Renderer3D>,
                     clean_render_items::<Renderer3D>,
                     clean_render_items::<Renderer2D>,
                     render_map_items::<PbrBundle, StandardMaterial,Renderer3D, ChangedRenderFilter>,

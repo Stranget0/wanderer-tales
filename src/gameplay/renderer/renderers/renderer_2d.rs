@@ -59,9 +59,9 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>, ColorMaterial> for
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
         transform.rotation = rotation.0;
 
-        let material = self.get_or_create_material(materials, images, material_type, asset_server);
+        let material = self.get_or_create_material(material_type, asset_server);
 
-        let mesh = self.get_or_create_mesh(meshes, mesh_type, layout, asset_server);
+        let mesh = self.get_or_create_mesh(mesh_type, layout, asset_server);
 
         MaterialMesh2dBundle {
             mesh,
@@ -75,8 +75,6 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>, ColorMaterial> for
 impl Renderer2D {
     fn get_or_create_material(
         &mut self,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
-        images: &mut ResMut<Assets<Image>>,
         material_type: &MaterialType,
         asset_server: &Res<AssetServer>,
     ) -> Handle<ColorMaterial> {
@@ -98,7 +96,7 @@ impl Renderer2D {
         }
         .unwrap_or_else(|_| panic!("Invalid color definition for {:?}", material_type));
 
-        let handle = materials.add(ColorMaterial::from(material));
+        let handle = asset_server.add(ColorMaterial::from(material));
         self.materials_map.insert(*material_type, handle.id());
 
         handle
@@ -106,7 +104,6 @@ impl Renderer2D {
 
     fn get_or_create_mesh(
         &mut self,
-        meshes: &mut ResMut<Assets<Mesh>>,
         mesh_type: &MeshType,
         layout: &HexLayout,
         asset_server: &Res<AssetServer>,
