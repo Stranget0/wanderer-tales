@@ -1,6 +1,6 @@
-use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, math::vec2, prelude::*};
+use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, math::vec2, pbr::ExtendedMaterial, prelude::*};
 
-use crate::debug::local_position_gizmo::draw_local_gizmos;
+use crate::{debug::local_position_gizmo::draw_local_gizmos, utils::MyExtension};
 
 use super::{
     data_source_layer::{
@@ -53,6 +53,7 @@ impl Plugin for GameplayPlugin {
                 DataSourceLayerPlugin,
                 RendererPlugin,
                 PlayerPlugin,
+                MaterialPlugin::<ExtendedMaterial<StandardMaterial, MyExtension>>::default(),
             ));
     }
 }
