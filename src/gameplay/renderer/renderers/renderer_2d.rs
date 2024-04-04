@@ -9,7 +9,7 @@ use bevy::{
     utils::hashbrown::HashMap,
 };
 
-use super::traits::{CreateRenderBundles, RenderMap, RenderMapApi};
+use super::traits::{RenderMap, RenderMapApi, SpawnRenderBundle};
 
 #[derive(Component, Default)]
 pub struct Renderer2D {
@@ -41,16 +41,18 @@ impl RenderMapApi for Renderer2D {
     }
 }
 
-impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>, ColorMaterial> for Renderer2D {
-    fn create_render_bundle(
+impl SpawnRenderBundle for Renderer2D {
+    fn spawn_render_item(
         &mut self,
+        commands: &mut Commands,
+        source_entity: &Entity,
         pos_3d: &Vec3,
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-        layout: &HexLayout,
+        (layout_entity, layout): (&Entity, &HexLayout),
         asset_server: &Res<AssetServer>,
-    ) -> MaterialMesh2dBundle<ColorMaterial> {
+    ) {
         let pos = zero_up_vec(pos_3d) + type_to_up(mesh_type);
 
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
@@ -60,12 +62,18 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>, ColorMaterial> for
 
         let mesh = self.get_or_create_mesh(mesh_type, layout, asset_server);
 
-        MaterialMesh2dBundle {
-            mesh,
-            material,
-            transform,
-            ..Default::default()
-        }
+        let render_entity = commands
+            .spawn(MaterialMesh2dBundle {
+                mesh,
+                material,
+                transform,
+                ..Default::default()
+            })
+            .id();
+
+        self.link_source_item(source_entity, &render_entity);
+
+        commands.entity(*layout_entity).add_child(render_entity);
     }
 }
 

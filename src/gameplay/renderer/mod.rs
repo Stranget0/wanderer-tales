@@ -1,4 +1,4 @@
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+use bevy::prelude::*;
 
 use crate::debug::switch_renderer::debug_switch_renderer;
 use crate::utils::*;
@@ -77,28 +77,26 @@ impl Plugin for RendererPlugin {
             (
                 debug_switch_renderer,
                 (
-									camera_zoom,camera_rotation,
-									camera_follow::<Camera3d, Renderer3D>,
-									camera_follow::<Camera2d, Renderer2D>,
-									followed_rotation.before(RendererSet::RenderItems),
-								).before(camera_transform),
-								camera_transform,
-								(
-									rotate_rendered_items::<Renderer2D>,
-									rotate_rendered_items::<Renderer3D>).after(RendererSet::RenderItems
-								),
-								(
+                    camera_zoom,
+                    camera_rotation,
+                    camera_follow::<Camera3d, Renderer3D>,
+                    camera_follow::<Camera2d, Renderer2D>,
+                    followed_rotation.before(RendererSet::RenderItems),
+                )
+                    .before(camera_transform),
+                camera_transform,
+                (
+                    rotate_rendered_items::<Renderer2D>,
+                    rotate_rendered_items::<Renderer3D>,
+                )
+                    .after(RendererSet::RenderItems),
+                (
                     move_rendered_items::<Renderer2D>,
                     move_rendered_items::<Renderer3D>,
                     clean_render_items::<Renderer3D>,
                     clean_render_items::<Renderer2D>,
-                    render_map_items::<PbrBundle, StandardMaterial,Renderer3D, ChangedRenderFilter>,
-                    render_map_items::<
-                        MaterialMesh2dBundle<ColorMaterial>,
-												ColorMaterial,
-                        Renderer2D,
-                        ChangedRenderFilter,
-                    >,
+                    render_map_items::<Renderer3D, ChangedRenderFilter>,
+                    render_map_items::<Renderer2D, ChangedRenderFilter>,
                 )
                     .in_set(RendererSet::RenderItems),
             ),

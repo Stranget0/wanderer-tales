@@ -5,15 +5,10 @@ use bevy::{ecs::query::QueryFilter, prelude::*};
 
 use super::{
     components::*,
-    renderers::traits::{CreateRenderBundles, RenderMapApi},
+    renderers::traits::{RenderMapApi, SpawnRenderBundle},
 };
 
-pub(crate) fn render_map_items<
-    T: Bundle,
-    M: Asset,
-    R: CreateRenderBundles<T, M> + RenderMapApi + Component,
-    F: QueryFilter,
->(
+pub(crate) fn render_map_items<R: SpawnRenderBundle + RenderMapApi + Component, F: QueryFilter>(
     mut commands: Commands,
     render_type_query: Query<
         (
@@ -45,23 +40,25 @@ pub(crate) fn render_map_items<
             };
             let pos_2d = layout.hex_to_pixel(&pos);
             let pos = UP * f32::from(height.0) + FORWARD * pos_2d.y + Vec3::X * pos_2d.x;
-            let render_bundle = renderer.create_render_bundle(
+            let render_bundle = renderer.spawn_render_item(
+                &mut commands,
+                &source_entity,
                 &pos,
                 rotation,
                 material_type,
                 mesh_type,
-                layout,
+                (&layout_entity, layout),
                 &asset_server,
             );
 
-            spawn_render_item(
-                &mut commands,
-                renderer,
-                render_bundle,
-                source_name.clone(),
-                source_entity,
-                layout_entity,
-            );
+            // spawn_render_item(
+            //     &mut commands,
+            //     renderer,
+            //     render_bundle,
+            //     source_name.clone(),
+            //     source_entity,
+            //     layout_entity,
+            // );
         }
     }
 }
@@ -166,31 +163,22 @@ fn despawn_render_item<R: RenderMapApi + Component>(
     }
 }
 
-fn spawn_render_item<
-    T: Bundle,
-    M: Asset,
-    R: CreateRenderBundles<T, M> + RenderMapApi + Component,
->(
-    commands: &mut Commands,
-    mut renderer: Mut<R>,
-    bundle: T,
-    name: Name,
-    source_entity: Entity,
-    layout_entity: Entity,
-) -> Entity {
-    let render_entity = commands.spawn((bundle, name.clone())).id();
+// fn spawn_render_item<R: SpawnRenderBundle + RenderMapApi + Component>(
+//     commands: &mut Commands,
+//     mut renderer: Mut<R>,
+//     name: Name,
+//     source_entity: Entity,
+//     layout_entity: Entity,
+// ) -> Entity {
+//     let render_entity = commands.spawn((bundle, name.clone())).id();
 
-    debug!(
-        "[Spawning map item {} {:?} -> {:?}]",
-        name, source_entity, render_entity
-    );
+//     debug!(
+//         "[Spawning map item {} {:?} -> {:?}]",
+//         name, source_entity, render_entity
+//     );
 
-    renderer.link_source_item(&source_entity, &render_entity);
-
-    commands.entity(layout_entity).add_child(render_entity);
-
-    render_entity
-}
+//     render_entity
+// }
 
 // #region debug
 // pub(crate) fn debug_heights_2d(

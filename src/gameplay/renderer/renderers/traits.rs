@@ -16,16 +16,18 @@ pub trait RenderMapApi {
     fn count(&self) -> usize;
 }
 
-pub trait CreateRenderBundles<T: Bundle, M: Asset> {
-    fn create_render_bundle(
+pub trait SpawnRenderBundle {
+    fn spawn_render_item(
         &mut self,
+        commands: &mut Commands,
+        source_entity: &Entity,
         pos: &Vec3,
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-        layout: &HexLayout,
+        layout: (&Entity, &HexLayout),
         asset_server: &Res<AssetServer>,
-    ) -> T;
+    );
 }
 
 #[derive(Debug, Default)]

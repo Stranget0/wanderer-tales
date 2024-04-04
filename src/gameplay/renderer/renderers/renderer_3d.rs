@@ -2,7 +2,7 @@ use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 use super::{
     meshes::Hexagon3D,
-    traits::{CreateRenderBundles, RenderMap, RenderMapApi},
+    traits::{RenderMap, RenderMapApi, SpawnRenderBundle},
 };
 use crate::gameplay::data_source_layer::{map::components::Rotation, utils::HexLayout};
 use crate::gameplay::renderer::components::*;
@@ -38,29 +38,37 @@ impl RenderMapApi for Renderer3D {
     }
 }
 
-impl CreateRenderBundles<PbrBundle, StandardMaterial> for Renderer3D {
-    fn create_render_bundle(
+impl SpawnRenderBundle for Renderer3D {
+    fn spawn_render_item(
         &mut self,
+        commands: &mut Commands,
+        source_entity: &Entity,
         pos: &Vec3,
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
 
-        layout: &HexLayout,
+        (layout_entity, layout): (&Entity, &HexLayout),
         asset_server: &Res<AssetServer>,
-    ) -> PbrBundle {
+    ) {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
         transform.rotation = rotation.0;
 
         let material = self.get_or_create_material(material_type, asset_server);
         let mesh = self.get_or_create_mesh(mesh_type, layout, asset_server);
 
-        PbrBundle {
-            mesh,
-            material,
-            transform,
-            ..Default::default()
-        }
+        let render_entity = commands
+            .spawn(PbrBundle {
+                mesh,
+                material,
+                transform,
+                ..Default::default()
+            })
+            .id();
+
+        self.link_source_item(source_entity, &render_entity);
+
+        commands.entity(*layout_entity).add_child(render_entity);
     }
 }
 
