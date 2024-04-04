@@ -49,9 +49,6 @@ impl CreateRenderBundles<MaterialMesh2dBundle<ColorMaterial>, ColorMaterial> for
         material_type: &MaterialType,
         mesh_type: &MeshType,
         layout: &HexLayout,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
-        images: &mut ResMut<Assets<Image>>,
-        meshes: &mut ResMut<Assets<Mesh>>,
         asset_server: &Res<AssetServer>,
     ) -> MaterialMesh2dBundle<ColorMaterial> {
         let pos = zero_up_vec(pos_3d) + type_to_up(mesh_type);

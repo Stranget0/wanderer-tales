@@ -54,9 +54,6 @@ pub(crate) fn render_map_items<
                 material_type,
                 mesh_type,
                 layout,
-                &mut materials,
-                &mut images,
-                &mut meshes,
                 &asset_server,
             );
 

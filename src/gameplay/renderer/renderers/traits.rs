@@ -23,11 +23,7 @@ pub trait CreateRenderBundles<T: Bundle, M: Asset> {
         rotation: &Rotation,
         material_type: &MaterialType,
         mesh_type: &MeshType,
-
         layout: &HexLayout,
-        materials: &mut ResMut<Assets<M>>,
-        images: &mut ResMut<Assets<Image>>,
-        meshes: &mut ResMut<Assets<Mesh>>,
         asset_server: &Res<AssetServer>,
     ) -> T;
 }

@@ -47,9 +47,6 @@ impl CreateRenderBundles<PbrBundle, StandardMaterial> for Renderer3D {
         mesh_type: &MeshType,
 
         layout: &HexLayout,
-        materials: &mut ResMut<Assets<StandardMaterial>>,
-        images: &mut ResMut<Assets<Image>>,
-        meshes: &mut ResMut<Assets<Mesh>>,
         asset_server: &Res<AssetServer>,
     ) -> PbrBundle {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
