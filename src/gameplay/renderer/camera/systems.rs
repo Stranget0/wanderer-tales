@@ -212,7 +212,6 @@ pub fn camera_transform(
         With<Camera>,
     >,
     mut gizmos: Gizmos,
-    mut last_rotation: Local<Quat>,
 ) {
     for (rotation_range, camera_slide, offset_option, mut transform) in camera_query.iter_mut() {
         let followed_transform = offset_option.unwrap_or(&CameraOffset::default()).0;
@@ -231,14 +230,6 @@ pub fn camera_transform(
             0.0,
             0.0,
         );
-        if *last_rotation != rotation {
-            // info!(
-            //     "{}",
-            //     rotation.to_euler(EULER_ROT).2 - followed_transform.rotation.to_euler(EULER_ROT).2
-            // );
-            info!("{}", rotation_range.1.get_value());
-            *last_rotation = rotation;
-        }
         transform.translation = followed_transform.translation + camera_slide_offset;
         transform.rotate_around(rotation_point, rotation);
         transform.look_at(rotation_point, UP);

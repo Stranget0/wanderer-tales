@@ -40,6 +40,7 @@ features = [
 	"bevy_ui",
 	"multi-threaded",
 	"png",
+	"jpeg",
 	"hdr",
 	"vorbis",
 	"x11",

@@ -83,6 +83,10 @@ impl Renderer3D {
         debug!("Create new material 3d");
 
         let material = match material_type {
+            MaterialType::Grass => StandardMaterial {
+                base_color_texture: Some(asset_server.load("textures/grass.jpg")),
+                ..default()
+            },
             _ => StandardMaterial {
                 base_color_texture: Some(asset_server.add(uv_debug_texture())),
                 ..default()
