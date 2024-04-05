@@ -15,22 +15,22 @@ impl Hexagon3D {
         let top_vertices: [[f32; 3]; 6] =
             Self::get_top_vertices(starting_angle, size, height_differences);
 
-        Mesh::new(
+        let mut mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::RENDER_WORLD,
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, Vec::from(top_vertices))
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_NORMAL,
-            vec![
-                [0.0, 1.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 1.0, 0.0],
-            ],
-        )
+        // .with_inserted_attribute(
+        //     Mesh::ATTRIBUTE_NORMAL,
+        //     vec![
+        //         [0.0, 1.0, 0.0],
+        //         [0.0, 1.0, 0.0],
+        //         [0.0, 1.0, 0.0],
+        //         [0.0, 1.0, 0.0],
+        //         [0.0, 1.0, 0.0],
+        //         [0.0, 1.0, 0.0],
+        //     ],
+        // )
         .with_inserted_attribute(
             Mesh::ATTRIBUTE_UV_0,
             vec![
@@ -42,7 +42,12 @@ impl Hexagon3D {
                 [0.865957, 0.749954],
             ],
         )
-        .with_inserted_indices(Indices::U16(vec![2, 4, 0, 0, 1, 2, 2, 3, 4, 4, 5, 0]))
+        .with_inserted_indices(Indices::U16(vec![2, 4, 0, 0, 1, 2, 2, 3, 4, 4, 5, 0]));
+
+        mesh.duplicate_vertices();
+        mesh.compute_flat_normals();
+
+        mesh
     }
 
     pub fn get_top_vertices(
