@@ -1,17 +1,20 @@
-use bevy::{prelude::*, utils::hashbrown::HashMap};
+use bevy::{asset::UntypedAssetId, pbr::ExtendedMaterial, prelude::*, utils::hashbrown::HashMap};
 
 use super::{
     meshes::Hexagon3D,
     traits::{RenderMap, RenderMapApi, SpawnRenderBundle},
 };
-use crate::gameplay::data_source_layer::{map::components::Rotation, utils::HexLayout};
 use crate::gameplay::renderer::components::*;
 use crate::gameplay::renderer::debug::uv_debug_texture;
+use crate::{
+    gameplay::data_source_layer::{map::components::Rotation, utils::HexLayout},
+    utils::MyExtension,
+};
 
 #[derive(Component, Default)]
 pub struct Renderer3D {
     renders_map: RenderMap,
-    pub materials_map: HashMap<MaterialType, AssetId<StandardMaterial>>,
+    pub materials_map: HashMap<MaterialType, UntypedAssetId>,
     pub meshes_map: HashMap<MeshType, AssetId<Mesh>>,
 }
 
@@ -54,17 +57,40 @@ impl SpawnRenderBundle for Renderer3D {
         let mut transform = Transform::from_xyz(pos.x, pos.y, pos.z);
         transform.rotation = rotation.0;
 
-        let material = self.get_or_create_material(material_type, asset_server);
         let mesh = self.get_or_create_mesh(mesh_type, layout, asset_server);
 
-        let render_entity = commands
-            .spawn(PbrBundle {
-                mesh,
-                material,
-                transform,
-                ..Default::default()
-            })
-            .id();
+        let render_entity = match material_type {
+            MaterialType::Grass => {
+                let material = self
+                    .get_or_create_material::<ExtendedMaterial<StandardMaterial, MyExtension>>(
+                        material_type,
+                        asset_server,
+                    );
+
+                commands
+                    .spawn(MaterialMeshBundle {
+                        mesh,
+                        material,
+                        transform,
+                        ..Default::default()
+                    })
+                    .id()
+            }
+
+            _ => {
+                let material =
+                    self.get_or_create_material::<StandardMaterial>(material_type, asset_server);
+
+                commands
+                    .spawn(MaterialMeshBundle {
+                        mesh,
+                        material,
+                        transform,
+                        ..Default::default()
+                    })
+                    .id()
+            }
+        };
 
         self.link_source_item(source_entity, &render_entity);
 
@@ -73,35 +99,42 @@ impl SpawnRenderBundle for Renderer3D {
 }
 
 impl Renderer3D {
-    fn get_or_create_material(
+    fn get_or_create_material<M: Material>(
         &mut self,
         material_type: &MaterialType,
         asset_server: &Res<AssetServer>,
-    ) -> Handle<StandardMaterial> {
+    ) -> Handle<M> {
         if let Some(handle) = self
             .materials_map
             .get(material_type)
-            .and_then(|asset_id| asset_server.get_id_handle(*asset_id))
+            .and_then(|asset_id| asset_server.get_id_handle_untyped(*asset_id).clone())
         {
-            return handle.clone();
+            return handle.typed::<M>();
         }
+
         debug!("Create new material 3d");
 
-        let material = match material_type {
-            MaterialType::Grass => StandardMaterial {
-                base_color_texture: Some(asset_server.load("textures/grass.jpg")),
-                ..default()
-            },
-            _ => StandardMaterial {
-                base_color_texture: Some(asset_server.add(uv_debug_texture())),
-                ..default()
-            },
+        let handle = match material_type {
+            MaterialType::Grass => asset_server
+                .add(ExtendedMaterial {
+                    base: StandardMaterial {
+                        base_color_texture: Some(asset_server.load("textures/grass.jpg")),
+                        ..default()
+                    },
+                    extension: MyExtension { time: 0.0 },
+                })
+                .untyped(),
+            _ => asset_server
+                .add(StandardMaterial {
+                    base_color_texture: Some(asset_server.add(uv_debug_texture())),
+                    ..default()
+                })
+                .untyped(),
         };
 
-        let handle = asset_server.add(material);
         self.materials_map.insert(*material_type, handle.id());
 
-        handle
+        handle.typed::<M>()
     }
 
     fn get_or_create_mesh(
@@ -134,42 +167,4 @@ impl Renderer3D {
 
         handle
     }
-
-    // let debug_material = materials.add(StandardMaterial {
-    //     base_color_texture: Some(images.add(uv_debug_texture())),
-    //     ..default()
-    // });
-
-    // let materials = [
-    //     MaterialType::Beach,
-    //     MaterialType::Grass,
-    //     MaterialType::Forest,
-    //     MaterialType::Mountain,
-    //     MaterialType::Water,
-    //     MaterialType::Player,
-    //     MaterialType::Debug,
-    // ];
-
-    // for key in materials {
-    //     materials_map.insert(key, debug_material.clone());
-    // }
-
-    // let entries: Vec<(MeshType, Mesh)> = vec![
-    //     (MeshType::Player, Sphere::new(0.3).into()),
-    //     (MeshType::Debug, Sphere::new(0.1).into()),
-    // ];
-
-    // for (key, mesh) in entries {
-    //     meshes_map.insert(key, meshes.add(mesh));
-    // }
-    // for height_cycle in PRECOMPUTED_HEIGHT_CYCLES {
-    //     meshes_map.insert(
-    //         MeshType::HexMapTile(height_cycle),
-    // meshes.add(Hexagon3D::create_base(
-    //             layout.size.x,
-    //             layout.orientation.starting_angle,
-    //             &height_cycle,
-    //         )),
-    //     );
-    // }
 }
