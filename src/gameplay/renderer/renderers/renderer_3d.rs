@@ -121,7 +121,7 @@ impl Renderer3D {
                         base_color_texture: Some(asset_server.load("textures/grass.jpg")),
                         ..default()
                     },
-                    extension: MyExtension { time: 0.0 },
+                    extension: MyExtension {},
                 })
                 .untyped(),
             _ => asset_server
