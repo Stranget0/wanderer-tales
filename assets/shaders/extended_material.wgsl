@@ -14,6 +14,7 @@
 
 #import bevy_pbr::mesh_view_bindings::globals;
 
+#import bevy_pbr::pbr_bindings;
 #import bevy_pbr::mesh_functions;
 #import bevy_pbr::skinning;
 #import bevy_pbr::morph::morph;
@@ -78,11 +79,11 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 #endif
 
 #ifdef VERTEX_UVS
-    out.uv = fract(vertex.uv  + vertex.position.xy * 0.1); 
+		out.uv = vertex.uv;
 #endif
 
 #ifdef VERTEX_UVS_B
-    out.uv_b = vertex.uv_b;
+    out.uv_b = fract(out.world_position.xy * 0.1);
 #endif
 
 #ifdef VERTEX_TANGENTS
@@ -117,8 +118,9 @@ fn fragment(
     var pbr_input = pbr_input_from_standard_material(in, is_front);
 
     // we can optionally modify the input before lighting and alpha_discard is applied
-    pbr_input.material.base_color.b = pbr_input.material.base_color.r;
+		pbr_input.material.base_color = textureSample(pbr_bindings::base_color_texture, pbr_bindings::base_color_sampler, fract(in.world_position.xy * 0.1));
 
+		
     // alpha discard
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
 
