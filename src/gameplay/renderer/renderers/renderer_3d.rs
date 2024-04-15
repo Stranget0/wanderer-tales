@@ -8,7 +8,7 @@ use crate::gameplay::renderer::components::*;
 use crate::gameplay::renderer::debug::uv_debug_texture;
 use crate::{
     gameplay::data_source_layer::{map::components::Rotation, utils::HexLayout},
-    utils::MyExtension,
+    utils::WorldAlignedExtension,
 };
 
 #[derive(Component, Default)]
@@ -62,7 +62,7 @@ impl SpawnRenderBundle for Renderer3D {
         let render_entity = match material_type {
             MaterialType::Grass => {
                 let material = self
-                    .get_or_create_material::<ExtendedMaterial<StandardMaterial, MyExtension>>(
+                    .get_or_create_material::<ExtendedMaterial<StandardMaterial, WorldAlignedExtension>>(
                         material_type,
                         asset_server,
                     );
@@ -121,7 +121,7 @@ impl Renderer3D {
                         base_color_texture: Some(asset_server.load("textures/grass.jpg")),
                         ..default()
                     },
-                    extension: MyExtension {},
+                    extension: WorldAlignedExtension::new(0.1),
                 })
                 .untyped(),
             _ => asset_server

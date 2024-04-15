@@ -1,7 +1,6 @@
 #import bevy_pbr::pbr_fragment::pbr_input_from_standard_material;
 #import bevy_pbr::pbr_functions::alpha_discard;
 
-
 #ifdef PREPASS_PIPELINE
 #import bevy_pbr::{
     prepass_io::{VertexOutput, FragmentOutput},
@@ -14,35 +13,19 @@
 
 #import bevy_pbr::pbr_bindings;
 
+struct Uniforms {
+	uv_size: f32
+}
+
+@group(2) @binding(100)
+var<uniform> uniforms: Uniforms; 
 
 @fragment
 fn fragment(
     in: VertexOutput,
     @builtin(front_facing) is_front: bool,
 ) -> FragmentOutput {
-		var in_modified: VertexOutput;
-		in_modified.position = in.position;
-    in_modified.world_position = in.world_position;
-    in_modified.world_normal = in.world_normal;
-		#ifdef MESHLET_MESH_MATERIAL_PASS
-				in_modified.flags = in.mesh_flags;
-		#endif
-		#ifdef VERTEX_UVS
-				in_modified.uv = fract(in.world_position.xy * 0.1);
-		#endif
-		#ifdef VERTEX_UVS_B
-				in_modified.uv_b = in.uv_b;
-		#endif
-		#ifdef VERTEX_TANGENTS
-				in_modified.world_tangent = in.world_tangent;
-		#endif
-		#ifdef VERTEX_COLORS
-				in_modified.color = in.color;
-		#endif
-		#ifdef VERTEX_OUTPUT_INSTANCE_INDEX
-				in_modified.instance_index = in.instance_index;
-		#endif
-
+		var in_modified = world_aligned_in(in, uniforms.uv_size);
     // generate a PbrInput struct from the StandardMaterial bindings
 		var pbr_input = pbr_input_from_standard_material(in_modified, is_front);
 
@@ -70,4 +53,38 @@ fn fragment(
 #endif
 
     return out;
+}
+
+
+fn world_aligned_in(in: VertexOutput, uv_size: f32) -> VertexOutput {
+	var in_modified: VertexOutput = clone_vertex_output(in);
+	in_modified.uv = fract(in.world_position.xy * uv_size); 
+	return in_modified; 
+}
+
+fn clone_vertex_output(in: VertexOutput) -> VertexOutput {
+		var in_modified: VertexOutput;
+		in_modified.position = in.position;
+    in_modified.world_position = in.world_position;
+    in_modified.world_normal = in.world_normal;
+		#ifdef MESHLET_MESH_MATERIAL_PASS
+				in_modified.flags = in.mesh_flags;
+		#endif
+		#ifdef VERTEX_UVS
+				in_modified.uv = in.uv;
+		#endif
+		#ifdef VERTEX_UVS_B
+				in_modified.uv_b = in.uv_b;
+		#endif
+		#ifdef VERTEX_TANGENTS
+				in_modified.world_tangent = in.world_tangent;
+		#endif
+		#ifdef VERTEX_COLORS
+				in_modified.color = in.color;
+		#endif
+		#ifdef VERTEX_OUTPUT_INSTANCE_INDEX
+				in_modified.instance_index = in.instance_index;
+		#endif
+
+		return in_modified;
 }
