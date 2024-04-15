@@ -163,12 +163,14 @@ pub fn add_hex_tile_offsets(
                 .try_into()
                 .unwrap();
 
-            let minimal_cycle = LexigraphicalCycle::shiloah_minimal_rotation(&height_diffs);
-            let mesh_rotation =
-                Rotation::from_vec(UP * (minimal_cycle.rotation as f32 * 60.0).to_radians());
-            let mesh_type = MeshType::HexMapTile(minimal_cycle.cycle);
+            // let minimal_cycle = LexigraphicalCycle::shiloah_minimal_rotation(&height_diffs);
+            // let mesh_rotation =
+            //     Rotation::from_vec(UP * (minimal_cycle.rotation as f32 * 60.0).to_radians());
+            let mesh_type = MeshType::HexMapTile(height_diffs);
 
-            commands.entity(entity).insert((mesh_type, mesh_rotation));
+            commands
+                .entity(entity)
+                .insert((mesh_type, Rotation::default()));
         }
     }
 }
