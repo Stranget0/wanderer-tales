@@ -10,7 +10,7 @@ use bevy::prelude::*;
 pub fn spawn_player(mut commands: Commands, source_layout: Query<Entity, With<SourceLayout>>) {
     for layout_entity in source_layout.iter() {
         let pos = HexPositionFractional(FractionalHexVector(0.0, 0.0, 0.0));
-        let sight = 100;
+        let sight = 50;
         let player_entity = commands
             .spawn((
                 WSADSteerable,
