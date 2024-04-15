@@ -50,6 +50,7 @@ features = [
 	"tonemapping_luts",
 	"default_font",
 	"webgl2",
+	"file_watcher",
 ]
 
 [dev-dependencies]
