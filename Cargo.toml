@@ -51,6 +51,7 @@ features = [
 	"default_font",
 	"webgl2",
 	"file_watcher",
+	"embedded_watcher",
 ]
 
 [dev-dependencies]
