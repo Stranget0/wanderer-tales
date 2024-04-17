@@ -60,7 +60,7 @@ impl SpawnRenderBundle for Renderer3D {
         let mesh = self.get_or_create_mesh(mesh_type, layout, asset_server);
 
         let render_entity = match material_type {
-            MaterialType::Grass => {
+            _ => {
                 let material = self
                     .get_or_create_material::<ExtendedMaterial<StandardMaterial, WorldAlignedExtension>>(
                         material_type,
@@ -115,7 +115,7 @@ impl Renderer3D {
         debug!("Create new material 3d");
 
         let handle = match material_type {
-            MaterialType::Grass => asset_server
+            _ => asset_server
                 .add(ExtendedMaterial {
                     base: StandardMaterial {
                         base_color_texture: Some(asset_server.load("textures/grass.jpg")),
