@@ -23,3 +23,18 @@ impl WorldAlignedExtension {
         Self { uv_size }
     }
 }
+
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+pub struct WorldMapExtension {}
+
+impl MaterialExtension for WorldMapExtension {
+    fn vertex_shader() -> ShaderRef {
+        "shaders/height_map.wgsl".into()
+    }
+}
+
+impl WorldMapExtension {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
