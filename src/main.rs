@@ -16,6 +16,7 @@ use wanderer_tales::debug::fps_counter::FPSPlugin;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 enum MapSet {
+    UpdateStart,
     Data,
     Render,
 }
@@ -46,17 +47,16 @@ fn main() {
         })
         .insert_resource(ChunkViewDistance(3))
         .insert_resource(MaxHeight(255))
-        .configure_sets(Update, MapSet::Data.before(MapSet::Render))
+        .add_event::<SpawnChunkEvent>()
+        .add_event::<DespawnChunkEvent>()
         .add_systems(
             Update,
             (
-                (
-                    systems::generate_height_chunk,
-                    systems::spawn_chunks,
-                    systems::despawn_chunks,
-                )
-                    .in_set(MapSet::Data),
-                (systems::render_chunks, systems::despawn_render_chunks).in_set(MapSet::Render),
+                systems::track_chunks_to_spawn,
+                systems::track_chunks_to_despawn,
+                systems::spawn_chunks.after(systems::track_chunks_to_spawn),
+                systems::despawn_chunks.after(systems::track_chunks_to_despawn),
+                systems::render_chunks,
             ),
         )
         .run();
@@ -65,22 +65,24 @@ fn main() {
 const CHUNK_SIZE: usize = 32;
 const CHUNK_ITEM_COUNT: usize = CHUNK_SIZE * CHUNK_SIZE;
 
+#[derive(Debug, Event)]
+struct SpawnChunkEvent {
+    pub pos: IChunkPos,
+}
+#[derive(Debug, Event)]
+struct DespawnChunkEvent(pub Entity);
+
 #[derive(Debug, Component)]
 struct MapChunk;
 
 #[derive(Debug, Component)]
 struct HeightChunk([u8; CHUNK_ITEM_COUNT]);
-#[derive(Debug, Component)]
-struct AwaitingHeightChunk;
 
 #[derive(Debug, Component)]
-struct AwaitingRenderChunk;
+struct RenderChunkLink(pub Vec<Entity>);
 
-#[derive(Debug, Component)]
-struct RenderChunkLink(pub Entity);
-
-#[derive(Debug, Component, PartialEq, Eq)]
-struct IWorldPos(pub i32, pub i32);
+#[derive(Debug, Clone, Copy, Component, PartialEq, Eq)]
+struct IChunkPos(pub i32, pub i32);
 
 #[derive(Debug, Resource)]
 struct ChunkViewDistance(u16);
@@ -98,9 +100,9 @@ enum MaterialType {
     Debug,
 }
 
-impl Into<AssetId<Mesh>> for MeshType {
-    fn into(self) -> AssetId<Mesh> {
-        match self {
+impl From<MeshType> for AssetId<Mesh> {
+    fn from(val: MeshType) -> Self {
+        match val {
             MeshType::Plane => AssetId::Uuid {
                 uuid: Uuid::parse_str("06e3459d-9243-4cba-abf7-61d43651748e").unwrap(),
             },
@@ -108,9 +110,9 @@ impl Into<AssetId<Mesh>> for MeshType {
     }
 }
 
-impl Into<AssetId<StandardMaterial>> for MaterialType {
-    fn into(self) -> AssetId<StandardMaterial> {
-        match self {
+impl From<MaterialType> for AssetId<StandardMaterial> {
+    fn from(val: MaterialType) -> Self {
+        match val {
             MaterialType::Debug => AssetId::Uuid {
                 uuid: Uuid::parse_str("bae74ba4-6b88-4198-806a-a956d1ac7d9d").unwrap(),
             },
@@ -118,7 +120,7 @@ impl Into<AssetId<StandardMaterial>> for MaterialType {
     }
 }
 
-impl IWorldPos {
+impl IChunkPos {
     pub fn as_vec(&self) -> IVec2 {
         IVec2::new(self.0, self.1)
     }
@@ -151,19 +153,19 @@ impl MaxHeight {
 mod systems {
     use super::*;
 
-    pub fn spawn_chunks(
-        mut commands: Commands,
+    pub fn track_chunks_to_spawn(
         player_query: Query<&Transform, With<FlyCam>>,
-        existing_chunks: Query<&IWorldPos, With<MapChunk>>,
+        existing_chunks: Query<&IChunkPos, With<MapChunk>>,
         chunk_view_distance: Res<ChunkViewDistance>,
+        mut spawn_chunk: EventWriter<SpawnChunkEvent>,
     ) {
         let player_pos = {
             let pos = player_query.single().translation;
-            ivec2(pos.x as i32, pos.y as i32)
+            ivec2(pos.x as i32, pos.z as i32)
         };
 
         let mut chunks = existing_chunks.iter().collect_vec();
-        let mut bundles = Vec::<(MapChunk, IWorldPos, Name, AwaitingHeightChunk)>::with_capacity(
+        let mut events = Vec::<SpawnChunkEvent>::with_capacity(
             (chunk_view_distance.0 * chunk_view_distance.0).into(),
         );
 
@@ -175,75 +177,73 @@ mod systems {
 
         for x in from[0]..to[0] {
             for y in from[1]..to[1] {
-                let pos = IWorldPos(x, y);
+                if ivec2(x, y).distance_squared(player_pos) > chunk_view_distance.0.into() {
+                    continue;
+                }
+                let pos = IChunkPos(x, y);
                 let chunk_option = chunks.iter().position(|&chunk_pos| &pos == chunk_pos);
                 if let Some(chunk_index) = chunk_option {
                     chunks.swap_remove(chunk_index);
                 } else {
-                    let bundle = (
-                        MapChunk,
-                        IWorldPos(x, y),
-                        Name::new("Chunk"),
-                        AwaitingHeightChunk,
-                    );
-                    bundles.push(bundle);
+                    let pos = IChunkPos(x, y);
+                    events.push(SpawnChunkEvent { pos })
                 }
             }
         }
-        commands.spawn_batch(bundles);
+        spawn_chunk.send_batch(events);
     }
 
-    pub fn despawn_chunks(
-        mut commands: Commands,
+    pub fn track_chunks_to_despawn(
         player_query: Query<&Transform, With<FlyCam>>,
-        existing_chunks: Query<(Entity, &IWorldPos), With<MapChunk>>,
+        existing_chunks: Query<(Entity, &IChunkPos), With<MapChunk>>,
         chunk_view_distance: Res<ChunkViewDistance>,
+        mut despawn_chunks: EventWriter<DespawnChunkEvent>,
     ) {
+        let mut events = Vec::with_capacity(chunk_view_distance.0 as usize * 4);
         let player_pos = {
             let pos = player_query.single().translation;
-            ivec2(pos.x as i32, pos.y as i32)
+            ivec2(pos.x as i32, pos.z as i32)
         };
 
         for (chunk_entity, chunk_pos) in existing_chunks.iter() {
             if player_pos.distance_squared(chunk_pos.as_vec()) > chunk_view_distance.0 as i32 {
-                commands.entity(chunk_entity).despawn_recursive();
+                events.push(DespawnChunkEvent(chunk_entity))
             }
         }
+        despawn_chunks.send_batch(events);
     }
 
-    pub fn generate_height_chunk(
+    pub fn spawn_chunks(
         mut commands: Commands,
-        chunks_query: Query<Entity, With<AwaitingHeightChunk>>,
         max_height: Res<MaxHeight>,
+        mut spawn_chunk: EventReader<SpawnChunkEvent>,
     ) {
-        for chunk in chunks_query.iter() {
-            let mut chunk_heights = HeightChunk::default();
-            for x in 0..CHUNK_SIZE {
-                for y in 0..CHUNK_SIZE {
-                    // 0.0 - 1.0
-                    let height_f =
-                        simplex_noise_2d_seeded(vec2(x as f32, y as f32), 0.0) / 2.0 + 0.5;
-
-                    // 0..max
-                    let height = (max_height.as_f32() * height_f) as u8;
-
-                    chunk_heights.set_height(x, y, height);
-                }
-            }
-            commands
-                .entity(chunk)
-                .insert(chunk_heights)
-                .insert(AwaitingRenderChunk)
-                .remove::<AwaitingHeightChunk>();
+        let chunks = spawn_chunk
+            .read()
+            .map(|SpawnChunkEvent { pos }| {
+                (
+                    MapChunk,
+                    generate_height_chunk(&max_height, pos),
+                    *pos,
+                    Name::new("Chunk"),
+                    RenderChunkLink(Vec::with_capacity(2)),
+                )
+            })
+            .collect_vec();
+        if !chunks.is_empty() {
+            info!("Spawning {} chunks", chunks.len());
+            commands.spawn_batch(chunks);
         }
     }
 
     pub fn render_chunks(
         mut commands: Commands,
         asset_server: Res<AssetServer>,
-        chunks: Query<(Entity, &HeightChunk, &IWorldPos), With<AwaitingRenderChunk>>,
+        mut chunks: Query<
+            (Entity, &HeightChunk, &IChunkPos, &mut RenderChunkLink),
+            Or<(Added<HeightChunk>, Changed<HeightChunk>)>,
+        >,
     ) {
-        // let mesh_provider = meshes.get_handle_provider();
         let mesh = asset_server
             .get_id_handle(MeshType::Plane.into())
             .unwrap_or_else(|| asset_server.add(Plane3d::new(*Direction3d::Y).into()));
@@ -252,34 +252,62 @@ mod systems {
             .get_id_handle(MaterialType::Debug.into())
             .unwrap_or_else(|| asset_server.add(Color::DARK_GREEN.into()));
 
-        for (chunk, chunk_heights, world_pos) in chunks.iter() {
+        for (chunk, chunk_heights, world_pos, mut links) in chunks.iter_mut() {
             let transform = Transform::from_xyz(world_pos.0 as f32, 0.0, world_pos.1 as f32);
             let render_id = commands
-                .spawn(PbrBundle {
-                    mesh: mesh.clone(),
-                    material: material.clone(),
-                    transform,
-                    ..default()
-                })
+                .spawn((
+                    Name::new("RenderChunk"),
+                    PbrBundle {
+                        mesh: mesh.clone(),
+                        material: material.clone(),
+                        transform,
+                        ..default()
+                    },
+                ))
                 .id();
 
-            commands
-                .entity(chunk)
-                .insert(RenderChunkLink(render_id))
-                .remove::<AwaitingRenderChunk>();
+            links.0.push(render_id);
         }
     }
 
-    pub fn despawn_render_chunks(
+    pub fn despawn_chunks(
         mut commands: Commands,
-        mut removals: RemovedComponents<RenderChunkLink>,
-        render_link: Query<&RenderChunkLink>,
+        mut despawn_chunks: EventReader<DespawnChunkEvent>,
+        links_query: Query<&RenderChunkLink>,
     ) {
-        for entity in removals.read() {
-            match render_link.get(entity) {
-                Ok(render_link) => commands.entity(render_link.0).despawn_recursive(),
-                Err(err) => error!("Could not remove render item {}", err),
+        if !despawn_chunks.is_empty() {
+            info!("Despawning {} chunks", despawn_chunks.len());
+        }
+        for e in despawn_chunks.read() {
+            if let Ok(links) = links_query.get(e.0) {
+                for e in &links.0 {
+                    commands.entity(*e).despawn_recursive();
+                }
+            }
+            commands.entity(e.0).despawn_recursive();
+        }
+    }
+
+    fn generate_height_chunk(max_height: &Res<MaxHeight>, pos: &IChunkPos) -> HeightChunk {
+        let mut chunk_heights = HeightChunk::default();
+        for x in 0..CHUNK_SIZE {
+            for y in 0..CHUNK_SIZE {
+                // 0.0 - 1.0
+                let height_f = simplex_noise_2d_seeded(
+                    vec2(x as f32 + pos.0 as f32, y as f32 + pos.1 as f32),
+                    0.0,
+                ) / 2.0
+                    + 0.5;
+
+                // 0..max
+                let height = (max_height.as_f32() * height_f) as u8;
+
+                chunk_heights.set_height(x, y, height);
+                chunk_heights.set_height(x, y, height);
+                chunk_heights.set_height(x, y, height);
             }
         }
+
+        chunk_heights
     }
 }
