@@ -4397,6 +4397,7 @@ dependencies = [
  "bevy_shader_utils",
  "bracket-noise",
  "criterion",
+ "derive_more",
  "float-cmp",
  "interpolation",
  "itertools 0.12.1",

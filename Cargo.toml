@@ -28,6 +28,11 @@ noise = "0.8.2"
 noisy_bevy = "0.6.0"
 rand = "0.8.5"
 
+[dependencies.derive_more]
+version = "0.99.17"
+default-features = false
+features = ["add", "add_assign", "display", "from"]
+
 [dependencies.bevy]
 version = "0.13.0"
 default-features = false
