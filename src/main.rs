@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use bevy::{
     math::*,
     pbr::wireframe::WireframeConfig,
@@ -7,6 +9,12 @@ use bevy::{
         RenderPlugin,
     },
 };
+
+use bevy::render::{
+    mesh::{Indices, PrimitiveTopology},
+    render_asset::RenderAssetUsages,
+};
+
 use bevy_editor_pls::EditorPlugin;
 use bevy_flycam::{FlyCam, PlayerPlugin};
 use itertools::Itertools;
@@ -40,13 +48,9 @@ fn main() {
         .insert_resource(ChunkViewDistance(100))
         .insert_resource(MaxHeight(3))
         .insert_resource(MapChunkOctree(FixedTreeNode::Data(None)))
-        .add_event::<SpawnChunkEvent>()
-        .add_event::<DespawnChunkEvent>()
         .add_systems(
             Update,
             (
-                track_map_quadtree,
-                spawn_quadtree_chunks,
                 render_chunks,
                 // track_chunks_to_spawn,
                 // track_chunks_to_despawn,
@@ -63,10 +67,49 @@ const CHUNK_ITEM_COUNT: usize = CHUNK_SLICES * CHUNK_SLICES;
 const CHUNK_SIZE: f32 = 1000.0;
 const CHUNK_SIZE_HALF: f32 = CHUNK_SIZE / 2.0;
 
-#[derive(Debug, Clone)]
-enum FixedTreeNode<const i: usize, T> {
+#[derive(Debug, Clone, PartialEq)]
+enum FixedTreeNode<const SIZE: usize, T> {
     Data(T),
-    Split([Box<FixedTreeNode<i, T>>; i]),
+    Split([Box<FixedTreeNode<SIZE, T>>; SIZE]),
+}
+
+impl<const SIZE: usize, T> FixedTreeNode<SIZE, T> {
+    pub fn is_leaf(&self) -> bool {
+        match self {
+            FixedTreeNode::Data(_) => true,
+            FixedTreeNode::Split(_) => false,
+        }
+    }
+
+    pub fn iter(&self) -> FixedTreeNodeIterator<'_, SIZE, T> {
+        FixedTreeNodeIterator { stack: vec![self] }
+    }
+}
+
+struct FixedTreeNodeIterator<'a, const SIZE: usize, T> {
+    stack: Vec<&'a FixedTreeNode<SIZE, T>>,
+}
+
+impl<'a, const SIZE: usize, T> Iterator for FixedTreeNodeIterator<'a, SIZE, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let node = match self.stack.pop() {
+                Some(n) => n,
+                None => return None,
+            };
+
+            match node {
+                FixedTreeNode::Data(ref data) => return Some(data),
+                FixedTreeNode::Split(ref children) => {
+                    for child in children.iter() {
+                        self.stack.push(child);
+                    }
+                }
+            }
+        }
+    }
 }
 
 type OcTree<T> = FixedTreeNode<8, T>;
@@ -75,49 +118,6 @@ type QuadTree<T> = FixedTreeNode<4, T>;
 type MapChunkNode = QuadTree<Option<Entity>>;
 #[derive(Resource)]
 struct MapChunkOctree(MapChunkNode);
-
-impl MapChunkOctree {
-    pub fn get_data_from_node(node: &MapChunkNode) -> Option<&Entity> {
-        match node {
-            FixedTreeNode::Data(Some(entity)) => Some(entity),
-            _ => None,
-        }
-    }
-
-    pub fn get_data_from_child(parent: &MapChunkNode, i: usize) -> Option<&Entity> {
-        match parent {
-            FixedTreeNode::Split(nodes) => Self::get_data_from_node(&nodes[i]),
-            _ => None,
-        }
-    }
-
-    pub fn get_child(parent: &MapChunkNode, i: usize) -> Option<&MapChunkNode> {
-        match parent {
-            FixedTreeNode::Split(arr) => Some(&arr[i]),
-            _ => None,
-        }
-    }
-    pub fn get_child_mut(parent: &mut MapChunkNode, i: usize) -> Option<&mut MapChunkNode> {
-        match parent {
-            FixedTreeNode::Split(arr) => Some(&mut arr[i]),
-            _ => None,
-        }
-    }
-}
-#[derive(Debug, Event)]
-struct SpawnOctreeChunkEvent {
-    tree_path: Vec<usize>,
-    center_pos: Vec2,
-    size: f32,
-    slices: usize,
-}
-
-#[derive(Debug, Event)]
-struct SpawnChunkEvent {
-    pub pos: IChunkPos,
-}
-#[derive(Debug, Event)]
-struct DespawnChunkEvent(pub Entity);
 
 #[derive(Debug, Component)]
 struct MapChunk;
@@ -221,143 +221,12 @@ impl MaxHeight {
     }
 }
 
-use bevy::render::{
-    mesh::{Indices, PrimitiveTopology},
-    render_asset::RenderAssetUsages,
-};
-
-fn track_map_quadtree(
-    player_query: Query<&Transform, With<FlyCam>>,
-    chunk_view_distance: Res<ChunkViewDistance>,
-    mut octree: ResMut<MapChunkOctree>,
-    mut spawn_chunk: EventWriter<SpawnOctreeChunkEvent>,
-
-    last_request_location: Local<Option<Vec3>>,
-) {
-    let player_location = player_query.single().translation;
-
-    if last_request_location
-        .is_some_and(|last_location| player_location.distance(last_location) < 5.0)
-    {
-        return;
-    };
-
-    // let path = Vec::with_capacity(16);
-    // let mut events = Vec::new();
-
-    update_tree(
-        &mut octree.0,
-        Vec2::ZERO,
-        0,
-        chunk_view_distance.0.into(),
-        chunk_view_distance.0.into(),
-    );
-
-    spawn_chunk.send_batch(events);
-}
-
 const QUAD_TREE_DIRECTIONS: [Vec2; 4] = [
     Vec2::new(-1.0, 1.0),
     Vec2::new(1.0, 1.0),
     Vec2::new(-1.0, -1.0),
     Vec2::new(1.0, -1.0),
 ];
-
-fn spawn_quadtree_chunks(
-    mut commands: Commands,
-    mut spawn_chunk: EventReader<SpawnOctreeChunkEvent>,
-    chunk_view_distance: Res<ChunkViewDistance>,
-    max_height: Res<MaxHeight>,
-) {
-    let mut chunks_to_spawn = Vec::with_capacity(spawn_chunk.len());
-    for e in spawn_chunk.read() {
-        if e.center_pos.length() > chunk_view_distance.0.into() {
-            continue;
-        }
-
-        chunks_to_spawn.push((
-            MapChunk,
-            generate_height_chunk(&max_height, &e.center_pos, e.size),
-            Name::new(format!("Chunk_{}x{}", &e.center_pos.x, e.center_pos.y)),
-            RenderChunkLink(Vec::with_capacity(2)),
-        ))
-    }
-
-    if !chunks_to_spawn.is_empty() {
-        info!("Spawning {} chunks", chunks_to_spawn.len());
-        commands.spawn_batch(chunks_to_spawn);
-    }
-}
-
-fn update_tree(
-    mut parent_node: &mut MapChunkNode,
-    center_pos: Vec2,
-    depth: i16,
-    size: f32,
-    // slices: usize,
-    view_distance: f32,
-    tree_path: &Vec<usize>,
-    on_update_leaf: fn(center_pos: Vec2, node_path: &Vec<usize>, size: f32), // events_to_send: &mut Vec<SpawnOctreeChunkEvent>,
-) {
-    if let MapChunkNode::Data(_) = parent_node {
-        let arr = (0..4)
-            .map(|_| Box::new(MapChunkNode::Data(None)))
-            .collect_vec()
-            .try_into()
-            .unwrap();
-
-        *parent_node = MapChunkNode::Split(arr);
-    }
-
-    for i in 0..4 {
-        let new_depth = depth + 1;
-        let new_size = size / 2.0;
-        let new_center_pos = center_pos + QUAD_TREE_DIRECTIONS[i] / 2.0 * new_size;
-        let distance = new_center_pos.length();
-        let mut node_path = tree_path.clone();
-        node_path.push(i);
-        let node = MapChunkOctree::get_child_mut(parent_node, i).unwrap();
-
-        if distance < view_distance / new_depth as f32 && new_depth < 32 {
-            update_tree(
-                node,
-                new_center_pos,
-                new_depth,
-                new_size,
-                // slices,
-                view_distance,
-                &node_path,
-                on_update_leaf, // events_to_send,
-            )
-        } else if let MapChunkNode::Split(_) = node {
-            *node = MapChunkNode::Data(None);
-
-            // events_to_send.push(SpawnOctreeChunkEvent {
-            //     center_pos: new_center_pos,
-            //     tree_path: node_path,
-            //     size: new_size,
-            //     slices,
-            // })
-        }
-    }
-}
-
-fn track_chunks_to_despawn(
-    player_query: Query<&Transform, With<FlyCam>>,
-    existing_chunks: Query<(Entity, &IChunkPos), With<MapChunk>>,
-    chunk_view_distance: Res<ChunkViewDistance>,
-    mut despawn_chunks: EventWriter<DespawnChunkEvent>,
-) {
-    let mut events = Vec::with_capacity(chunk_view_distance.0 as usize * 4);
-    let player_pos = player_query.single().translation;
-
-    for (chunk_entity, chunk_pos) in existing_chunks.iter() {
-        if player_pos.distance(chunk_pos.to_world_pos()) > chunk_view_distance.0 as f32 {
-            events.push(DespawnChunkEvent(chunk_entity))
-        }
-    }
-    despawn_chunks.send_batch(events);
-}
 
 fn render_chunks(
     mut commands: Commands,
@@ -393,24 +262,6 @@ fn render_chunks(
             .id();
 
         links.0.push(render_id);
-    }
-}
-
-fn despawn_chunks(
-    mut commands: Commands,
-    mut despawn_chunks: EventReader<DespawnChunkEvent>,
-    links_query: Query<&RenderChunkLink>,
-) {
-    if !despawn_chunks.is_empty() {
-        info!("Despawning {} chunks", despawn_chunks.len());
-    }
-    for e in despawn_chunks.read() {
-        if let Ok(links) = links_query.get(e.0) {
-            for e in &links.0 {
-                commands.entity(*e).despawn_recursive();
-            }
-        }
-        commands.entity(e.0).despawn_recursive();
     }
 }
 
@@ -484,4 +335,30 @@ fn create_subdivided_plane(size: f32, chunk_heights: &ChunkHeights, slices: usiz
     .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
     .with_inserted_indices(Indices::U16(indices))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::FixedTreeNode;
+
+    #[test]
+    fn tree_traverse() {
+        let tree: FixedTreeNode<4, i32> = FixedTreeNode::Split([
+            Box::new(FixedTreeNode::Data(0)),
+            Box::new(FixedTreeNode::Data(1)),
+            Box::new(FixedTreeNode::Data(2)),
+            Box::new(FixedTreeNode::Split([
+                Box::new(FixedTreeNode::Data(3)),
+                Box::new(FixedTreeNode::Data(4)),
+                Box::new(FixedTreeNode::Data(5)),
+                Box::new(FixedTreeNode::Data(6)),
+            ])),
+        ]);
+        let mut i_2 = 0;
+        for (i, node) in tree.iter().enumerate() {
+            println!("[{}] {:?}", i, node);
+            i_2 += 1;
+        }
+        println!("COUNT [{}]", i_2);
+    }
 }
