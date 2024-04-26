@@ -158,15 +158,15 @@ impl MapLOD {
 
 struct TreeCreatorMap {
     pub view_distance: u16,
-    pub step_distance: u16,
+    pub ref_distance: u16,
     pub min_precision: u16,
-    pub max_precision: u16,
+    pub ref_precision: u16,
 }
 
 impl TreeCreatorMap {
     pub fn distance_to_precision(&self, distance: f32) -> u16 {
-        let normalized = distance / self.step_distance as f32;
-        self.min_precision.lerp(&self.max_precision, &normalized)
+        let factor = distance / self.ref_distance as f32;
+        self.min_precision.lerp(&self.ref_precision, &factor)
     }
     pub fn should_subdivide(&self, current_precision: u16, distance: f32) -> bool {
         current_precision < self.distance_to_precision(distance)
@@ -442,9 +442,9 @@ mod tests {
         let mut tree = MapLOD::new();
         let setter = TreeCreatorMap {
             view_distance: 100,
-            step_distance: 50,
+            ref_distance: 50,
             min_precision: 2,
-            max_precision: 5,
+            ref_precision: 5,
         };
         tree.0.update_with_setter(&setter);
 
