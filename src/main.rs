@@ -42,13 +42,13 @@ fn main() {
             // The global wireframe config enables drawing of wireframes on every mesh,
             // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
             // regardless of the global configuration.
-            global: true,
+            global: false,
             // Controls the default color of all wireframes. Used as the default color for global wireframes.
             // Can be changed per mesh using the `WireframeColor` component.
             default_color: Color::YELLOW_GREEN,
         })
         .insert_resource(MaxHeight(3))
-        .insert_resource(LODSetter::new(100, 100, 1))
+        .insert_resource(LODSetter::new(1000, 255, 4))
         .insert_resource(MapLOD::new())
         .register_type::<LODSetter>()
         .add_systems(Startup, (render_chunks))
@@ -195,31 +195,29 @@ impl MapLOD {
 #[reflect(Resource)]
 struct LODSetter {
     pub view_distance: u16,
-    pub ref_distance: u16,
+    pub factor_distance: u8,
     pub base_precision: u8,
 }
 
 impl LODSetter {
     pub fn distance_to_precision(&self, distance: f32) -> u8 {
-        let ref_distance = self.ref_distance as f32;
+        let ref_distance = self.view_distance as f32 * self.factor_distance as f32 / 128.0;
         let linear_factor = (ref_distance - distance.min(ref_distance)) / ref_distance;
         let factor = linear_factor * linear_factor;
-        let res = 1.lerp(&self.base_precision, &factor);
 
-        res
+        1.lerp(&self.base_precision.min(10), &factor)
     }
 
     pub fn get_size(&self, precision: u8) -> f32 {
         let depth = (precision - 1) as f32;
-        let size = self.view_distance as f32 / (2.0_f32.powf(depth));
 
-        size
+        self.view_distance as f32 / (2.0_f32.powf(depth))
     }
 
-    pub fn new(view_distance: u16, ref_distance: u16, base_precision: u8) -> Self {
+    pub fn new(view_distance: u16, factor_distance: u8, base_precision: u8) -> Self {
         Self {
             view_distance,
-            ref_distance,
+            factor_distance,
             base_precision,
         }
     }
@@ -349,15 +347,14 @@ fn render_chunks(
     asset_server: Res<AssetServer>,
     max_height: Res<MaxHeight>,
     chunk_setter: Res<LODSetter>,
+    chunks: Query<Entity, With<MapChunk>>,
 ) {
     if !chunk_setter.is_added() && !chunk_setter.is_changed() {
         return;
     }
 
-    for chunk in map_tree.0.iter() {
-        if let Some(entity) = chunk.entity {
-            commands.entity(entity).despawn();
-        }
+    for entity in chunks.iter() {
+        commands.entity(entity).despawn();
     }
 
     map_tree.0.update_with_setter(chunk_setter.as_ref());
@@ -387,7 +384,7 @@ fn spawn_single_chunk(
 ) {
     let render_id = commands
         .spawn((
-            Name::new(format!("Chunk{} {}", chunk.precision, chunk.size)),
+            Name::new(format!("Chunk-{}", chunk.precision)),
             MapChunk,
             PbrBundle {
                 mesh: asset_server.add(create_subdivided_plane(
