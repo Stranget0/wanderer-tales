@@ -48,15 +48,11 @@ fn main() {
             default_color: Color::YELLOW_GREEN,
         })
         .insert_resource(MaxHeight(3))
-        .insert_resource(LODSetter {
-            max_size: 100.0,
-            min_size: 10.0,
-            view_distance: 1000,
-        })
+        .insert_resource(LODSetter::new(100, 100, 1))
         .insert_resource(MapLOD::new())
         .register_type::<LODSetter>()
         .add_systems(Startup, (render_chunks))
-        .add_systems(Update, (draw_gizmos))
+        .add_systems(Update, (render_chunks, draw_gizmos))
         .run();
 }
 
@@ -83,6 +79,13 @@ trait TreeSetter {
 }
 
 impl<const SIZE: usize, T> FixedTreeNode<SIZE, T> {
+    pub fn is_leaf(&self) -> bool {
+        match self {
+            FixedTreeNode::Data(_) => true,
+            FixedTreeNode::Split(_) => false,
+        }
+    }
+
     pub fn iter(&self) -> FixedTreeNodeIterator<'_, SIZE, T> {
         FixedTreeNodeIterator { stack: vec![self] }
     }
@@ -151,32 +154,32 @@ type OcTree<T> = FixedTreeNode<8, T>;
 type QuadTree<T> = FixedTreeNode<4, T>;
 
 #[derive(Debug, Clone)]
-struct MapChunkDataNode {
+struct MapChunkData {
     entity: Option<Entity>,
     pos: Vec2,
     size: f32,
-    depth: usize,
+    precision: u8,
 }
 
-impl MapChunkDataNode {
-    pub fn new(pos: Vec2, size: f32, depth: usize) -> Self {
+impl MapChunkData {
+    pub fn new(pos: Vec2, size: f32, precision: u8) -> Self {
         Self {
             entity: None,
             pos,
             size,
-            depth,
+            precision,
         }
     }
 }
 
-type MapChunkNode = QuadTree<MapChunkDataNode>;
+type MapChunkNode = QuadTree<MapChunkData>;
 
 impl MapChunkNode {
-    pub fn new_leaf(pos: Vec2, size: f32, depth: usize) -> Self {
-        Self::Data(MapChunkDataNode::new(pos, size, depth))
+    pub fn new_leaf(pos: Vec2, size: f32, precision: u8) -> Self {
+        Self::Data(MapChunkData::new(pos, size, precision))
     }
     pub fn root(size: f32) -> Self {
-        Self::Data(MapChunkDataNode::new(Vec2::ZERO, size, 1))
+        Self::Data(MapChunkData::new(Vec2::ZERO, size, 1))
     }
 }
 
@@ -192,32 +195,33 @@ impl MapLOD {
 #[reflect(Resource)]
 struct LODSetter {
     pub view_distance: u16,
-    pub min_size: f32,
-    pub max_size: f32,
+    pub ref_distance: u16,
+    pub base_precision: u8,
 }
 
 impl LODSetter {
-    // // Function to convert distance to precision level
-    // pub fn distance_to_precision(&self, distance: f32) -> u16 {
-    //     let t = (distance / self.ref_distance as f32).clamp(0.0, 1.0);
-    //     let precision_range = (self.ref_precision - self.min_precision) as f32;
-    //     let precision = (1.0 - t) * precision_range + self.min_precision as f32;
-    //     precision.round() as u16
-    // }
-    // // Function to determine if a node should be subdivided based on current precision and distance
-    // pub fn should_subdivide(&self, current_precision: u16, distance: f32) -> bool {
-    //     let target_precision = self.distance_to_precision(distance);
-    //     current_precision < target_precision
-    // }
+    pub fn distance_to_precision(&self, distance: f32) -> u8 {
+        let ref_distance = self.ref_distance as f32;
+        let linear_factor = (ref_distance - distance.min(ref_distance)) / ref_distance;
+        let factor = linear_factor * linear_factor;
+        let res = 1.lerp(&self.base_precision, &factor);
 
-    pub fn distance_to_size(&self, distance: f32) -> f32 {
-        let factor = distance / self.view_distance as f32;
-        self.min_size.lerp(self.max_size, factor)
+        res
     }
-    // Function to get size of a node at a given depth
-    pub fn get_size(&self, depth: usize) -> f32 {
-        let depth = depth as f32;
-        self.view_distance as f32 / (2.0_f32.powf(depth) * 2.0)
+
+    pub fn get_size(&self, precision: u8) -> f32 {
+        let depth = (precision - 1) as f32;
+        let size = self.view_distance as f32 / (2.0_f32.powf(depth));
+
+        size
+    }
+
+    pub fn new(view_distance: u16, ref_distance: u16, base_precision: u8) -> Self {
+        Self {
+            view_distance,
+            ref_distance,
+            base_precision,
+        }
     }
 }
 
@@ -225,21 +229,35 @@ impl TreeSetter for LODSetter {
     type TreeNode = MapChunkNode;
 
     fn handle_node(&self, root: &mut Self::TreeNode) {
-        // type Data = (&mut Self::TreeNode, Vec2, usize);
         let mut stack = Vec::with_capacity(16);
         stack.push((root, Vec2::ZERO, 1));
 
         while let Some((parent, parent_center, parent_depth)) = stack.pop() {
             let parent_size = self.get_size(parent_depth);
             let parent_distance = parent_center.length();
-            // Check if the node should be subdivided
-            if parent_size <= self.distance_to_size(parent_distance) {
+
+            // Check if the node should be split
+            if parent_depth >= self.distance_to_precision(parent_distance) {
+                *parent = MapChunkNode::new_leaf(parent_center, parent_size, parent_depth);
+
                 continue;
             }
 
             let depth = parent_depth + 1;
             let size = self.get_size(depth);
             let size_half = size / 2.0;
+
+            // Check if it is already split
+            if let MapChunkNode::Split(children) = parent {
+                for (i, child) in children.iter_mut().enumerate() {
+                    let center = parent_center + QUAD_TREE_DIRECTIONS[i] * size_half;
+
+                    stack.push((child, center, depth));
+                }
+
+                continue;
+            }
+
             // Subdivide the node
             let children: [Box<MapChunkNode>; 4] = QUAD_TREE_DIRECTIONS
                 .iter()
@@ -254,15 +272,11 @@ impl TreeSetter for LODSetter {
             *parent = MapChunkNode::Split(children);
 
             if let MapChunkNode::Split(children) = parent {
-                for child in children {
-                    let (pos, depth) = if let MapChunkNode::Data(ref data) = **child {
-                        (data.pos, data.depth)
-                    } else {
-                        panic!()
-                    };
-                    stack.push((child, pos, depth));
+                for (i, child) in children.iter_mut().enumerate() {
+                    let center = parent_center + QUAD_TREE_DIRECTIONS[i] * size_half;
+                    stack.push((child, center, depth));
                 }
-            }
+            };
         }
     }
 }
@@ -322,10 +336,11 @@ impl MaxHeight {
     }
 }
 
-fn draw_gizmos(mut gizmos: Gizmos) {
-    gizmos.arrow(Vec3::ZERO, Vec3::X, Color::RED);
-    gizmos.arrow(Vec3::ZERO, Vec3::Y, Color::GREEN);
-    gizmos.arrow(Vec3::ZERO, Vec3::Z, Color::BLUE);
+fn draw_gizmos(mut gizmos: Gizmos, lod: Res<LODSetter>) {
+    let factor = (lod.view_distance / 2) as f32;
+    gizmos.arrow(Vec3::ZERO, Vec3::X * factor, Color::RED);
+    gizmos.arrow(Vec3::ZERO, Vec3::Y * factor, Color::GREEN);
+    gizmos.arrow(Vec3::ZERO, Vec3::Z * factor, Color::BLUE);
 }
 
 fn render_chunks(
@@ -335,64 +350,59 @@ fn render_chunks(
     max_height: Res<MaxHeight>,
     chunk_setter: Res<LODSetter>,
 ) {
-    // let mesh = asset_server
-    //     .get_id_handle(MeshType::Plane.into())
-    //     .unwrap_or_else(|| asset_server.add(Plane3d::new(*Direction3d::Y).into()));
+    if !chunk_setter.is_added() && !chunk_setter.is_changed() {
+        return;
+    }
+
+    for chunk in map_tree.0.iter() {
+        if let Some(entity) = chunk.entity {
+            commands.entity(entity).despawn();
+        }
+    }
 
     map_tree.0.update_with_setter(chunk_setter.as_ref());
-
-    info!("chunks: {}", map_tree.0.iter().collect_vec().len());
-
     let material = asset_server.add(Color::DARK_GREEN.into());
     for chunk in map_tree.0.iter_mut() {
         let transform = Transform::from_xyz(chunk.pos.x, 0.0, chunk.pos.y);
-
-        info!("depth {} -> size {}", chunk.depth, chunk.size);
-
         let chunk_heights = generate_height_chunk(&max_height, &chunk.pos, chunk.size);
 
-        let render_id = commands
-            .spawn((
-                Name::new("RenderChunk"),
-                PbrBundle {
-                    mesh: asset_server.add(create_subdivided_plane(
-                        chunk.size,
-                        &chunk_heights,
-                        CHUNK_SLICES,
-                    )),
-                    material: material.clone(),
-                    transform,
-                    ..default()
-                },
-            ))
-            .id();
-
-        chunk.entity = Some(render_id);
+        spawn_single_chunk(
+            &mut commands,
+            &asset_server,
+            chunk,
+            chunk_heights,
+            &material,
+            transform,
+        );
     }
+}
 
-    // for x in -5..5 {
-    //     for y in -5..5 {
-    //         for scale in 1..5 {
-    //             let material = asset_server.add(Color::hsl(360.0 / scale as f32, 0.5, 0.5).into());
-    //             let transform = Transform::from_xyz(x as f32, scale as f32, y as f32);
-    //             let render_id = commands
-    //                 .spawn((
-    //                     Name::new("RenderChunk"),
-    //                     PbrBundle {
-    //                         mesh: asset_server.add(create_subdivided_plane(
-    //                             1.0 / scale as f32,
-    //                             &ChunkHeights::default(),
-    //                             CHUNK_SLICES,
-    //                         )),
-    //                         material: material.clone(),
-    //                         transform,
-    //                         ..default()
-    //                     },
-    //                 ))
-    //                 .id();
-    //         }
-    //     }
-    // }
+fn spawn_single_chunk(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    chunk: &mut MapChunkData,
+    chunk_heights: ChunkHeights,
+    material: &Handle<StandardMaterial>,
+    transform: Transform,
+) {
+    let render_id = commands
+        .spawn((
+            Name::new(format!("Chunk{} {}", chunk.precision, chunk.size)),
+            MapChunk,
+            PbrBundle {
+                mesh: asset_server.add(create_subdivided_plane(
+                    chunk.size,
+                    &chunk_heights,
+                    CHUNK_SLICES,
+                )),
+                material: material.clone(),
+                transform,
+                ..default()
+            },
+        ))
+        .id();
+
+    chunk.entity = Some(render_id);
 }
 
 fn generate_height_chunk(max_height: &Res<MaxHeight>, offset: &Vec2, size: f32) -> ChunkHeights {
@@ -494,12 +504,8 @@ mod tests {
     }
 
     #[test]
-    fn map_lod_precision() {
-        let tree_creator = LODSetter {
-            view_distance: 100,
-            max_size: 100.0,
-            min_size: 5.0,
-        };
+    fn map_lod_decreases() {
+        let tree_creator = LODSetter::new(100, 100, 5);
 
         let distances = vec![0.0, 1.0, 5.0, 10.0, 20.0, 50.0, 100.0, 500.0, 1000.0];
         let mut last_precision: Option<(f32, u16)> = None;
@@ -509,7 +515,7 @@ mod tests {
             if let Some(last) = last_precision {
                 assert!(
                     precision <= last.1,
-                    "(distance: {}, precision: {}) > (distance: {}, precision: {})\nfactor({} / {} =>): {}",
+                    "precision shouldnt be higher: (distance: {}, precision: {}) > (distance: {}, precision: {})\nfactor({} / {} =>): {}",
                     distance,
                     precision,
                     last.0,
@@ -523,12 +529,8 @@ mod tests {
     #[test]
     fn map_lod_create() {
         let mut tree = MapLOD::new();
-        let setter = LODSetter {
-            view_distance: 100,
-            max_size: 100.0,
-            min_size: 5.0,
-        };
-        tree.0.update_with_setter(&setter);
+        let mut setter = LODSetter::new(100, 100, 5);
+        tree.0.update_with_setter(&mut setter);
 
         let leafs = tree
             .0
@@ -584,5 +586,39 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_distance_to_precision() {
+        let setter = LODSetter::new(100, 50, 4);
+
+        // Test when distance is equal to reference distance
+        assert_eq!(setter.distance_to_precision(50.0), 4);
+
+        // Test when distance is less than reference distance
+        assert_eq!(setter.distance_to_precision(25.0), 16);
+
+        // Test when distance is greater than reference distance
+        assert_eq!(setter.distance_to_precision(75.0), 4);
+
+        // Test when distance is greater than view distance
+        assert_eq!(setter.distance_to_precision(150.0), 4);
+    }
+
+    #[test]
+    fn test_get_size() {
+        let setter = LODSetter::new(100, 50, 4);
+
+        // Test precision 1
+        assert_eq!(setter.get_size(1), 100.0);
+
+        // Test precision 2
+        assert_eq!(setter.get_size(2), 50.0);
+
+        // Test precision 3
+        assert_eq!(setter.get_size(3), 25.0);
+
+        // Test precision 4
+        assert_eq!(setter.get_size(4), 12.5);
     }
 }
