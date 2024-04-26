@@ -469,7 +469,9 @@ mod tests {
                 Box::new(FixedTreeNode::Data(6)),
             ])),
         ]);
-        for (i, node) in tree.iter().enumerate() {}
+        for (i, node) in tree.iter().collect_vec().iter().rev().enumerate() {
+            assert_eq!(i as i32, **node);
+        }
     }
 
     #[test]
