@@ -15,6 +15,7 @@ use bevy::render::{
     render_asset::RenderAssetUsages,
 };
 
+use bevy_easings::Lerp;
 use bevy_editor_pls::EditorPlugin;
 use bevy_flycam::{FlyCam, PlayerPlugin};
 use itertools::Itertools;
@@ -47,7 +48,7 @@ fn main() {
         })
         .insert_resource(ChunkViewDistance(100))
         .insert_resource(MaxHeight(3))
-        .insert_resource(MapChunkOctree(FixedTreeNode::Data(None)))
+        .insert_resource(MapLOD::new())
         .add_systems(
             Update,
             (
@@ -67,10 +68,36 @@ const CHUNK_ITEM_COUNT: usize = CHUNK_SLICES * CHUNK_SLICES;
 const CHUNK_SIZE: f32 = 1000.0;
 const CHUNK_SIZE_HALF: f32 = CHUNK_SIZE / 2.0;
 
+const QUAD_TREE_DIRECTIONS: [Vec2; 4] = [
+    Vec2::new(-1.0, 1.0),
+    Vec2::new(1.0, 1.0),
+    Vec2::new(-1.0, -1.0),
+    Vec2::new(1.0, -1.0),
+];
+
 #[derive(Debug, Clone, PartialEq)]
 enum FixedTreeNode<const SIZE: usize, T> {
     Data(T),
     Split([Box<FixedTreeNode<SIZE, T>>; SIZE]),
+}
+
+impl<const SIZE: usize, T: Clone + Debug> FixedTreeNode<SIZE, Option<T>> {
+    pub fn empty() -> Self {
+        Self::Data(None)
+    }
+    pub fn empty_split() -> Self {
+        let mut vec = Vec::with_capacity(SIZE);
+        for _ in 0..SIZE {
+            vec.push(Box::new(Self::empty()));
+        }
+        Self::Split(vec.try_into().unwrap())
+    }
+}
+
+trait TreeSetter {
+    type TreeNode;
+
+    fn handle_node(&self, parent: &mut Self::TreeNode, parent_center: Vec2, depth: usize);
 }
 
 impl<const SIZE: usize, T> FixedTreeNode<SIZE, T> {
@@ -83,6 +110,10 @@ impl<const SIZE: usize, T> FixedTreeNode<SIZE, T> {
 
     pub fn iter(&self) -> FixedTreeNodeIterator<'_, SIZE, T> {
         FixedTreeNodeIterator { stack: vec![self] }
+    }
+
+    pub fn update_with_setter<S: TreeSetter<TreeNode = Self>>(&mut self, setter: &S) {
+        setter.handle_node(self, Vec2::ZERO, 1);
     }
 }
 
@@ -116,8 +147,64 @@ type OcTree<T> = FixedTreeNode<8, T>;
 type QuadTree<T> = FixedTreeNode<4, T>;
 
 type MapChunkNode = QuadTree<Option<Entity>>;
-#[derive(Resource)]
-struct MapChunkOctree(MapChunkNode);
+
+#[derive(Debug, Resource)]
+struct MapLOD(MapChunkNode);
+impl MapLOD {
+    pub fn new() -> Self {
+        Self(MapChunkNode::empty())
+    }
+}
+
+struct TreeCreatorMap {
+    pub view_distance: u16,
+    pub step_distance: u16,
+    pub min_precision: u16,
+    pub max_precision: u16,
+}
+
+impl TreeCreatorMap {
+    pub fn distance_to_precision(&self, distance: f32) -> u16 {
+        let normalized = distance / self.step_distance as f32;
+        self.min_precision.lerp(&self.max_precision, &normalized)
+    }
+    pub fn should_subdivide(&self, current_precision: u16, distance: f32) -> bool {
+        current_precision < self.distance_to_precision(distance)
+    }
+
+    pub fn get_size(&self, depth: usize) -> u16 {
+        self.view_distance / depth as u16
+    }
+}
+
+impl TreeSetter for TreeCreatorMap {
+    type TreeNode = MapChunkNode;
+    fn handle_node(&self, parent: &mut Self::TreeNode, parent_center: Vec2, parent_depth: usize) {
+        match (
+            parent.is_leaf(),
+            self.should_subdivide(parent_depth as u16, parent_center.length()),
+        ) {
+            (true, true) => {
+                *parent = MapChunkNode::empty_split();
+            }
+            (false, false) => {
+                *parent = MapChunkNode::empty();
+            }
+            _ => (),
+        }
+
+        if let MapChunkNode::Split(children) = parent {
+            let depth = parent_depth + 1;
+            let size = self.get_size(depth);
+            for (i, ch) in children.iter_mut().enumerate() {
+                let direction = QUAD_TREE_DIRECTIONS[i];
+                let new_center = parent_center + direction * size as f32;
+
+                self.handle_node(ch, new_center, depth)
+            }
+        }
+    }
+}
 
 #[derive(Debug, Component)]
 struct MapChunk;
@@ -220,13 +307,6 @@ impl MaxHeight {
         self.0 as f32
     }
 }
-
-const QUAD_TREE_DIRECTIONS: [Vec2; 4] = [
-    Vec2::new(-1.0, 1.0),
-    Vec2::new(1.0, 1.0),
-    Vec2::new(-1.0, -1.0),
-    Vec2::new(1.0, -1.0),
-];
 
 fn render_chunks(
     mut commands: Commands,
@@ -339,7 +419,7 @@ fn create_subdivided_plane(size: f32, chunk_heights: &ChunkHeights, slices: usiz
 
 #[cfg(test)]
 mod tests {
-    use crate::FixedTreeNode;
+    use crate::{FixedTreeNode, MapLOD, TreeCreatorMap};
 
     #[test]
     fn tree_traverse() {
@@ -354,11 +434,20 @@ mod tests {
                 Box::new(FixedTreeNode::Data(6)),
             ])),
         ]);
-        let mut i_2 = 0;
-        for (i, node) in tree.iter().enumerate() {
-            println!("[{}] {:?}", i, node);
-            i_2 += 1;
-        }
-        println!("COUNT [{}]", i_2);
+        for (i, node) in tree.iter().enumerate() {}
+    }
+
+    #[test]
+    fn map_lod_create() {
+        let mut tree = MapLOD::new();
+        let setter = TreeCreatorMap {
+            view_distance: 100,
+            step_distance: 50,
+            min_precision: 2,
+            max_precision: 5,
+        };
+        tree.0.update_with_setter(&setter);
+
+        assert!(!tree.0.is_leaf(), "top node shouldnt be leaf");
     }
 }
