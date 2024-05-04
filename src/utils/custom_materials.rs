@@ -24,17 +24,11 @@ impl WorldAlignedExtension {
     }
 }
 
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone, Default)]
 pub struct WorldMapExtension {}
 
 impl MaterialExtension for WorldMapExtension {
     fn vertex_shader() -> ShaderRef {
         "shaders/height_map.wgsl".into()
-    }
-}
-
-impl WorldMapExtension {
-    pub fn new() -> Self {
-        Self {}
     }
 }

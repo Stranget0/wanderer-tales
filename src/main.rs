@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use bevy::{
     math::*,
-    pbr::wireframe::WireframeConfig,
+    pbr::{wireframe::WireframeConfig, ExtendedMaterial},
     prelude::*,
     render::{
         extract_resource::ExtractResource,
@@ -21,7 +21,7 @@ use bevy_editor_pls::EditorPlugin;
 use bevy_flycam::{FlyCam, PlayerPlugin};
 use itertools::Itertools;
 use noisy_bevy::{simplex_noise_2d_seeded, NoisyShaderPlugin};
-use wanderer_tales::debug::fps_counter::FPSPlugin;
+use wanderer_tales::{debug::fps_counter::FPSPlugin, utils::WorldAlignedExtension};
 
 fn main() {
     App::new()
@@ -47,10 +47,13 @@ fn main() {
             // Can be changed per mesh using the `WireframeColor` component.
             default_color: Color::YELLOW_GREEN,
         })
-        .insert_resource(MaxHeight(3))
-        .insert_resource(LODSetter::new(1000, 255, 4))
+        .insert_resource(MaxHeight(100))
+        .insert_resource(LODSetter::new(1500, 100, 10))
         .insert_resource(MapLOD::new())
         .register_type::<LODSetter>()
+        .add_plugins(MaterialPlugin::<
+            ExtendedMaterial<StandardMaterial, WorldAlignedExtension>,
+        >::default())
         .add_systems(Startup, (render_chunks))
         .add_systems(Update, (render_chunks, draw_gizmos))
         .run();
@@ -234,8 +237,9 @@ impl TreeSetter for LODSetter {
             let parent_size = self.get_size(parent_depth);
             let parent_distance = parent_center.length();
 
-            // Check if the node should be split
+            // Check if the node should not be split
             if parent_depth >= self.distance_to_precision(parent_distance) {
+                // If so, then update the leaf
                 *parent = MapChunkNode::new_leaf(parent_center, parent_size, parent_depth);
 
                 continue;
@@ -247,6 +251,7 @@ impl TreeSetter for LODSetter {
 
             // Check if it is already split
             if let MapChunkNode::Split(children) = parent {
+                // Traverse
                 for (i, child) in children.iter_mut().enumerate() {
                     let center = parent_center + QUAD_TREE_DIRECTIONS[i] * size_half;
 
@@ -256,7 +261,7 @@ impl TreeSetter for LODSetter {
                 continue;
             }
 
-            // Subdivide the node
+            // If not, then subdivide the node
             let children: [Box<MapChunkNode>; 4] = QUAD_TREE_DIRECTIONS
                 .iter()
                 .map(|direction| {
@@ -269,6 +274,7 @@ impl TreeSetter for LODSetter {
 
             *parent = MapChunkNode::Split(children);
 
+            // Traverse
             if let MapChunkNode::Split(children) = parent {
                 for (i, child) in children.iter_mut().enumerate() {
                     let center = parent_center + QUAD_TREE_DIRECTIONS[i] * size_half;
