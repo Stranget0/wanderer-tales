@@ -111,6 +111,9 @@ fn blend_material(a: StandardMaterial, b: StandardMaterial, factor:f32) -> Stand
 	copied.base_color = mix(a.base_color, b.base_color, factor);
 	copied.emissive = mix(a.emissive, b.emissive, factor);
 	copied.perceptual_roughness = mix(a.perceptual_roughness, b.perceptual_roughness, factor);
+	copied.metallic = mix(a.metallic, b.metallic, factor);
+	copied.reflectance = mix(a.reflectance, b.reflectance, factor);
+	
 
 	return copied;
 

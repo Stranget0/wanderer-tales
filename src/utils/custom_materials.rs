@@ -25,10 +25,15 @@ impl WorldAlignedExtension {
 }
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone, Default)]
-pub struct WorldMapExtension {}
+pub struct WorldDisplacementExtension {}
 
-impl MaterialExtension for WorldMapExtension {
+impl MaterialExtension for WorldDisplacementExtension {
     fn vertex_shader() -> ShaderRef {
         "shaders/height_map.wgsl".into()
+    }
+}
+impl WorldDisplacementExtension {
+    pub fn new() -> Self {
+        Self {}
     }
 }

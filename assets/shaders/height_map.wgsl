@@ -62,8 +62,8 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 
 #ifdef VERTEX_POSITIONS
 var position = vertex.position;
-		// var position = vertex.position + (simplex_noise_2d_seeded(vertex.position.xy * 1000.0, 1.0) / 2.0 + 0.5) * 10.0;
-    out.world_position = mesh_functions::mesh_position_local_to_world(model, vec4<f32>(position, 1.0));
+		out.world_position = mesh_functions::mesh_position_local_to_world(model, vec4(vertex.position, 1.0));
+    out.world_position.y += simplex_noise_2d_seeded(out.world_position.xz / 100.0, 1.0) * 10.0;
     out.position = position_world_to_clip(out.world_position.xyz);
 #endif
 

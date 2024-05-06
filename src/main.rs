@@ -20,8 +20,11 @@ use bevy_easings::Lerp;
 use bevy_editor_pls::EditorPlugin;
 use bevy_flycam::{FlyCam, PlayerPlugin};
 use itertools::Itertools;
-use noisy_bevy::{simplex_noise_2d_seeded, NoisyShaderPlugin};
-use wanderer_tales::{debug::fps_counter::FPSPlugin, utils::WorldAlignedExtension};
+use noisy_bevy::{fbm_simplex_2d_seeded, simplex_noise_2d_seeded, NoisyShaderPlugin};
+use wanderer_tales::{
+    debug::fps_counter::FPSPlugin,
+    utils::{WorldAlignedExtension, WorldDisplacementExtension},
+};
 
 fn main() {
     App::new()
@@ -48,18 +51,31 @@ fn main() {
             default_color: Color::YELLOW_GREEN,
         })
         .insert_resource(MaxHeight(100))
-        .insert_resource(LODSetter::new(1500, 100, 10))
+        .insert_resource(LODSetter::new(1500, 255, 10))
         .insert_resource(MapLOD::new())
         .register_type::<LODSetter>()
-        .add_plugins(MaterialPlugin::<
-            ExtendedMaterial<StandardMaterial, WorldAlignedExtension>,
-        >::default())
-        .add_systems(Startup, (render_chunks))
-        .add_systems(Update, (render_chunks, draw_gizmos))
+        .add_event::<LODTreeCreated>()
+        .add_plugins((
+            MaterialPlugin::<ExtendedMaterial<StandardMaterial, WorldAlignedExtension>>::default(),
+            MaterialPlugin::<ExtendedMaterial<StandardMaterial, WorldDisplacementExtension>>::default(),
+            MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, WorldDisplacementExtension>, WorldAlignedExtension>>::default(),
+            MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, WorldAlignedExtension>, WorldDisplacementExtension>>::default(),
+        ))
+        .add_systems(Startup, (update_lod_tree))
+        .add_systems(
+            Update,
+            (
+                draw_gizmos,
+                update_lod_tree,
+                render_lod_chunks.after(update_lod_tree),
+                clear_lod_chunks.before(render_lod_chunks),
+                update_lod_chunks.after(render_lod_chunks),
+            ),
+        )
         .run();
 }
 
-const CHUNK_SLICES: usize = 4;
+const CHUNK_SLICES: usize = 2;
 const CHUNK_ITEM_COUNT: usize = CHUNK_SLICES * CHUNK_SLICES;
 
 const QUAD_TREE_DIRECTIONS: [Vec2; 4] = [
@@ -287,6 +303,8 @@ impl TreeSetter for LODSetter {
 
 #[derive(Debug, Component)]
 struct MapChunk;
+#[derive(Debug, Component)]
+struct MapChunkParent;
 
 #[derive(Debug, Component)]
 struct ChunkHeights([u8; CHUNK_ITEM_COUNT]);
@@ -296,6 +314,9 @@ struct RenderChunkLink(pub Vec<Entity>);
 
 #[derive(Debug, Resource)]
 struct MaxHeight(u16);
+
+#[derive(Debug, Event, Default)]
+struct LODTreeCreated;
 
 #[derive(Debug)]
 enum MeshType {
@@ -310,36 +331,6 @@ enum MaterialType {
 #[derive(Debug)]
 struct Height(u8);
 
-impl Height {
-    pub fn to_world_y(&self) -> f32 {
-        self.0 as f32 / 5.0
-    }
-}
-
-impl ChunkHeights {
-    pub fn get_index(x: usize, y: usize) -> usize {
-        x + y * CHUNK_SLICES
-    }
-    pub fn get_height(&self, x: usize, y: usize) -> Height {
-        Height(self.0[Self::get_index(x, y)])
-    }
-    pub fn set_height(&mut self, x: usize, y: usize, height: u8) {
-        self.0[Self::get_index(x, y)] = height;
-    }
-}
-
-impl Default for ChunkHeights {
-    fn default() -> Self {
-        Self([0; CHUNK_ITEM_COUNT])
-    }
-}
-
-impl MaxHeight {
-    pub fn as_f32(&self) -> f32 {
-        self.0 as f32
-    }
-}
-
 fn draw_gizmos(mut gizmos: Gizmos, lod: Res<LODSetter>) {
     let factor = (lod.view_distance / 2) as f32;
     gizmos.arrow(Vec3::ZERO, Vec3::X * factor, Color::RED);
@@ -347,89 +338,102 @@ fn draw_gizmos(mut gizmos: Gizmos, lod: Res<LODSetter>) {
     gizmos.arrow(Vec3::ZERO, Vec3::Z * factor, Color::BLUE);
 }
 
-fn render_chunks(
-    mut commands: Commands,
+fn update_lod_tree(
     mut map_tree: ResMut<MapLOD>,
-    asset_server: Res<AssetServer>,
-    max_height: Res<MaxHeight>,
     chunk_setter: Res<LODSetter>,
-    chunks: Query<Entity, With<MapChunk>>,
+    mut lod_created: EventWriter<LODTreeCreated>,
 ) {
     if !chunk_setter.is_added() && !chunk_setter.is_changed() {
+        return;
+    }
+
+    map_tree.0.update_with_setter(chunk_setter.as_ref());
+    lod_created.send_default();
+}
+
+fn clear_lod_chunks(
+    mut commands: Commands,
+    chunks: Query<Entity, With<MapChunk>>,
+    lod_created: EventReader<LODTreeCreated>,
+) {
+    if lod_created.is_empty() {
         return;
     }
 
     for entity in chunks.iter() {
         commands.entity(entity).despawn();
     }
-
-    map_tree.0.update_with_setter(chunk_setter.as_ref());
-    let material = asset_server.add(Color::DARK_GREEN.into());
-    for chunk in map_tree.0.iter_mut() {
-        let transform = Transform::from_xyz(chunk.pos.x, 0.0, chunk.pos.y);
-        let chunk_heights = generate_height_chunk(&max_height, &chunk.pos, chunk.size);
-
-        spawn_single_chunk(
-            &mut commands,
-            &asset_server,
-            chunk,
-            chunk_heights,
-            &material,
-            transform,
-        );
-    }
 }
 
-fn spawn_single_chunk(
-    commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    chunk: &mut MapChunkData,
-    chunk_heights: ChunkHeights,
-    material: &Handle<StandardMaterial>,
-    transform: Transform,
+fn render_lod_chunks(
+    mut commands: Commands,
+    mut map_tree: ResMut<MapLOD>,
+    asset_server: Res<AssetServer>,
+    lod_created: EventReader<LODTreeCreated>,
+    prev_parents: Query<Entity, With<MapChunkParent>>,
 ) {
-    let render_id = commands
-        .spawn((
-            Name::new(format!("Chunk-{}", chunk.precision)),
-            MapChunk,
-            PbrBundle {
-                mesh: asset_server.add(create_subdivided_plane(
-                    chunk.size,
-                    &chunk_heights,
-                    CHUNK_SLICES,
-                )),
-                material: material.clone(),
-                transform,
+    if lod_created.is_empty() {
+        return;
+    }
+
+    for p in prev_parents.iter() {
+        commands.entity(p).despawn_recursive();
+    }
+
+    let material = asset_server.add(ExtendedMaterial {
+        base: ExtendedMaterial {
+            base: StandardMaterial {
+                base_color_texture: Some(asset_server.load("textures/grass.jpg")),
+                normal_map_texture: Some(asset_server.load("textures/grass_normal.jpg")),
                 ..default()
             },
-        ))
-        .id();
+            extension: WorldDisplacementExtension::new(),
+        },
+        extension: WorldAlignedExtension::new(1.0),
+    });
 
-    chunk.entity = Some(render_id);
+    commands
+        .spawn((
+            MapChunkParent,
+            Name::new("MapChunks"),
+            SpatialBundle::from_transform(Transform::from_xyz(0.0, 0.0, 0.0)),
+        ))
+        .with_children(|builder| {
+            for chunk in map_tree.0.iter_mut() {
+                let transform = Transform::from_xyz(chunk.pos.x, 0.0, chunk.pos.y);
+
+                let render_id = builder
+                    .spawn((
+                        Name::new(format!("Chunk-{}", chunk.precision)),
+                        MapChunk,
+                        MaterialMeshBundle {
+                            mesh: asset_server
+                                .add(create_subdivided_plane(chunk.size, CHUNK_SLICES)),
+                            material: material.clone(),
+                            transform,
+                            ..default()
+                        },
+                    ))
+                    .id();
+
+                chunk.entity = Some(render_id);
+            }
+        });
 }
 
-fn generate_height_chunk(max_height: &Res<MaxHeight>, offset: &Vec2, size: f32) -> ChunkHeights {
-    let mut chunk_heights = ChunkHeights::default();
-    let max_index = CHUNK_SLICES as f32 - 1.0;
-    for z in 0..CHUNK_SLICES {
-        for x in 0..CHUNK_SLICES {
-            let pos = Vec2::new(
-                x as f32 / max_index * size + offset.x,
-                z as f32 / max_index * size + offset.y,
-            );
-            let height_f = simplex_noise_2d_seeded(pos, 0.0) / 2.0 + 0.5;
-
-            // 0..max
-            let height = (max_height.as_f32() * height_f) as u8;
-
-            chunk_heights.set_height(x, z, height);
+fn update_lod_chunks(
+    offset_query: Query<&Transform, (With<FlyCam>, Changed<Transform>, Without<MapChunkParent>)>,
+    mut parent_query: Query<&mut Transform, With<MapChunkParent>>,
+) {
+    if let Ok(offset) = offset_query.get_single().map(|vec| vec.translation.xz()) {
+        let offset_3d = Vec3::new(offset.x, 0.0, offset.y);
+        if let Ok(mut parent_transform) = parent_query.get_single_mut() {
+            parent_transform.translation = offset_3d;
         }
     }
-
-    chunk_heights
 }
 
-fn create_subdivided_plane(size: f32, chunk_heights: &ChunkHeights, slices: usize) -> Mesh {
+fn create_subdivided_plane(size: f32, slices: usize) -> Mesh {
     let total = (slices - 1) as f32;
     let capacity = slices * 6;
     let mut vertices = Vec::with_capacity(capacity);
@@ -439,14 +443,16 @@ fn create_subdivided_plane(size: f32, chunk_heights: &ChunkHeights, slices: usiz
 
     for i in 0..slices {
         for j in 0..slices {
-            let x = (j as f32 / total - 0.5) * size;
-            let z = (i as f32 / total - 0.5) * size;
+            let u = j as f32 / total - 0.5;
+            let v = i as f32 / total - 0.5;
 
-            let mut pos = Vec3::new(x, 0.0, z);
-            pos.y = chunk_heights.get_height(j, i).to_world_y();
+            let x = u * size;
+            let z = v * size;
+
+            let pos = Vec3::new(x, 0.0, z);
 
             vertices.push(pos);
-            uvs.push([x, z]);
+            uvs.push([u, v]);
             normals.push([0.0, 1.0, 0.0]);
         }
     }
