@@ -68,7 +68,6 @@ fn main() {
                 draw_gizmos,
                 update_lod_tree,
                 render_lod_chunks.after(update_lod_tree),
-                clear_lod_chunks.before(render_lod_chunks),
                 update_lod_chunks.after(render_lod_chunks),
             ),
         )
@@ -303,6 +302,7 @@ impl TreeSetter for LODSetter {
 
 #[derive(Debug, Component)]
 struct MapChunk;
+
 #[derive(Debug, Component)]
 struct MapChunkParent;
 
@@ -348,20 +348,9 @@ fn update_lod_tree(
     }
 
     map_tree.0.update_with_setter(chunk_setter.as_ref());
-    lod_created.send_default();
-}
 
-fn clear_lod_chunks(
-    mut commands: Commands,
-    chunks: Query<Entity, With<MapChunk>>,
-    lod_created: EventReader<LODTreeCreated>,
-) {
-    if lod_created.is_empty() {
-        return;
-    }
-
-    for entity in chunks.iter() {
-        commands.entity(entity).despawn();
+    if chunk_setter.is_changed() {
+        lod_created.send_default();
     }
 }
 
@@ -389,7 +378,7 @@ fn render_lod_chunks(
             },
             extension: WorldDisplacementExtension::new(),
         },
-        extension: WorldAlignedExtension::new(1.0),
+        extension: WorldAlignedExtension::new(10.0),
     });
 
     commands
