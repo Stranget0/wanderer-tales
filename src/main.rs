@@ -422,13 +422,26 @@ fn render_lod_chunks(
 }
 
 fn update_lod_chunks(
-    offset_query: Query<&Transform, (With<FlyCam>, Changed<Transform>, Without<MapChunkParent>)>,
-    mut parent_query: Query<&mut Transform, With<MapChunkParent>>,
+    offset_query: Query<
+        &Transform,
+        (
+            With<FlyCam>,
+            Changed<Transform>,
+            Without<MapChunkParent>,
+            Without<MapChunk>,
+        ),
+    >,
+    mut parent_query: Query<&mut Transform, (With<MapChunkParent>, Without<MapChunk>)>,
+    mut chunks: Query<&mut Transform, With<MapChunk>>,
 ) {
     if let Ok(offset) = offset_query.get_single().map(|vec| vec.translation.xz()) {
         let offset_3d = Vec3::new(offset.x, 0.0, offset.y);
         if let Ok(mut parent_transform) = parent_query.get_single_mut() {
             parent_transform.translation = offset_3d;
+        }
+
+        for mut transform in chunks.iter_mut() {
+            transform.translation.y = terrain_noise(&(offset + transform.translation.xz()));
         }
     }
 }
@@ -485,6 +498,11 @@ fn create_subdivided_plane(size: f32, slices: usize) -> Mesh {
     .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
     .with_inserted_indices(Indices::U16(indices))
+}
+
+// Reflect in assets\shaders\height_map.wgsl
+pub fn terrain_noise(pos: &Vec2) -> f32 {
+    simplex_noise_2d_seeded(*pos / 100.0, 1.0) * 10.0
 }
 
 #[cfg(test)]
