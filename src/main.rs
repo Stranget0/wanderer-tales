@@ -61,7 +61,11 @@ fn main() {
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, WorldDisplacementExtension>, WorldAlignedExtension>>::default(),
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, WorldAlignedExtension>, WorldDisplacementExtension>>::default(),
         ))
-        .add_systems(Startup, (update_lod_tree))
+        .add_systems(Startup, (
+					update_lod_tree,
+					// spawn_lights,
+					spawn_primitives
+				))
         .add_systems(
             Update,
             (
@@ -378,7 +382,7 @@ fn render_lod_chunks(
             },
             extension: WorldDisplacementExtension::new(),
         },
-        extension: WorldAlignedExtension::new(10.0),
+        extension: WorldAlignedExtension::new(0.1),
     });
 
     commands
@@ -492,6 +496,53 @@ fn create_subdivided_plane(size: f32, slices: usize) -> Mesh {
 // Reflect in assets\shaders\height_map.wgsl
 pub fn terrain_noise(pos: &Vec2) -> f32 {
     simplex_noise_2d_seeded(*pos / 100.0, 1.0) * 10.0
+}
+
+pub fn spawn_primitives(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let material = asset_server.add(ExtendedMaterial {
+        base: ExtendedMaterial {
+            base: StandardMaterial {
+                base_color_texture: Some(asset_server.load("textures/grass.jpg")),
+                normal_map_texture: Some(asset_server.load("textures/grass_normal.jpg")),
+                ..default()
+            },
+            extension: WorldDisplacementExtension::new(),
+        },
+        extension: WorldAlignedExtension::new(0.1),
+    });
+
+    let shapes = vec![Mesh::from(Cuboid::default()), Mesh::from(Sphere::default())];
+
+    for (i, mesh) in shapes
+        .iter()
+        .map(|m| asset_server.add(m.clone()))
+        .enumerate()
+    {
+        commands.spawn(MaterialMeshBundle {
+            mesh,
+            material: material.clone(),
+            transform: Transform::from_xyz(i as f32 * 2.0, 0.0, 0.0),
+            ..default()
+        });
+    }
+}
+
+pub fn spawn_lights(mut commands: Commands) {
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            color: Color::hex("#FFEEE3").unwrap(),
+            illuminance: light_consts::lux::OVERCAST_DAY,
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform::from_rotation(Quat::from_euler(
+            EulerRot::XYZ,
+            -std::f32::consts::PI / 4.,
+            0.0,
+            -std::f32::consts::PI / 4.,
+        )),
+        ..default()
+    });
 }
 
 #[cfg(test)]

@@ -83,23 +83,6 @@ fn fragment(
 
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 
-		
-		// out.color.r = factors.z;
-		// out.color.g = factors.z;
-		// out.color.b = factors.z;
-
-
-    // we can optionally modify the final result here
-	// if (abs(in.world_normal.x) > 0.5) {
-	// 	out.color.r = 1.0;
-	// }
-	// else if (abs(in.world_normal.y) > 0.5) {
-	// 	out.color.g = 1.0;
-	// }
-	// else if (abs(in.world_normal.z) > 0.5) {
-	// 	out.color.b = 1.0;
-	// }
-
 #endif
 
     return out;
