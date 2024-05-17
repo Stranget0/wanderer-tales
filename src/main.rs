@@ -6,7 +6,9 @@ use bevy::{
     prelude::*,
     render::{
         extract_resource::ExtractResource,
+        primitives::Aabb,
         settings::{RenderCreation, WgpuFeatures, WgpuSettings},
+        view::NoFrustumCulling,
         RenderPlugin,
     },
 };
@@ -73,6 +75,7 @@ fn main() {
                 update_lod_tree,
                 render_lod_chunks.after(update_lod_tree),
                 update_lod_chunks.after(render_lod_chunks),
+                map_chunks_aabb,
             ),
         )
         .run();
@@ -316,6 +319,9 @@ struct ChunkHeights([u8; CHUNK_ITEM_COUNT]);
 #[derive(Debug, Component)]
 struct RenderChunkLink(pub Vec<Entity>);
 
+#[derive(Debug, Component)]
+struct AwaitingMapAabb;
+
 #[derive(Debug, Resource)]
 struct MaxHeight(u16);
 
@@ -340,6 +346,19 @@ fn draw_gizmos(mut gizmos: Gizmos, lod: Res<LODSetter>) {
     gizmos.arrow(Vec3::ZERO, Vec3::X * factor, Color::RED);
     gizmos.arrow(Vec3::ZERO, Vec3::Y * factor, Color::GREEN);
     gizmos.arrow(Vec3::ZERO, Vec3::Z * factor, Color::BLUE);
+
+    for x in 0..20 {
+        for y in 0..20 {
+            let x_f32 = x as f32 * 10.0;
+            let y_f32 = y as f32 * 10.0;
+            gizmos.sphere(
+                vec3(x_f32, terrain_noise(&vec2(x_f32, y_f32)), y_f32),
+                Quat::default(),
+                0.1,
+                Color::YELLOW,
+            );
+        }
+    }
 }
 
 fn update_lod_tree(
@@ -395,17 +414,24 @@ fn render_lod_chunks(
             for chunk in map_tree.0.iter_mut() {
                 let transform = Transform::from_xyz(chunk.pos.x, 0.0, chunk.pos.y);
 
+                let mesh = create_subdivided_plane(chunk.size, CHUNK_SLICES, |pos| {
+                    Vec3::new(pos.x, 0.0, pos.y)
+                });
+
                 let render_id = builder
                     .spawn((
                         Name::new(format!("Chunk-{}", chunk.precision)),
                         MapChunk,
+                        ShowAabbGizmo {
+                            color: Some(Color::RED),
+                        },
                         MaterialMeshBundle {
-                            mesh: asset_server
-                                .add(create_subdivided_plane(chunk.size, CHUNK_SLICES)),
+                            mesh: asset_server.add(mesh),
                             material: material.clone(),
                             transform,
                             ..default()
                         },
+                        AwaitingMapAabb,
                     ))
                     .id();
 
@@ -432,14 +458,32 @@ fn update_lod_chunks(
         if let Ok(mut parent_transform) = parent_query.get_single_mut() {
             parent_transform.translation = offset_3d;
         }
+    }
+}
 
-        for mut transform in chunks.iter_mut() {
-            transform.translation.y = terrain_noise(&(offset + transform.translation.xz()));
+fn map_chunks_aabb(
+    mut chunks: Query<(Entity, &mut Aabb, &GlobalTransform), With<MapChunk>>,
+    chunk_tree: Res<MapLOD>,
+) {
+    for chunk in chunk_tree.0.iter() {
+        if let Some((entity, mut aabb, chunk_transform)) =
+            chunk.entity.and_then(|entity| chunks.get_mut(entity).ok())
+        {
+            let chunk_pos = chunk_transform.translation().xz();
+            let points = QUAD_TREE_DIRECTIONS
+                .iter()
+                .map(|direction| {
+                    let vec2 = *direction * chunk.size;
+                    Vec3::new(vec2.x, terrain_noise(&(vec2 + chunk_pos)), vec2.y)
+                })
+                .collect_vec();
+
+            *aabb = Aabb::enclosing(points).unwrap();
         }
     }
 }
 
-fn create_subdivided_plane(size: f32, slices: usize) -> Mesh {
+fn create_subdivided_plane(size: f32, slices: usize, f_3d: impl Fn(Vec2) -> Vec3) -> Mesh {
     let total = (slices - 1) as f32;
     let capacity = slices * 6;
     let mut vertices = Vec::with_capacity(capacity);
@@ -455,7 +499,7 @@ fn create_subdivided_plane(size: f32, slices: usize) -> Mesh {
             let x = u * size;
             let z = v * size;
 
-            let pos = Vec3::new(x, 0.0, z);
+            let pos = f_3d(vec2(x, z));
 
             vertices.push(pos);
             uvs.push([u, v]);
@@ -581,15 +625,15 @@ mod tests {
             let precision = tree_creator.distance_to_precision(distance);
             if let Some(last) = last_precision {
                 assert!(
-                    precision <= last.1,
-                    "precision shouldnt be higher: (distance: {}, precision: {}) > (distance: {}, precision: {})\nfactor({} / {} =>): {}",
+                    u16::from(precision) <= last.1,
+                    "precision shouldnt be higher: (distance: {}, precision: {}) > ({}, {})",
                     distance,
                     precision,
                     last.0,
                     last.1,
                 );
             }
-            last_precision = Some((distance, precision));
+            last_precision = Some((distance, precision.into()));
         }
     }
 
@@ -597,7 +641,7 @@ mod tests {
     fn map_lod_create() {
         let mut tree = MapLOD::new();
         let mut setter = LODSetter::new(100, 100, 5);
-        tree.0.update_with_setter(&mut setter);
+        tree.0.update_with_setter(&setter);
 
         let leafs = tree
             .0
@@ -634,7 +678,14 @@ mod tests {
 
         let leaf_data_str = leafs
             .iter()
-            .map(|leaf| format!("{} [{}] -> {}", leaf.pos.length(), leaf.depth, leaf.size))
+            .map(|leaf| {
+                format!(
+                    "{} [{}] -> {}",
+                    leaf.pos.length(),
+                    leaf.precision,
+                    leaf.size
+                )
+            })
             .join("\n");
 
         assert_ne!(min_size, max_size);
