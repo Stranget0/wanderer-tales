@@ -319,9 +319,6 @@ struct ChunkHeights([u8; CHUNK_ITEM_COUNT]);
 #[derive(Debug, Component)]
 struct RenderChunkLink(pub Vec<Entity>);
 
-#[derive(Debug, Component)]
-struct AwaitingMapAabb;
-
 #[derive(Debug, Resource)]
 struct MaxHeight(u16);
 
@@ -422,16 +419,12 @@ fn render_lod_chunks(
                     .spawn((
                         Name::new(format!("Chunk-{}", chunk.precision)),
                         MapChunk,
-                        ShowAabbGizmo {
-                            color: Some(Color::RED),
-                        },
                         MaterialMeshBundle {
                             mesh: asset_server.add(mesh),
                             material: material.clone(),
                             transform,
                             ..default()
                         },
-                        AwaitingMapAabb,
                     ))
                     .id();
 
