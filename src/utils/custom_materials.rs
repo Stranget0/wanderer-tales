@@ -10,11 +10,11 @@ pub struct WorldAlignedExtension {
 
 impl MaterialExtension for WorldAlignedExtension {
     fn fragment_shader() -> ShaderRef {
-        "shaders/fragment_world_aligned.wgsl".into()
+        "shaders\\fragment_world_aligned.wgsl".into()
     }
 
     fn deferred_fragment_shader() -> ShaderRef {
-        "shaders/fragment_world_aligned.wgsl".into()
+        "shaders\\fragment_world_aligned.wgsl".into()
     }
 }
 
