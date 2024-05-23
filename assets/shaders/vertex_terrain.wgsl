@@ -57,7 +57,7 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 		var bitangent = neighbour_2 - displaced_position;
 		var displaced_normal = normalize(cross(bitangent,tangent ));
 
-let dt_normal = compute_normal(out.world_position.y, displace_dt(out.world_position.xz, out.world_position.y));
+        let dt_normal = compute_normal(out.world_position.y, displace_dt(out.world_position.xz, out.world_position.y));
         let test_normal = dt_normal;
 
 		// var bitangent = normalize(cross(normal, tangent));

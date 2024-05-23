@@ -13,16 +13,7 @@ fn displace_dt(pos: vec2<f32>, v: f32) -> vec2<f32> {
     return vec2(v_x, v_y) / EPSILON;
 }
 
-fn compute_normal(v: f32, derivatives: vec2<f32>) -> vec3<f32> {
-    // Construct the normal vector
-    // The normal vector in tangent space is (d_x, d_y, 1)
-    var normal = cross(vec3(-derivatives.x, 1.0, 1.0), vec3(1.0, 1.0,-derivatives.y));
-
-    // Normalize the normal vector
-    normal = normalize(normal);
-
-    // Transform the normal vector to the [0, 1] range for normal map representation
-    let normal_map = (normal * 0.5) + vec3(0.5, 0.5, 0.5);
-
-    return normal_map;
+fn compute_normal(gradient: vec2<f32>) -> vec3<f32> {
+    let normal = vec3(-gradient.x, 1.0, -gradient.y);
+    return normalize(normal);
 }
