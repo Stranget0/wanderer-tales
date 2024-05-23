@@ -7,37 +7,8 @@
 }
 
 #import noisy_bevy::{simplex_noise_2d_seeded}
-
-fn displace(pos: vec3<f32>) -> f32 {
-	return simplex_noise_2d_seeded(pos.xz / 100.0, 1.0) * 10.0;
-}
-
-#ifndef VERTEX_TANGENT
-fn orthogonal(v: vec3<f32>) -> vec3<f32> {
-        return normalize(select(vec3(0.0, -v.z, v.y), vec3(-v.y, v.x, 0.0), abs(v.x) > abs(v.z)));
-}
-#endif
-
-#ifdef MORPH_TARGETS
-fn morph_vertex(vertex_in: Vertex) -> Vertex {
-    var vertex = vertex_in;
-    let weight_count = bevy_pbr::morph::layer_count();
-    for (var i: u32 = 0u; i < weight_count; i ++) {
-        let weight = bevy_pbr::morph::weight_at(i);
-        if weight == 0.0 {
-            continue;
-        }
-        vertex.position += weight * morph(vertex.index, bevy_pbr::morph::position_offset, i);
-#ifdef VERTEX_NORMALS
-        vertex.normal += weight * morph(vertex.index, bevy_pbr::morph::normal_offset, i);
-#endif
-#ifdef VERTEX_TANGENTS
-        vertex.tangent += vec4(weight * morph(vertex.index, bevy_pbr::morph::tangent_offset, i), 0.0);
-#endif
-    }
-    return vertex;
-}
-#endif
+#import wanderer_tales::common::morph_vertex;
+#import wanderer_tales::my_noise::{displace, displace_dt, compute_normal};
 
 @vertex
 fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
@@ -57,15 +28,12 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
     var model = mesh_functions::get_model_matrix(vertex_no_morph.instance_index);
 #endif
 
-#ifdef VERTEX_NORMALS
-		var normal = vertex.normal;
-#endif
 
 #ifdef VERTEX_POSITIONS
 		out.world_position = mesh_functions::mesh_position_local_to_world(model, vec4(vertex.position, 1.0));
-		var position = out.world_position.xyz;
-		out.world_position.y = displace(position);
-    var displaced_position =  out.world_position.xyz;
+        let position = out.world_position.xyz;
+		out.world_position.y = displace(out.world_position.xz);
+        let displaced_position = out.world_position.xyz;
 		out.position = position_world_to_clip(out.world_position.xyz);
 #endif
 
@@ -81,13 +49,16 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 
 #ifdef VERTEX_NORMALS
 		var neighbour_1 = position + vec3(1.0,0.0, 0.0);
-		neighbour_1.y = displace(neighbour_1);
+		neighbour_1.y = displace(neighbour_1.xz);
 		var neighbour_2 = position + vec3(0.0,0.0, 1.0);
-		neighbour_2.y = displace(neighbour_2);
-		
+		neighbour_2.y = displace(neighbour_2.xz);
+
 		var tangent = neighbour_1 - displaced_position;
 		var bitangent = neighbour_2 - displaced_position;
 		var displaced_normal = normalize(cross(bitangent,tangent ));
+
+let dt_normal = compute_normal(out.world_position.y, displace_dt(out.world_position.xz, out.world_position.y));
+        let test_normal = dt_normal;
 
 		// var bitangent = normalize(cross(normal, tangent));
 		// var neighbour_1 = position + tangent;
@@ -101,10 +72,10 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 
 		// var displaced_normal = normalize(cross(displaced_tangent, displaced_bitangent));
 #ifdef SKINNED
-    out.world_normal = skinning::skin_normals(model, displaced_normal);
+    out.world_normal = skinning::skin_normals(model, test_normal);
 #else
     out.world_normal = mesh_functions::mesh_normal_local_to_world(
-        displaced_normal,
+        test_normal,
         // Use vertex_no_morph.instance_index instead of vertex.instance_index to work around a wgpu dx12 bug.
         // See https://github.com/gfx-rs/naga/issues/2416
         vertex_no_morph.instance_index

@@ -10,11 +10,11 @@ pub struct WorldAlignedExtension {
 
 impl MaterialExtension for WorldAlignedExtension {
     fn fragment_shader() -> ShaderRef {
-        "shaders/world_aligned.wgsl".into()
+        "shaders/fragment_world_aligned.wgsl".into()
     }
 
     fn deferred_fragment_shader() -> ShaderRef {
-        "shaders/world_aligned.wgsl".into()
+        "shaders/fragment_world_aligned.wgsl".into()
     }
 }
 
@@ -29,7 +29,7 @@ pub struct WorldDisplacementExtension {}
 
 impl MaterialExtension for WorldDisplacementExtension {
     fn vertex_shader() -> ShaderRef {
-        "shaders/height_map.wgsl".into()
+        "shaders/vertex_terrain.wgsl".into()
     }
 }
 impl WorldDisplacementExtension {

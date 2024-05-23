@@ -8,7 +8,6 @@ use bevy::{
         extract_resource::ExtractResource,
         primitives::Aabb,
         settings::{RenderCreation, WgpuFeatures, WgpuSettings},
-        view::NoFrustumCulling,
         RenderPlugin,
     },
 };
@@ -22,9 +21,10 @@ use bevy_easings::Lerp;
 use bevy_editor_pls::EditorPlugin;
 use bevy_flycam::{FlyCam, PlayerPlugin};
 use itertools::Itertools;
-use noisy_bevy::{fbm_simplex_2d_seeded, simplex_noise_2d_seeded, NoisyShaderPlugin};
+use noisy_bevy::{simplex_noise_2d_seeded, NoisyShaderPlugin};
 use wanderer_tales::{
     debug::fps_counter::FPSPlugin,
+    shaders::plugin::MyShadersPlugin,
     utils::{WorldAlignedExtension, WorldDisplacementExtension},
 };
 
@@ -40,6 +40,7 @@ fn main() {
             }),
             NoisyShaderPlugin,
             EditorPlugin::default(),
+            MyShadersPlugin,
             PlayerPlugin,
             FPSPlugin,
         ))

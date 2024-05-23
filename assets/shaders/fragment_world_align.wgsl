@@ -21,7 +21,7 @@ struct Uniforms {
 
 
 @group(2) @binding(100)
-var<uniform> uniforms: Uniforms; 
+var<uniform> uniforms: Uniforms;
 
 @fragment
 fn fragment(
@@ -41,12 +41,12 @@ fn fragment(
 		// } else {
 			// xy_in = tiled_projected_pbr_input_negative(in, uv_size, in.world_position.xy, is_front);
 		// }
-		
+
 		// Right / Left
 		if (factors.x != 0.0) {
 			var yz_in = tiled_projected_pbr_input(in, uv_size, in.world_position.yz, is_front);
 			xy_in.material = blend_material(xy_in.material, yz_in.material, abs(factors.x));
-		} 
+		}
 		// else if (factors.x < 0) {
 		// 	var yz_in = tiled_projected_pbr_input_negative(in, uv_size, in.world_position.yz, is_front);
 		// 	xy_in.material = blend_material(xy_in.material, yz_in.material, -factors.x);
@@ -56,7 +56,7 @@ fn fragment(
 		if (factors.y != 0.0) {
 			var xz_in = tiled_projected_pbr_input(in, uv_size, in.world_position.xz, is_front);
 			xy_in.material = blend_material(xy_in.material, xz_in.material,abs(factors.y));
-		} 
+		}
 		// else if (factors.y < 0){
 		// 	var xz_in = tiled_projected_pbr_input_negative(in, uv_size, in.world_position.xz, is_front);
 		// 	xy_in.material = blend_material(xy_in.material, xz_in.material, -factors.y);
@@ -66,8 +66,8 @@ fn fragment(
 
     // we can optionally modify the input before lighting and alpha_discard is applied
 		// pbr_input.material.base_color = textureSample(pbr_bindings::base_color_texture, pbr_bindings::base_color_sampler, fract(in.world_position.xy * 0.1));
+// pbr_input.material.base_color =vec4(in.world_normal.xyz, 1.0);
 
-		
     // alpha discard
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
 
@@ -96,7 +96,7 @@ fn blend_material(a: StandardMaterial, b: StandardMaterial, factor:f32) -> Stand
 	copied.perceptual_roughness = mix(a.perceptual_roughness, b.perceptual_roughness, factor);
 	copied.metallic = mix(a.metallic, b.metallic, factor);
 	copied.reflectance = mix(a.reflectance, b.reflectance, factor);
-	
+
 
 	return copied;
 
@@ -160,7 +160,7 @@ fn tiled_projected_pbr_input(
 	var in_cloned = clone_vertex_output(in);
 	in_cloned.uv = fract(coordinate * uv_size);
 	var pbr_input = pbr_input_from_standard_material(in_cloned, is_front);
-	
+
 	return pbr_input;
 }
 
@@ -173,7 +173,7 @@ fn tiled_projected_pbr_input_negative(
 	var in_cloned = clone_vertex_output(in);
 	in_cloned.uv = 1.0 - fract(coordinate * uv_size);
 	var pbr_input = pbr_input_from_standard_material(in_cloned, is_front);
-	
+
 	return pbr_input;
 }
 
