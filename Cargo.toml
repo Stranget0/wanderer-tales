@@ -34,32 +34,33 @@ default-features = false
 features = ["add", "add_assign", "display", "from"]
 
 [dependencies.bevy]
-version = "0.13.0"
+git = "https://github.com/bevyengine/bevy"
+rev = "b45786d"
 default-features = false
 features = [
-	"animation",
-	"bevy_asset",
-	"bevy_audio",
-	"bevy_scene",
-	"bevy_winit",
-	"bevy_core_pipeline",
-	"bevy_render",
-	"bevy_sprite",
-	"bevy_text",
-	"bevy_ui",
-	"multi-threaded",
-	"png",
-	"jpeg",
-	"hdr",
-	"vorbis",
-	"x11",
-	"bevy_gizmos",
-	"android_shared_stdcxx",
-	"tonemapping_luts",
-	"default_font",
-	"webgl2",
-	"file_watcher",
-	"embedded_watcher",
+  "animation",
+  "bevy_asset",
+  "bevy_audio",
+  "bevy_scene",
+  "bevy_winit",
+  "bevy_core_pipeline",
+  "bevy_render",
+  "bevy_sprite",
+  "bevy_text",
+  "bevy_ui",
+  "multi-threaded",
+  "png",
+  "jpeg",
+  "hdr",
+  "vorbis",
+  "x11",
+  "bevy_gizmos",
+  "android_shared_stdcxx",
+  "tonemapping_luts",
+  "default_font",
+  "webgl2",
+  "file_watcher",
+  "embedded_watcher",
 ]
 
 [dev-dependencies]
