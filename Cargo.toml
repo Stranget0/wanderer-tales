@@ -35,8 +35,7 @@ default-features = false
 features = ["add", "add_assign", "display", "from"]
 
 [dependencies.bevy]
-git = "https://github.com/bevyengine/bevy"
-rev = "b45786d"
+version = "0.13.2"
 default-features = false
 features = [
   "animation",
