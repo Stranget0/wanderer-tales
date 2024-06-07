@@ -5,7 +5,6 @@ use bevy::{
     pbr::{wireframe::WireframeConfig, ExtendedMaterial},
     prelude::*,
     render::{
-        extract_resource::ExtractResource,
         primitives::Aabb,
         settings::{RenderCreation, WgpuFeatures, WgpuSettings},
         RenderPlugin,
@@ -17,7 +16,6 @@ use bevy::render::{
     render_asset::RenderAssetUsages,
 };
 
-use bevy_easings::Lerp;
 use bevy_editor_pls::EditorPlugin;
 use bevy_flycam::{FlyCam, PlayerPlugin};
 use itertools::Itertools;
@@ -27,8 +25,7 @@ use wanderer_tales::{
     render::map::*,
     shaders::plugin::MyShadersPlugin,
     utils::{
-        WorldAlignedExtension, WorldDisplacementExtension, CHUNK_ITEM_COUNT, CHUNK_SLICES,
-        QUAD_TREE_DIRECTIONS,
+        WorldAlignedExtension, WorldDisplacementExtension, CHUNK_SLICES, QUAD_TREE_DIRECTIONS,
     },
 };
 
@@ -208,7 +205,7 @@ fn map_chunks_aabb(
     chunk_tree: Res<MapLOD>,
 ) {
     for chunk in chunk_tree.leafs.iter() {
-        if let Some((entity, mut aabb, chunk_transform)) =
+        if let Some((_entity, mut aabb, chunk_transform)) =
             chunk.entity.and_then(|entity| chunks.get_mut(entity).ok())
         {
             let chunk_pos = chunk_transform.translation().xz();

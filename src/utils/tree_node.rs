@@ -95,9 +95,9 @@ impl<'a, const SIZE: usize, T> Iterator for FixedTreeNodeIteratorMut<'a, SIZE, T
     }
 }
 
-pub type OcTree<T: Sized> = FixedTreeNode<8, T>;
+pub type OcTree<T> = FixedTreeNode<8, T>;
 
-pub type QuadTree<T: Sized> = FixedTreeNode<4, T>;
+pub type QuadTree<T> = FixedTreeNode<4, T>;
 
 #[cfg(test)]
 mod tests {

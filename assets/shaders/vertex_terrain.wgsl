@@ -6,9 +6,45 @@
     view_transformations::position_world_to_clip,
 }
 
-#import noisy_bevy::{simplex_noise_2d_seeded}
-#import wanderer_tales::common::morph_vertex;
-#import wanderer_tales::my_noise::{displace, displace_dt, compute_normal};
+#import wanderer_tales::utils_noise::{value_noise_2d}
+
+const EPSILON:f32 = 0.1;
+
+fn displace(pos: vec2<f32>) -> vec3<f32> {
+        let data = value_noise_2d(pos / 100.0) ;
+        return vec3(data.x* 100, data.yz);
+}
+
+fn displace_dt(pos: vec2<f32>, v: f32) -> vec2<f32> {
+        let v_x = displace(pos + vec2(EPSILON, 0.0)).x - v;
+        let v_y = displace(pos + vec2(0.0, EPSILON)).x - v;
+        return vec2(v_x, v_y) / EPSILON;
+}
+
+fn compute_normal(derivative: vec2<f32>) -> vec3<f32> {
+    return (vec3(-derivative.x, 1.0, -derivative.y));
+}
+
+#ifdef MORPH_TARGETS
+fn morph_vertex(vertex_in: Vertex) -> Vertex {
+    var vertex = vertex_in;
+    let weight_count = bevy_pbr::morph::layer_count();
+    for (var i: u32 = 0u; i < weight_count; i ++) {
+        let weight = bevy_pbr::morph::weight_at(i);
+        if weight == 0.0 {
+                        continue;
+        }
+        vertex.position += weight * morph(vertex.index, bevy_pbr,:: morph,:: position_offset, i);
+        #ifdef VERTEX_NORMALS
+        vertex.normal += weight * morph(vertex.index, bevy_pbr,:: morph,:: normal_offset, i);
+        #endif
+#ifdef VERTEX_TANGENTS
+        vertex.tangent += vec4(weight * morph(vertex.index, bevy_pbr,:: morph,:: tangent_offset, i), 0.0);
+        #endif
+    }
+    return vertex;
+}
+#endif
 
 @vertex
 fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
@@ -32,9 +68,10 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 #ifdef VERTEX_POSITIONS
 		out.world_position = mesh_functions::mesh_position_local_to_world(model, vec4(vertex.position, 1.0));
         let position = out.world_position.xyz;
-		out.world_position.y = displace(out.world_position.xz);
+        let displaced_data = displace(out.world_position.xz);
+		out.world_position.y = displaced_data.x;
         let displaced_position = out.world_position.xyz;
-		out.position = position_world_to_clip(out.world_position.xyz);
+		out.position = position_world_to_clip(displaced_position);
 #endif
 
 #ifdef VERTEX_TANGENTS
@@ -48,29 +85,9 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 #endif
 
 #ifdef VERTEX_NORMALS
-		var neighbour_1 = position + vec3(1.0,0.0, 0.0);
-		neighbour_1.y = displace(neighbour_1.xz);
-		var neighbour_2 = position + vec3(0.0,0.0, 1.0);
-		neighbour_2.y = displace(neighbour_2.xz);
-
-		var tangent = neighbour_1 - displaced_position;
-		var bitangent = neighbour_2 - displaced_position;
-		var displaced_normal = normalize(cross(bitangent,tangent ));
-
-        let dt_normal = compute_normal(out.world_position.y, displace_dt(out.world_position.xz, out.world_position.y));
+        let dt2 = displaced_data.yz;
+        let dt_normal = compute_normal(dt2);
         let test_normal = dt_normal;
-
-		// var bitangent = normalize(cross(normal, tangent));
-		// var neighbour_1 = position + tangent;
-		// var neighbour_2 = position + bitangent;
-
-		// var displaced_neighbour_1 = neighbour_1 + normal * displace(neighbour_1);
-		// var displaced_neighbour_2 = neighbour_2 + normal * displace(neighbour_2);
-
-		// var displaced_tangent = displaced_neighbour_1 - displaced_position;
-		// var displaced_bitangent = displaced_neighbour_2 - displaced_position;
-
-		// var displaced_normal = normalize(cross(displaced_tangent, displaced_bitangent));
 #ifdef SKINNED
     out.world_normal = skinning::skin_normals(model, test_normal);
 #else

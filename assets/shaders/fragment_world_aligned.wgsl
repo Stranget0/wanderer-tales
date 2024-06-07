@@ -66,8 +66,9 @@ fn fragment(
 
     // we can optionally modify the input before lighting and alpha_discard is applied
 		// pbr_input.material.base_color = textureSample(pbr_bindings::base_color_texture, pbr_bindings::base_color_sampler, fract(in.world_position.xy * 0.1));
-// pbr_input.material.base_color =vec4(in.world_normal.xyz, 1.0);
-
+  if(in.world_position.x > 0 ) {
+    pbr_input.material.base_color =vec4(in.world_normal.xyz, 1.0);
+}
     // alpha discard
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
 
