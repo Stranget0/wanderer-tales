@@ -6,18 +6,18 @@
     view_transformations::position_world_to_clip,
 }
 
-#import wanderer_tales::utils_noise::{value_noise_2d}
+#import wanderer_tales::utils_noise::{value_noise_2d, ValueDt2}
 
 const EPSILON:f32 = 0.1;
 
-fn displace(pos: vec2<f32>) -> vec3<f32> {
+fn displace(pos: vec2<f32>) -> ValueDt2 {
         let data = value_noise_2d(pos / 100.0) ;
-        return vec3(data.x* 100, data.yz);
+        return ValueDt2(data.value* 100, data.derivative);
 }
 
 fn displace_dt(pos: vec2<f32>, v: f32) -> vec2<f32> {
-        let v_x = displace(pos + vec2(EPSILON, 0.0)).x - v;
-        let v_y = displace(pos + vec2(0.0, EPSILON)).x - v;
+        let v_x = displace(pos + vec2(EPSILON, 0.0)).value - v;
+        let v_y = displace(pos + vec2(0.0, EPSILON)).value - v;
         return vec2(v_x, v_y) / EPSILON;
 }
 
@@ -69,7 +69,7 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 		out.world_position = mesh_functions::mesh_position_local_to_world(model, vec4(vertex.position, 1.0));
         let position = out.world_position.xyz;
         let displaced_data = displace(out.world_position.xz);
-		out.world_position.y = displaced_data.x;
+		out.world_position.y = displaced_data.value;
         let displaced_position = out.world_position.xyz;
 		out.position = position_world_to_clip(displaced_position);
 #endif
@@ -85,8 +85,7 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 #endif
 
 #ifdef VERTEX_NORMALS
-        let dt2 = displaced_data.yz;
-        let dt_normal = compute_normal(dt2);
+        let dt_normal = compute_normal(displaced_data.derivative);
         let test_normal = dt_normal;
 #ifdef SKINNED
     out.world_normal = skinning::skin_normals(model, test_normal);
