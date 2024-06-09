@@ -3,10 +3,7 @@ use bevy::{math::*, prelude::*, render::extract_resource::ExtractResource};
 use bevy_easings::Lerp;
 use itertools::Itertools;
 
-#[derive(Debug, Component)]
-pub struct MapChunk;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Component)]
 pub struct MapChunkData {
     pub entity: Option<Entity>,
     pub pos: Vec2,
@@ -23,6 +20,13 @@ impl MapChunkData {
             precision,
         }
     }
+
+    pub fn from_setter(setter: &LODSetter) -> Vec<Self> {
+        let mut node = MapChunkNode::root(setter.view_distance.into());
+        node.update_with_setter(setter);
+
+        node.iter().cloned().collect_vec()
+    }
 }
 
 pub type MapChunkNode = tree_node::QuadTree<MapChunkData>;
@@ -33,27 +37,6 @@ impl MapChunkNode {
     }
     pub fn root(size: f32) -> Self {
         Self::Data(MapChunkData::new(Vec2::ZERO, size, 1))
-    }
-}
-
-#[derive(Debug, Resource, Default)]
-pub struct MapLOD {
-    pub leafs: Box<Vec<MapChunkData>>,
-    pub min_size: f32,
-}
-impl MapLOD {
-    pub fn from_setter(setter: &LODSetter) -> Self {
-        let mut node = MapChunkNode::root(setter.view_distance.into());
-        node.update_with_setter(setter);
-        let leafs = node.iter().cloned().collect_vec();
-        Self {
-            min_size: leafs
-                .iter()
-                .min_by(|a, b| a.size.total_cmp(&b.size))
-                .map(|ch| ch.size)
-                .unwrap_or_default(),
-            leafs: Box::new(leafs),
-        }
     }
 }
 
@@ -177,11 +160,9 @@ mod tests {
 
     #[test]
     fn map_lod_create() {
-        let setter = LODSetter::new(100, 100, 5);
-        let tree = MapLOD::from_setter(&setter);
-
-        let leafs = tree
-            .leafs
+        let setter = LODSetter::new(100, 255, 5);
+        let leafs = MapChunkData::from_setter(&setter);
+        let leafs_sorted = leafs
             .iter()
             .sorted_unstable_by(|a, b| a.pos.length().total_cmp(&b.pos.length()))
             .collect_vec();
@@ -245,24 +226,18 @@ mod tests {
 
     #[test]
     fn test_distance_to_precision() {
-        let setter = LODSetter::new(100, 50, 4);
+        let setter = LODSetter::new(100, 255, 4);
 
-        // Test when distance is equal to reference distance
-        assert_eq!(setter.distance_to_precision(50.0), 4);
+        // test on center
+        assert_eq!(setter.distance_to_precision(0.0), 4);
 
-        // Test when distance is less than reference distance
-        assert_eq!(setter.distance_to_precision(25.0), 16);
-
-        // Test when distance is greater than reference distance
-        assert_eq!(setter.distance_to_precision(75.0), 4);
-
-        // Test when distance is greater than view distance
-        assert_eq!(setter.distance_to_precision(150.0), 4);
+        // test on edge
+        assert_eq!(setter.distance_to_precision(100.0), 2);
     }
 
     #[test]
     fn test_get_size() {
-        let setter = LODSetter::new(100, 50, 4);
+        let setter = LODSetter::new(100, 255, 4);
 
         // Test precision 1
         assert_eq!(setter.get_size(1), 100.0);
@@ -275,19 +250,5 @@ mod tests {
 
         // Test precision 4
         assert_eq!(setter.get_size(4), 12.5);
-    }
-
-    #[test]
-    fn test_lod_chunk_min_size() {
-        let setter = LODSetter::new(100, 100, 5);
-        let tree = MapLOD::from_setter(&setter);
-        let min_size = tree
-            .leafs
-            .iter()
-            .min_by(|a, b| a.size.total_cmp(&b.size))
-            .unwrap()
-            .size;
-
-        assert_eq!(tree.min_size, min_size);
     }
 }

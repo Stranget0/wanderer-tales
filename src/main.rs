@@ -55,7 +55,6 @@ fn main() {
             default_color: Color::YELLOW_GREEN,
         })
         .insert_resource(LODSetter::new(1500, 255, 10))
-        .insert_resource(MapLOD::default())
         .insert_resource(LastChunkRenderPos::default())
         .register_type::<LODSetter>()
         .add_event::<LODTreeCreated>()
@@ -66,7 +65,7 @@ fn main() {
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, WorldAlignedExtension>, WorldDisplacementExtension>>::default(),
         ))
         .add_systems(Startup, (
-					update_lod_tree,
+            render_lod_chunks,
 					// spawn_lights,
 					spawn_primitives
 				))
@@ -74,17 +73,17 @@ fn main() {
             Update,
             (
                 draw_gizmos,
-                update_lod_tree,
-                render_lod_chunks.run_if(|e:EventReader<LODTreeCreated>, last_chunk_render_pos: Option<Res<LastChunkRenderPos>>, player_pos: Query<&Transform, With<FlyCam>>, map_lod: Res<MapLOD>| !e.is_empty() ||  match player_pos.get_single(){
+                render_lod_chunks.run_if(
+                    | last_chunk_render_pos: Option<Res<LastChunkRenderPos>>, player_pos: Query<&Transform, With<FlyCam>>, chunks: Query<&MapChunkData>|
+                     match player_pos.get_single(){
                     Ok(player_pos) => {
                         match last_chunk_render_pos {
-                            Some(last_pos) => player_pos.translation.xz().distance(last_pos.0) > map_lod.min_size,
+                            Some(last_pos) => player_pos.translation.xz().distance(last_pos.0) > chunks.iter().map(|ch|ch.size).reduce(f32::min).unwrap_or(0.0) * 5.0,
                             None => false,
                         }
                     },
                     Err(_) => false,
-                }).after(update_lod_tree),
-                map_chunks_aabb,
+                }),
             ),
         )
         .run();
@@ -119,36 +118,28 @@ fn draw_gizmos(mut gizmos: Gizmos, lod: Res<LODSetter>) {
     }
 }
 
-fn update_lod_tree(
-    mut map_tree: ResMut<MapLOD>,
-    chunk_setter: Res<LODSetter>,
-    mut lod_created: EventWriter<LODTreeCreated>,
-) {
-    if !chunk_setter.is_added() && !chunk_setter.is_changed() {
-        return;
-    }
-
-    *map_tree = MapLOD::from_setter(&chunk_setter);
-
-    if chunk_setter.is_changed() {
-        lod_created.send_default();
-    }
-}
-
 fn render_lod_chunks(
     mut commands: Commands,
-    mut map_tree: ResMut<MapLOD>,
     player_pos: Query<&Transform, With<FlyCam>>,
     asset_server: Res<AssetServer>,
-    prev_parents: Query<Entity, With<MapChunkParent>>,
+    lod_setter: Res<LODSetter>,
+    prev_chunks: Query<Entity, With<MapChunkData>>,
     last_chunk_render_pos: Option<ResMut<LastChunkRenderPos>>,
 ) {
-    for p in prev_parents.iter() {
+    for p in prev_chunks.iter() {
         commands.entity(p).despawn_recursive();
     }
 
+    let chunks = MapChunkData::from_setter(&lod_setter);
     let offset_float = player_pos.single().translation.xz();
-    let offset = offset_float - offset_float % map_tree.min_size;
+    let min_size = chunks
+        .iter()
+        .map(|ch| ch.size)
+        .reduce(f32::min)
+        .expect("No chunks");
+    let offset_count = offset_float / min_size;
+    let offset = offset_count * min_size;
+
     match last_chunk_render_pos {
         Some(mut pos) => {
             pos.0 = offset;
@@ -168,57 +159,24 @@ fn render_lod_chunks(
         extension: WorldAlignedExtension::new(0.1),
     });
 
-    commands
-        .spawn((
-            MapChunkParent,
-            Name::new("MapChunks"),
-            SpatialBundle::from_transform(Transform::from_xyz(offset.x, 0.0, offset.y)),
-        ))
-        .with_children(|builder| {
-            for chunk in map_tree.leafs.iter_mut() {
-                let transform = Transform::from_xyz(chunk.pos.x, 0.0, chunk.pos.y);
+    for chunk in chunks {
+        let transform = Transform::from_xyz(chunk.pos.x, 0.0, chunk.pos.y);
 
-                let mesh = create_subdivided_plane(chunk.size, CHUNK_SLICES, |pos| {
-                    Vec3::new(pos.x, 0.0, pos.y)
-                });
+        let mesh =
+            create_subdivided_plane(chunk.size, CHUNK_SLICES, |pos| Vec3::new(pos.x, 0.0, pos.y));
 
-                let render_id = builder
-                    .spawn((
-                        Name::new(format!("Chunk-{}", chunk.precision)),
-                        MapChunk,
-                        MaterialMeshBundle {
-                            mesh: asset_server.add(mesh),
-                            material: material.clone(),
-                            transform,
-                            ..default()
-                        },
-                    ))
-                    .id();
-
-                chunk.entity = Some(render_id);
-            }
-        });
-}
-
-fn map_chunks_aabb(
-    mut chunks: Query<(Entity, &mut Aabb, &GlobalTransform), With<MapChunk>>,
-    chunk_tree: Res<MapLOD>,
-) {
-    for chunk in chunk_tree.leafs.iter() {
-        if let Some((_entity, mut aabb, chunk_transform)) =
-            chunk.entity.and_then(|entity| chunks.get_mut(entity).ok())
-        {
-            let chunk_pos = chunk_transform.translation().xz();
-            let points = QUAD_TREE_DIRECTIONS
-                .iter()
-                .map(|direction| {
-                    let vec2 = *direction * chunk.size;
-                    Vec3::new(vec2.x, terrain_noise(&(vec2 + chunk_pos)), vec2.y)
-                })
-                .collect_vec();
-
-            *aabb = Aabb::enclosing(points).unwrap();
-        }
+        let render_id = commands
+            .spawn((
+                Name::new(format!("Chunk-{}", chunk.precision)),
+                chunk,
+                MaterialMeshBundle {
+                    mesh: asset_server.add(mesh),
+                    material: material.clone(),
+                    transform,
+                    ..default()
+                },
+            ))
+            .id();
     }
 }
 
