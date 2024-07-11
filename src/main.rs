@@ -65,7 +65,7 @@ fn main() {
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, WorldAlignedExtension>, WorldDisplacementExtension>>::default(),
         ))
         .add_systems(Startup, (
-            render_lod_chunks,
+            spawn_chunk_data,
 					// spawn_lights,
 					spawn_primitives
 				))
@@ -73,7 +73,7 @@ fn main() {
             Update,
             (
                 draw_gizmos,
-                render_lod_chunks.run_if(
+                spawn_chunk_data.run_if(
                     | last_chunk_render_pos: Option<Res<LastChunkRenderPos>>, player_pos: Query<&Transform, With<FlyCam>>, chunks: Query<&MapChunkData>|
                      match player_pos.get_single(){
                     Ok(player_pos) => {
@@ -91,9 +91,6 @@ fn main() {
 
 #[derive(Debug, Component)]
 struct MapChunkParent;
-
-#[derive(Debug, Event, Default)]
-struct LODTreeCreated;
 
 #[derive(Debug, Resource, Default)]
 struct LastChunkRenderPos(pub Vec2);
@@ -118,7 +115,7 @@ fn draw_gizmos(mut gizmos: Gizmos, lod: Res<LODSetter>) {
     }
 }
 
-fn render_lod_chunks(
+fn spawn_chunk_data(
     mut commands: Commands,
     player_pos: Query<&Transform, With<FlyCam>>,
     asset_server: Res<AssetServer>,
@@ -166,20 +163,17 @@ fn render_lod_chunks(
             create_subdivided_plane(chunk.size, CHUNK_SLICES, |pos| Vec3::new(pos.x, 0.0, pos.y));
 
         let render_id = commands
-            .spawn((
-                Name::new(format!("Chunk-{}", chunk.precision)),
-                chunk,
-                MaterialMeshBundle {
-                    mesh: asset_server.add(mesh),
-                    material: material.clone(),
-                    transform,
-                    ..default()
-                },
-            ))
+            .spawn((Name::new(format!("Chunk-{}", chunk.precision)), chunk))
             .id();
     }
 }
 
+// MaterialMeshBundle {
+//     mesh: asset_server.add(mesh),
+//     material: material.clone(),
+//     transform,
+//     ..default()
+// },
 fn create_subdivided_plane(size: f32, slices: usize, f_3d: impl Fn(Vec2) -> Vec3) -> Mesh {
     let total = (slices - 1) as f32;
     let capacity = slices * 6;

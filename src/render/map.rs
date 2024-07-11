@@ -11,6 +11,10 @@ pub struct MapChunkData {
     pub precision: u8,
 }
 
+struct Test {
+	name: String;
+}
+
 impl MapChunkData {
     pub fn new(pos: Vec2, size: f32, precision: u8) -> Self {
         Self {
