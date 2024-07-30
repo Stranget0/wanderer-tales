@@ -12,7 +12,7 @@ pub struct MapChunkData {
 }
 
 struct Test {
-	name: String;
+    name: String,
 }
 
 impl MapChunkData {

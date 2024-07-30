@@ -16,7 +16,6 @@ use bevy::render::{
     render_asset::RenderAssetUsages,
 };
 
-use bevy_editor_pls::EditorPlugin;
 use bevy_flycam::{FlyCam, PlayerPlugin};
 use itertools::Itertools;
 use noisy_bevy::{simplex_noise_2d_seeded, NoisyShaderPlugin};
@@ -40,7 +39,6 @@ fn main() {
                 ..default()
             }),
             NoisyShaderPlugin,
-            EditorPlugin::default(),
             MyShadersPlugin,
             PlayerPlugin,
             FPSPlugin,
