@@ -824,15 +824,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c115c97a5c8a263bd0aa7001b999772c744ac5ba797d07c86f25734ce381ea69"
 
 [[package]]
-name = "bevy_quickstart"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "log",
- "rand",
-]
-
-[[package]]
 name = "bevy_reflect"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1008,15 +999,6 @@ dependencies = [
  "concurrent-queue",
  "futures-lite",
  "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "wanderer_tales"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "log",
- "rand",
 ]
 
 [[package]]
@@ -3855,6 +3837,15 @@ checksum = "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b"
 dependencies = [
  "same-file",
  "winapi-util",
+]
+
+[[package]]
+name = "wanderer_tales"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "log",
+ "rand",
 ]
 
 [[package]]
