@@ -2,20 +2,30 @@
 
 use bevy::prelude::*;
 
-mod animation;
 pub mod assets;
 pub mod audio;
+mod camera;
+mod map;
 mod movement;
+mod player;
 mod shaders;
-pub mod spawn;
+
+pub use camera::CameraObserver;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
-        animation::plugin,
         audio::plugin,
         assets::plugin,
         movement::plugin,
-        spawn::plugin,
         shaders::plugin,
+        player::plugin,
+        camera::plugin,
+        map::plugin,
     ));
+}
+
+mod prelude {
+    pub use super::camera::CameraTarget;
+    pub use super::movement::{Movement, MovementController};
+    pub use crate::screen::Screen;
 }

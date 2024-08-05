@@ -9,7 +9,7 @@ mod title;
 use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
-    app.init_state::<Screen>();
+    app.insert_state(Screen::Splash);
     app.enable_state_scoped_entities::<Screen>();
 
     app.add_plugins((
@@ -30,4 +30,9 @@ pub enum Screen {
     Title,
     Credits,
     Playing,
+}
+
+mod prelude {
+    pub use super::Screen;
+    pub use crate::game::{assets::SoundtrackKey, audio::soundtrack::PlaySoundtrack};
 }

@@ -3,7 +3,7 @@
 //! If you want to move the player in a smoother way,
 //! consider using a [fixed timestep](https://github.com/bevyengine/bevy/blob/main/examples/movement/physics_in_fixed_timestep.rs).
 
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{input::mouse::MouseMotion, prelude::*};
 
 use crate::AppSet;
 
@@ -12,22 +12,20 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<MovementController>();
     app.add_systems(
         Update,
-        record_movement_controller.in_set(AppSet::RecordInput),
+        (record_movement_controller, record_rotation_controller).in_set(AppSet::RecordInput),
     );
 
     // Apply movement based on controls.
-    app.register_type::<(Movement, WrapWithinWindow)>();
-    app.add_systems(
-        Update,
-        (apply_movement, wrap_within_window)
-            .chain()
-            .in_set(AppSet::Update),
-    );
+    app.register_type::<Movement>();
+    app.add_systems(Update, (apply_movement).in_set(AppSet::Update));
 }
 
 #[derive(Component, Reflect, Default)]
 #[reflect(Component)]
-pub struct MovementController(pub Vec2);
+pub struct MovementController {
+    pub movement: Vec2,
+    pub rotation: Vec2,
+}
 
 fn record_movement_controller(
     input: Res<ButtonInput<KeyCode>>,
@@ -42,10 +40,10 @@ fn record_movement_controller(
         intent.y -= 1.0;
     }
     if input.pressed(KeyCode::KeyA) || input.pressed(KeyCode::ArrowLeft) {
-        intent.x -= 1.0;
+        intent.x += 1.0;
     }
     if input.pressed(KeyCode::KeyD) || input.pressed(KeyCode::ArrowRight) {
-        intent.x += 1.0;
+        intent.x -= 1.0;
     }
 
     // Normalize so that diagonal movement has the same speed as
@@ -54,7 +52,23 @@ fn record_movement_controller(
 
     // Apply movement intent to controllers.
     for mut controller in &mut controller_query {
-        controller.0 = intent;
+        controller.movement = intent;
+    }
+}
+
+fn record_rotation_controller(
+    mut input: EventReader<MouseMotion>,
+    mut controller_query: Query<&mut MovementController>,
+) {
+    let mut intent = Vec2::ZERO;
+    for event in input.read() {
+        intent.x -= event.delta.x;
+        intent.y -= event.delta.y;
+    }
+
+    // Apply rotation intent to controllers.
+    for mut controller in &mut controller_query {
+        controller.rotation += intent;
     }
 }
 
@@ -63,7 +77,7 @@ fn record_movement_controller(
 pub struct Movement {
     /// Since Bevy's default 2D camera setup is scaled such that
     /// one unit is one pixel, you can think of this as
-    /// "How many pixels per second should the player move?"
+    /// "How many pixels per second should the player move?u
     /// Note that physics engines may use different unit/pixel ratios.
     pub speed: f32,
 }
@@ -73,24 +87,16 @@ fn apply_movement(
     mut movement_query: Query<(&MovementController, &Movement, &mut Transform)>,
 ) {
     for (controller, movement, mut transform) in &mut movement_query {
-        let velocity = movement.speed * controller.0;
-        transform.translation += velocity.extend(0.0) * time.delta_seconds();
-    }
-}
+        let angle = controller.rotation.x.to_radians();
+        let rot = EulerRot::XZY;
+        let original_rotation = transform.rotation.to_euler(rot);
+        transform.rotation = Quat::from_euler(rot, original_rotation.0, original_rotation.1, angle);
 
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct WrapWithinWindow;
+        let velocity = transform.rotation
+            * controller.movement.extend(0.0).xzy()
+            * movement.speed
+            * time.delta_seconds();
 
-fn wrap_within_window(
-    window_query: Query<&Window, With<PrimaryWindow>>,
-    mut wrap_query: Query<&mut Transform, With<WrapWithinWindow>>,
-) {
-    let size = window_query.single().size() + 256.0;
-    let half_size = size / 2.0;
-    for mut transform in &mut wrap_query {
-        let position = transform.translation.xy();
-        let wrapped = (position + half_size).rem_euclid(size) - half_size;
-        transform.translation = wrapped.extend(transform.translation.z);
+        transform.translation += velocity;
     }
 }

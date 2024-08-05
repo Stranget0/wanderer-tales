@@ -9,6 +9,7 @@ use bevy::{
     audio::{AudioPlugin, Volume},
     prelude::*,
 };
+use game::CameraObserver;
 
 pub struct AppPlugin;
 
@@ -21,7 +22,7 @@ impl Plugin for AppPlugin {
         );
 
         // Spawn the main camera.
-        app.add_systems(Startup, spawn_camera);
+        app.add_systems(Startup, (spawn_camera_ui, spawn_camera_gameplay));
 
         // Add Bevy plugins.
         app.add_plugins(
@@ -36,9 +37,6 @@ impl Plugin for AppPlugin {
                 .set(WindowPlugin {
                     primary_window: Window {
                         title: "Wanderer Tales".to_string(),
-                        canvas: Some("#bevy".to_string()),
-                        fit_canvas_to_parent: true,
-                        prevent_default_event_handling: true,
                         ..default()
                     }
                     .into(),
@@ -74,9 +72,9 @@ enum AppSet {
     Update,
 }
 
-fn spawn_camera(mut commands: Commands) {
+fn spawn_camera_ui(mut commands: Commands) {
     commands.spawn((
-        Name::new("Camera"),
+        Name::new("UI Camera"),
         Camera2dBundle::default(),
         // Render all UI to this camera.
         // Not strictly necessary since we only use one camera,
@@ -85,5 +83,21 @@ fn spawn_camera(mut commands: Commands) {
         // [ui node outlines](https://bevyengine.org/news/bevy-0-14/#ui-node-outline-gizmos)
         // for debugging. So it's good to have this here for future-proofing.
         IsDefaultUiCamera,
+    ));
+}
+
+fn spawn_camera_gameplay(mut commands: Commands) {
+    commands.spawn((
+        Name::new("Gameplay Camera"),
+        CameraObserver,
+        Camera3dBundle {
+            camera: Camera {
+                order: 2,
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(1.0, 1.0, 1.0) * 5.0)
+                .looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
     ));
 }
