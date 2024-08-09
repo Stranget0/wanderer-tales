@@ -16,16 +16,34 @@ pub(super) fn plugin(app: &mut App) {
     );
 
     // Apply movement based on controls.
-    app.register_type::<Movement>();
-    app.add_systems(Update, (apply_movement).in_set(AppSet::Update));
+    app.register_type::<(
+        MovementController,
+        MovementSpeed,
+        RotationController,
+        RotationSpeed,
+    )>();
+
+    app.add_systems(
+        Update,
+        (apply_movement, apply_rotation.before(apply_movement)).in_set(AppSet::Update),
+    );
 }
 
 #[derive(Component, Reflect, Default)]
 #[reflect(Component)]
-pub struct MovementController {
-    pub movement: Vec2,
-    pub rotation: Vec2,
-}
+pub struct MovementController(pub Vec2);
+
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+pub struct RotationController(pub Vec2);
+
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+pub struct MovementSpeed(pub f32);
+
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+pub struct RotationSpeed(pub f32);
 
 fn record_movement_controller(
     input: Res<ButtonInput<KeyCode>>,
@@ -52,13 +70,14 @@ fn record_movement_controller(
 
     // Apply movement intent to controllers.
     for mut controller in &mut controller_query {
-        controller.movement = intent;
+        controller.0 = intent;
     }
 }
 
 fn record_rotation_controller(
     mut input: EventReader<MouseMotion>,
-    mut controller_query: Query<&mut MovementController>,
+    time: Res<Time>,
+    mut controller_query: Query<&mut RotationController>,
 ) {
     let mut intent = Vec2::ZERO;
     for event in input.read() {
@@ -68,33 +87,29 @@ fn record_rotation_controller(
 
     // Apply rotation intent to controllers.
     for mut controller in &mut controller_query {
-        controller.rotation += intent;
+        controller.0 += intent * time.delta_seconds();
     }
 }
 
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct Movement {
-    /// Since Bevy's default 2D camera setup is scaled such that
-    /// one unit is one pixel, you can think of this as
-    /// "How many pixels per second should the player move?u
-    /// Note that physics engines may use different unit/pixel ratios.
-    pub speed: f32,
+fn apply_rotation(
+    mut rotation_query: Query<(&RotationController, &RotationSpeed, &mut Transform)>,
+) {
+    for (rotation, rotation_speed, mut transform) in &mut rotation_query {
+        let angle = rotation.0.x.to_radians() * rotation_speed.0;
+        let rot = EulerRot::XZY;
+        let original_rotation = transform.rotation.to_euler(rot);
+        transform.rotation = Quat::from_euler(rot, original_rotation.0, original_rotation.1, angle);
+    }
 }
 
 fn apply_movement(
     time: Res<Time>,
-    mut movement_query: Query<(&MovementController, &Movement, &mut Transform)>,
+    mut movement_query: Query<(&MovementController, &MovementSpeed, &mut Transform)>,
 ) {
-    for (controller, movement, mut transform) in &mut movement_query {
-        let angle = controller.rotation.x.to_radians();
-        let rot = EulerRot::XZY;
-        let original_rotation = transform.rotation.to_euler(rot);
-        transform.rotation = Quat::from_euler(rot, original_rotation.0, original_rotation.1, angle);
-
+    for (movement, movement_speed, mut transform) in &mut movement_query {
         let velocity = transform.rotation
-            * controller.movement.extend(0.0).xzy()
-            * movement.speed
+            * movement.0.extend(0.0).xzy()
+            * movement_speed.0
             * time.delta_seconds();
 
         transform.translation += velocity;

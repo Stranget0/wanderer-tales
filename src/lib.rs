@@ -9,7 +9,6 @@ use bevy::{
     audio::{AudioPlugin, Volume},
     prelude::*,
 };
-use game::CameraObserver;
 
 pub struct AppPlugin;
 
@@ -22,7 +21,7 @@ impl Plugin for AppPlugin {
         );
 
         // Spawn the main camera.
-        app.add_systems(Startup, (spawn_camera_ui, spawn_camera_gameplay));
+        app.add_systems(Startup, spawn_camera_ui);
 
         // Add Bevy plugins.
         app.add_plugins(
@@ -83,21 +82,5 @@ fn spawn_camera_ui(mut commands: Commands) {
         // [ui node outlines](https://bevyengine.org/news/bevy-0-14/#ui-node-outline-gizmos)
         // for debugging. So it's good to have this here for future-proofing.
         IsDefaultUiCamera,
-    ));
-}
-
-fn spawn_camera_gameplay(mut commands: Commands) {
-    commands.spawn((
-        Name::new("Gameplay Camera"),
-        CameraObserver,
-        Camera3dBundle {
-            camera: Camera {
-                order: 2,
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(1.0, 1.0, 1.0) * 5.0)
-                .looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        },
     ));
 }

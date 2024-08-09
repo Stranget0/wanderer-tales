@@ -2,7 +2,7 @@
 
 use bevy::{dev_tools::states::log_transitions, prelude::*};
 
-use crate::{game::CameraObserver, screen::Screen};
+use crate::{game::CameraOrbit, screen::Screen};
 
 pub(super) fn plugin(app: &mut App) {
     // Print state transitions in dev builds
@@ -38,7 +38,7 @@ fn add_forward_gizmo(mut gizmos: Gizmos, query: Query<(&Transform, &Visibility)>
 fn add_camera_debug(mut commands: Commands) {
     commands.spawn((
         Name::new("Camera debug"),
-        CameraObserver,
+        CameraOrbit,
         SpatialBundle::default(),
     ));
 }

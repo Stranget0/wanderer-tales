@@ -10,7 +10,7 @@ mod movement;
 mod player;
 mod shaders;
 
-pub use camera::CameraObserver;
+pub use camera::{CameraOrbit, CameraOrbitTarget};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
@@ -25,7 +25,5 @@ pub(super) fn plugin(app: &mut App) {
 }
 
 mod prelude {
-    pub use super::camera::CameraTarget;
-    pub use super::movement::{Movement, MovementController};
     pub use crate::screen::Screen;
 }
