@@ -1,6 +1,7 @@
 use std::num::NonZero;
 
 use bevy::{
+    asset::load_internal_asset,
     pbr::wireframe::Wireframe,
     prelude::*,
     render::{
@@ -12,7 +13,7 @@ use bevy::{
             binding_types, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
             Buffer, BufferDescriptor, BufferInitDescriptor, BufferUsages, BufferVec,
             CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor, Maintain,
-            MapMode, PipelineCache, ShaderStages,
+            MapMode, PipelineCache, ShaderImport, ShaderStages,
         },
         renderer::{RenderDevice, RenderQueue},
         Render, RenderApp, RenderSet,
@@ -28,6 +29,8 @@ const CHUNK_SUBDIVISIONS: u32 = 2;
 const CHUNK_POINTS_AMOUNT: usize = 2 << CHUNK_SUBDIVISIONS as usize;
 
 const TERRAIN_SHADER_PATH: &str = "shaders/compute_noise.wgsl";
+const SHADER_UTILS_NOISE: Handle<Shader> =
+    Handle::weak_from_u128(0x0e78511e_e522_4bc3_aaa8_7d94ab2adcc2);
 
 #[repr(C)]
 #[derive(Component, Copy, Clone, Debug, Reflect, ExtractComponent, bytemuck::NoUninit)]
@@ -63,6 +66,7 @@ pub(crate) struct MapPlugin;
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
+        load_internal_asset!(app, SHADER_UTILS_NOISE, "noise.wgsl", Shader::from_wgsl);
         app.add_systems(OnEnter(Screen::Playing), spawn_map)
             .add_plugins(ExtractComponentPlugin::<Chunk>::default());
     }
@@ -84,7 +88,6 @@ impl Plugin for MapPlugin {
         render_graph.add_node(ChunkComputeLabel, ChunkComputeNode::default());
     }
 }
-
 impl Chunk {
     fn new(position: IVec2) -> Self {
         Self { position }
@@ -383,7 +386,6 @@ fn map_and_read_buffer(render_device: Res<RenderDevice>, buffers: Res<Buffers>) 
             .map(|chunk| f32::from_ne_bytes(chunk.try_into().expect("should be a f32")))
             .collect::<Vec<f32>>();
 
-        info!("Result: {:?}", data);
         // sender
         //     .send(data)
         //     .expect("Failed to send data to main world");

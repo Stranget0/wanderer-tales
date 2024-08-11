@@ -8,7 +8,6 @@ mod camera;
 mod map;
 mod movement;
 mod player;
-mod shaders;
 
 pub use camera::{CameraOrbit, CameraOrbitTarget};
 
@@ -17,7 +16,6 @@ pub(super) fn plugin(app: &mut App) {
         audio::plugin,
         assets::plugin,
         movement::plugin,
-        shaders::plugin,
         player::plugin,
         camera::plugin,
         map::MapPlugin,

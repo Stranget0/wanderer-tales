@@ -7,6 +7,7 @@ mod ui;
 use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
+    log::LogPlugin,
     prelude::*,
     render::{
         settings::{RenderCreation, WgpuFeatures, WgpuSettings},
@@ -57,6 +58,11 @@ impl Plugin for AppPlugin {
                         features: WgpuFeatures::POLYGON_MODE_LINE,
                         ..default()
                     }),
+                    ..default()
+                })
+                .set(LogPlugin {
+                    filter: "wgpu=error,naga=warn".to_string(),
+                    level: bevy::log::Level::INFO,
                     ..default()
                 }),
         );
