@@ -9,7 +9,7 @@ mod map;
 mod movement;
 mod player;
 
-pub use camera::{CameraOrbit, CameraOrbitTarget};
+pub use camera::CameraOrbit;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
@@ -18,7 +18,7 @@ pub(super) fn plugin(app: &mut App) {
         movement::plugin,
         player::plugin,
         camera::plugin,
-        map::MapPlugin,
+        map::plugin,
     ));
 }
 
