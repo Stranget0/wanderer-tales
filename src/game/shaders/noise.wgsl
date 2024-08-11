@@ -22,7 +22,7 @@ fn hash_3d(p: vec3<i32>) -> f32 {
     return -1f + 2f * f32(n & 268435460f) / f32(268435460f);
 }
 
-fn value_noise_3d_dt(x: vec3<f32>) -> ValueDt3 {
+fn value_noise_3d(x: vec3<f32>) -> ValueDt3 {
     let i: vec3<i32> = vec3<i32>(floor(x));
     let w: vec3<f32> = fract(x);
     let u: vec3<f32> = w * w * w * (w * (w * 6. - 15.) + 10.);
@@ -68,6 +68,7 @@ fn rand21(p: vec2f) -> f32 {
     let n = p.x * 3 + p.y * 113;
     return rand11(n);
 }
+
 // return gradient noise (in x) and its derivatives (in yz)
 fn value_noise_2d(p: vec2f) -> ValueDt2 {
     let i = floor(p);

@@ -8,6 +8,10 @@ use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
     prelude::*,
+    render::{
+        settings::{RenderCreation, WgpuFeatures, WgpuSettings},
+        RenderPlugin,
+    },
 };
 
 pub struct AppPlugin;
@@ -45,6 +49,14 @@ impl Plugin for AppPlugin {
                     global_volume: GlobalVolume {
                         volume: Volume::new(0.3),
                     },
+                    ..default()
+                })
+                .set(RenderPlugin {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
+                        #[cfg(feature = "dev")]
+                        features: WgpuFeatures::POLYGON_MODE_LINE,
+                        ..default()
+                    }),
                     ..default()
                 }),
         );

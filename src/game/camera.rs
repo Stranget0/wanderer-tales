@@ -84,8 +84,6 @@ fn observe_camera_target(
 
                 camera.rotation =
                     transform.rotation * Quat::from_rotation_y(180.0_f32.to_radians()) * quat_x;
-
-                info!("Camera: {:?}", camera.translation);
             }
             None => {
                 warn!("No matching target to orbit around");

@@ -1,10 +1,21 @@
 //! Development tools for the game. This plugin is only enabled in dev builds.
 
-use bevy::{dev_tools::states::log_transitions, prelude::*};
+use bevy::{
+    dev_tools::states::log_transitions,
+    pbr::wireframe::{WireframeConfig, WireframePlugin},
+    prelude::*,
+};
 
 use crate::{game::CameraOrbit, screen::Screen};
 
 pub(super) fn plugin(app: &mut App) {
+    app.add_plugins(WireframePlugin);
+
+    app.insert_resource(WireframeConfig {
+        default_color: Color::srgb(1.0, 1.0, 1.0),
+        ..Default::default()
+    });
+
     // Print state transitions in dev builds
     app.add_systems(Update, log_transitions::<Screen>);
     app.add_systems(

@@ -20,7 +20,7 @@ pub(super) fn plugin(app: &mut App) {
         shaders::plugin,
         player::plugin,
         camera::plugin,
-        map::plugin,
+        map::MapPlugin,
     ));
 }
 
