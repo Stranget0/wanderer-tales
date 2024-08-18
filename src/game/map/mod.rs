@@ -1,132 +1,39 @@
-use std::num::NonZero;
+//! A very simple compute shader that updates a gpu buffer.
+//! That buffer is then copied to the cpu and sent to the main world.
+//!
+//! This example is not meant to teach compute shaders.
+//! It is only meant to explain how to read a gpu buffer on the cpu and then use it in the main world.
+//!
+//! The code is based on this wgpu example:
+//! <https://github.com/gfx-rs/wgpu/blob/fb305b85f692f3fbbd9509b648dfbc97072f7465/examples/src/repeated_compute/mod.rs>
 
 use bevy::{
-    asset::load_internal_asset,
-    pbr::wireframe::Wireframe,
     prelude::*,
     render::{
-        extract_component::{ExtractComponent, ExtractComponentPlugin},
-        mesh::*,
-        render_asset::RenderAssetUsages,
         render_graph::{self, RenderGraph, RenderLabel},
-        render_resource::{
-            binding_types, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
-            Buffer, BufferDescriptor, BufferInitDescriptor, BufferUsages, BufferVec,
-            CachedComputePipelineId, ComputePassDescriptor, ComputePipelineDescriptor, Maintain,
-            MapMode, PipelineCache, ShaderImport, ShaderStages,
-        },
+        render_resource::{binding_types::storage_buffer, *},
         renderer::{RenderContext, RenderDevice, RenderQueue},
         Render, RenderApp, RenderSet,
     },
+    utils::hashbrown::HashMap,
 };
 use crossbeam_channel::{Receiver, Sender};
 
-use crate::screen::Screen;
-
-const CHUNK_SIZE: u32 = 16;
-const CHUNK_SUBDIVISIONS: u32 = 2;
-const CHUNK_POINTS_AMOUNT: usize = 2 << CHUNK_SUBDIVISIONS as usize;
-
-const TERRAIN_SHADER_PATH: &str = "shaders/compute_noise.wgsl";
-const SHADER_UTILS_NOISE: Handle<Shader> =
-    Handle::weak_from_u128(0x0e78511e_e522_4bc3_aaa8_7d94ab2adcc2);
-
-#[repr(C)]
-#[derive(Component, Copy, Clone, Debug, Reflect, ExtractComponent, bytemuck::NoUninit)]
-struct Chunk {
-    position: IVec2,
-}
-impl Chunk {
-    fn new(position: IVec2) -> Self {
-        Self { position }
-    }
-
-    fn from_translation(translation: Vec3) -> Self {
-        let position = translation - CHUNK_SIZE as f32 / 2.0;
-        if position.fract().length() > 0.0 {
-            error!("Chunk position is fractional");
-        }
-        Self::new(position.xy().as_ivec2())
-    }
-}
-
-fn spawn_map(mut commands: Commands, asset_server: ResMut<AssetServer>) {
-    commands.spawn((
-        StateScoped(Screen::Playing),
-        Chunk::from_translation(Vec3::ZERO),
-        Wireframe,
-        PbrBundle {
-            mesh: asset_server.add(create_subdivided_plane(
-                CHUNK_SUBDIVISIONS,
-                CHUNK_SIZE as f32,
-            )),
-            material: asset_server.add(StandardMaterial {
-                base_color: Color::srgb(0.8, 0.7, 0.6),
-                ..Default::default()
-            }),
-            ..Default::default()
-        },
-    ));
-}
-
-fn create_subdivided_plane(subdivisions: u32, size: f32) -> Mesh {
-    let mut mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-
-    let num_vertices_per_side = subdivisions + 1;
-    let num_vertices = (num_vertices_per_side * num_vertices_per_side) as usize;
-    let num_indices = (subdivisions * subdivisions * 6) as usize;
-
-    let mut positions = Vec::with_capacity(num_vertices);
-    let mut normals = Vec::with_capacity(num_vertices);
-    let mut uvs = Vec::with_capacity(num_vertices);
-    let mut indices = Vec::with_capacity(num_indices);
-
-    for y in 0..=subdivisions {
-        for x in 0..=subdivisions {
-            let fx = x as f32 / subdivisions as f32 * size;
-            let fy = y as f32 / subdivisions as f32 * size;
-
-            positions.push([fx - 0.5, 0.0, fy - 0.5]);
-            normals.push([0.0, 1.0, 0.0]);
-            uvs.push([fx, fy]);
-        }
-    }
-
-    for y in 0..subdivisions {
-        for x in 0..subdivisions {
-            let i = y * (subdivisions + 1) + x;
-            indices.push(i);
-            indices.push(i + subdivisions + 1);
-            indices.push(i + 1);
-
-            indices.push(i + 1);
-            indices.push(i + subdivisions + 1);
-            indices.push(i + subdivisions + 2);
-        }
-    }
-
-    mesh.insert_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        VertexAttributeValues::Float32x3(positions),
-    );
-    mesh.insert_attribute(
-        Mesh::ATTRIBUTE_NORMAL,
-        VertexAttributeValues::Float32x3(normals),
-    );
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float32x2(uvs));
-    mesh.insert_indices(Indices::U32(indices));
-
-    mesh
-}
+use crate::utils::{BindLayoutBuilder, BufferBuilder, ReadbackBuffer};
 
 /// This example uses a shader source file from the assets subdirectory
 const SHADER_ASSET_PATH: &str = "shaders/gpu_readback.wgsl";
 
 // The length of the buffer sent to the gpu
 const BUFFER_LEN: usize = 16;
+
+// To communicate between the main world and the render world we need a channel.
+// Since the main world and render world run in parallel, there will always be a frame of latency
+// between the data sent from the render world and the data received in the main world
+//
+// frame n => render world sends data through the channel at the end of the frame
+// frame n + 1 => main world receives the data
+
 /// This will receive asynchronously any data sent from the render world
 #[derive(Resource, Deref)]
 struct MainWorldReceiver(Receiver<Vec<u32>>);
@@ -135,6 +42,12 @@ struct MainWorldReceiver(Receiver<Vec<u32>>);
 #[derive(Resource, Deref)]
 struct RenderWorldSender(Sender<Vec<u32>>);
 
+pub fn plugin(app: &mut App) {
+    app.add_plugins(GpuReadbackPlugin)
+        .add_systems(Update, receive);
+}
+
+/// This system will poll the channel and try to get the data sent from the render world
 fn receive(receiver: Res<MainWorldReceiver>) {
     // We don't want to block the main world on this,
     // so we use try_recv which attempts to receive without blocking
@@ -143,17 +56,10 @@ fn receive(receiver: Res<MainWorldReceiver>) {
     }
 }
 
-pub(crate) fn plugin(app: &mut App) {
-    app.add_plugins(GpuReadbackPlugin)
-        .add_systems(OnEnter(Screen::Playing), spawn_map)
-        .add_systems(Update, receive);
-}
-
+// We need a plugin to organize all the systems and render node required for this example
 struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(ExtractComponentPlugin::<Chunk>::default());
-    }
+    fn build(&self, _app: &mut App) {}
 
     // The render device is only accessible inside finish().
     // So we need to initialize render resources here.
@@ -188,49 +94,37 @@ impl Plugin for GpuReadbackPlugin {
     }
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+enum BufferLabels {
+    Buffer,
+}
+impl std::fmt::Display for BufferLabels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "buffer")
+    }
+}
+
 /// Holds the buffers that will be used to communicate between the cpu and gpu
 #[derive(Resource)]
 struct Buffers {
-    /// The buffer that will be used by the compute shader
-    ///
-    /// In this example, we want to write a `Vec<u32>` to a `Buffer`. `BufferVec` is a wrapper around a `Buffer`
-    /// that will make sure the data is correctly aligned for the gpu and will simplify uploading the data to the gpu.
-    gpu_buffer: BufferVec<u32>,
-    /// The buffer that will be read on the cpu.
-    /// The `gpu_buffer` will be copied to this buffer every frame
-    cpu_buffer: Buffer,
+    buffers: HashMap<BufferLabels, Buffer>,
+    readback_buffers: HashMap<BufferLabels, ReadbackBuffer>,
 }
 
 impl FromWorld for Buffers {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
-        let render_queue = world.resource::<RenderQueue>();
 
-        // Create the buffer that will be accessed by the gpu
-        let mut gpu_buffer = BufferVec::new(BufferUsages::STORAGE | BufferUsages::COPY_SRC);
-        for _ in 0..BUFFER_LEN {
-            // Init the buffer with zeroes
-            gpu_buffer.push(0);
-        }
-        // Write the buffer so the data is accessible on the gpu
-        gpu_buffer.write_buffer(render_device, render_queue);
-
-        // For portability reasons, WebGPU draws a distinction between memory that is
-        // accessible by the CPU and memory that is accessible by the GPU. Only
-        // buffers accessible by the CPU can be mapped and accessed by the CPU and
-        // only buffers visible to the GPU can be used in shaders. In order to get
-        // data from the GPU, we need to use `CommandEncoder::copy_buffer_to_buffer` to
-        // copy the buffer modified by the GPU into a mappable, CPU-accessible buffer
-        let cpu_buffer = render_device.create_buffer(&BufferDescriptor {
-            label: Some("readback_buffer"),
-            size: (BUFFER_LEN * std::mem::size_of::<u32>()) as u64,
-            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let (buffers, readback_buffers) = BufferBuilder::new(render_device)
+            .create_empty_storage_readable(
+                BufferLabels::Buffer,
+                (BUFFER_LEN * std::mem::size_of::<u32>()) as u64,
+            )
+            .build();
 
         Self {
-            gpu_buffer,
-            cpu_buffer,
+            buffers,
+            readback_buffers,
         }
     }
 }
@@ -249,10 +143,10 @@ fn prepare_bind_group(
         &pipeline.layout,
         &BindGroupEntries::single(
             buffers
-                .gpu_buffer
-                .binding()
-                // We already did it when creating the buffer so this should never happen
-                .expect("Buffer should have already been uploaded to the gpu"),
+                .buffers
+                .get(&BufferLabels::Buffer)
+                .expect("Buffer not found")
+                .as_entire_binding(),
         ),
     );
     commands.insert_resource(GpuBufferBindGroup(bind_group));
@@ -267,13 +161,10 @@ struct ComputePipeline {
 impl FromWorld for ComputePipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
-        let layout = render_device.create_bind_group_layout(
-            None,
-            &BindGroupLayoutEntries::single(
-                ShaderStages::COMPUTE,
-                binding_types::storage_buffer::<Vec<u32>>(false),
-            ),
-        );
+        let layout = BindLayoutBuilder::new(render_device, "compute-layout", ShaderStages::COMPUTE)
+            .create_storage::<Vec<u32>>()
+            .build();
+
         let shader = world.load_asset(SHADER_ASSET_PATH);
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -297,65 +188,13 @@ fn map_and_read_buffer(
     // First we get a buffer slice which represents a chunk of the buffer (which we
     // can't access yet).
     // We want the whole thing so use unbounded range.
-    let buffer_slice = buffers.cpu_buffer.slice(..);
+    let label = BufferLabels::Buffer;
+    let buffer = &buffers
+        .readback_buffers
+        .get(&label)
+        .expect("No buffer reader for {label}");
 
-    // Now things get complicated. WebGPU, for safety reasons, only allows either the GPU
-    // or CPU to access a buffer's contents at a time. We need to "map" the buffer which means
-    // flipping ownership of the buffer over to the CPU and making access legal. We do this
-    // with `BufferSlice::map_async`.
-    //
-    // The problem is that map_async is not an async function so we can't await it. What
-    // we need to do instead is pass in a closure that will be executed when the slice is
-    // either mapped or the mapping has failed.
-    //
-    // The problem with this is that we don't have a reliable way to wait in the main
-    // code for the buffer to be mapped and even worse, calling get_mapped_range or
-    // get_mapped_range_mut prematurely will cause a panic, not return an error.
-    //
-    // Using channels solves this as awaiting the receiving of a message from
-    // the passed closure will force the outside code to wait. It also doesn't hurt
-    // if the closure finishes before the outside code catches up as the message is
-    // buffered and receiving will just pick that up.
-    //
-    // It may also be worth noting that although on native, the usage of asynchronous
-    // channels is wholly unnecessary, for the sake of portability to Wasm
-    // we'll use async channels that work on both native and Wasm.
-
-    let (s, r) = crossbeam_channel::unbounded::<()>();
-
-    // Maps the buffer so it can be read on the cpu
-    buffer_slice.map_async(MapMode::Read, move |r| match r {
-        // This will execute once the gpu is ready, so after the call to poll()
-        Ok(_) => s.send(()).expect("Failed to send map update"),
-        Err(err) => panic!("Failed to map buffer {err}"),
-    });
-
-    // In order for the mapping to be completed, one of three things must happen.
-    // One of those can be calling `Device::poll`. This isn't necessary on the web as devices
-    // are polled automatically but natively, we need to make sure this happens manually.
-    // `Maintain::Wait` will cause the thread to wait on native but not on WebGpu.
-
-    // This blocks until the gpu is done executing everything
-    render_device.poll(Maintain::wait()).panic_on_timeout();
-
-    // This blocks until the buffer is mapped
-    r.recv().expect("Failed to receive the map_async message");
-
-    {
-        let buffer_view = buffer_slice.get_mapped_range();
-        let data = buffer_view
-            .chunks(std::mem::size_of::<u32>())
-            .map(|chunk| u32::from_ne_bytes(chunk.try_into().expect("should be a u32")))
-            .collect::<Vec<u32>>();
-        sender
-            .send(data)
-            .expect("Failed to send data to main world");
-    }
-
-    // We need to make sure all `BufferView`'s are dropped before we do what we're about
-    // to do.
-    // Unmap so that we can copy to the staging buffer in the next iteration.
-    buffers.cpu_buffer.unmap();
+    buffer.poll_map_and_read(render_device.as_ref(), sender.as_ref());
 }
 
 /// Label to identify the node in the render graph
@@ -392,15 +231,19 @@ impl render_graph::Node for ComputeNode {
 
         // Copy the gpu accessible buffer to the cpu accessible buffer
         let buffers = world.resource::<Buffers>();
+        let gpu_buffer = buffers.buffers.get(&BufferLabels::Buffer).unwrap();
+        let cpu_buffer = &buffers
+            .readback_buffers
+            .get(&BufferLabels::Buffer)
+            .unwrap()
+            .buffer;
+
         render_context.command_encoder().copy_buffer_to_buffer(
-            buffers
-                .gpu_buffer
-                .buffer()
-                .expect("Buffer should have already been uploaded to the gpu"),
+            gpu_buffer,
             0,
-            &buffers.cpu_buffer,
+            cpu_buffer,
             0,
-            (BUFFER_LEN * std::mem::size_of::<u32>()) as u64,
+            cpu_buffer.size(),
         );
 
         Ok(())

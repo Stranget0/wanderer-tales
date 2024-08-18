@@ -3,6 +3,7 @@ mod dev_tools;
 mod game;
 mod screen;
 mod ui;
+pub mod utils;
 
 use bevy::{
     asset::AssetMetaCheck,
