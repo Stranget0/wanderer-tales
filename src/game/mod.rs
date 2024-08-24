@@ -18,7 +18,7 @@ pub(super) fn plugin(app: &mut App) {
         movement::plugin,
         player::plugin,
         camera::plugin,
-        map::plugin,
+        map::GpuReadbackPlugin,
     ));
 }
 

@@ -62,7 +62,7 @@ impl Plugin for AppPlugin {
                     ..default()
                 })
                 .set(LogPlugin {
-                    filter: "wgpu=error,naga=warn".to_string(),
+                    filter: "wgpu=error,naga=warn,bevy_ecs=debug".to_string(),
                     level: bevy::log::Level::INFO,
                     ..default()
                 }),

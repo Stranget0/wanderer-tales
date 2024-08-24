@@ -1,7 +1,8 @@
 use bevy::render::{
     render_resource::{
         encase::{internal::WriteInto, StorageBuffer, UniformBuffer},
-        Buffer, BufferDescriptor, BufferInitDescriptor, BufferUsages, ShaderType,
+        BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, Buffer, BufferDescriptor,
+        BufferInitDescriptor, BufferUsages, ShaderType,
     },
     renderer::RenderDevice,
 };
@@ -110,6 +111,30 @@ pub fn cpu_buffer<K: std::fmt::Display>(device: &RenderDevice, name: &K, size: u
         label: Some(format!("{}--cpu-buffer", name).as_str()),
         size,
         usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-        mapped_at_creation: true,
+        mapped_at_creation: false,
     })
+}
+
+pub fn create_bind_group_layout<N>(
+    device: &&RenderDevice,
+    name: N,
+    entries: &[BindGroupLayoutEntry],
+) -> BindGroupLayout
+where
+    N: std::fmt::Display,
+{
+    device.create_bind_group_layout(Some(format!("{}--layout", name).as_str()), entries)
+}
+
+pub fn create_bind_group<N: std::fmt::Display>(
+    device: &RenderDevice,
+    bind_group_name: N,
+    layout: &BindGroupLayout,
+    bind_group_entries: Vec<BindGroupEntry>,
+) -> BindGroup {
+    device.create_bind_group(
+        Some(format!("{}--bind-group", bind_group_name).as_str()),
+        layout,
+        bind_group_entries.as_slice(),
+    )
 }
