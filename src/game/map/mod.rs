@@ -24,8 +24,12 @@ const SHADER_ASSET_PATH: &str = "shaders/gpu_readback.wgsl";
 // The length of the buffer sent to the gpu
 const BUFFER_LEN: usize = 16;
 
+pub fn plugin(app: &mut App) {
+    app.add_plugins((TestBurritoPlugin::new(), GpuReadbackPlugin));
+}
+
 // We need a plugin to organize all the systems and render node required for this example
-pub struct GpuReadbackPlugin;
+struct GpuReadbackPlugin;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 enum BufferLabels {
@@ -86,30 +90,21 @@ impl Plugin for GpuReadbackPlugin {
     // So we need to initialize render resources here.
     fn finish(&self, app: &mut App) {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        app.insert_resource(TestMainBurrito::new())
-            .add_systems(Update, receive);
+        app.add_systems(Update, receive);
 
         app.world_mut()
             .resource_mut::<TestMainBurrito>()
             .insert_receiver(BufferLabels::TestBuffer, receiver);
 
         let render_app = &mut app.sub_app_mut(RenderApp);
-        render_app
-            .insert_resource(TestRenderBurrito::new())
-            .add_systems(
-                Render,
-                (
-                    setup_pipeline.before(RenderSet::PrepareBindGroups),
-                    prepare_bind_group.in_set(RenderSet::PrepareBindGroups),
-                    map_and_read_buffer::<
-                        BufferLabels,
-                        LayoutLabels,
-                        BindGroupLabels,
-                        PipelineLabels,
-                    >
-                        .after(RenderSet::Render),
-                ),
-            );
+        render_app.add_systems(
+            Render,
+            (
+                setup_pipeline.before(RenderSet::PrepareBindGroups),
+                prepare_bind_group.in_set(RenderSet::PrepareBindGroups),
+            )
+                .run_if(run_once()),
+        );
 
         render_app
             .world_mut()
@@ -134,44 +129,42 @@ fn receive(wgsl_main: Res<TestMainBurrito>) {
 }
 
 fn setup_pipeline(
+    mut wgsl: ResMut<TestRenderBurrito>,
     render_device: Res<RenderDevice>,
     pipeline_cache: Res<PipelineCache>,
-    mut wgsl: ResMut<TestRenderBurrito>,
     asset_server: Res<AssetServer>,
-    mut has_run: Local<bool>,
 ) {
-    if *has_run {
-        return;
-    }
-    *has_run = true;
+    let layout = wgsl
+        .builder_layout(
+            LayoutLabels::TestLayout,
+            render_device.as_ref(),
+            ShaderStages::COMPUTE,
+        )
+        .storage_slot::<BufferVecType>()
+        .build();
 
-    info!("setup pipeline");
-    wgsl.start_create_layout(
-        LayoutLabels::TestLayout,
-        ShaderStages::COMPUTE,
-        render_device.as_ref(),
-    )
-    .storage_slot::<BufferVecType>()
-    .build();
+    let pipeline = wgsl
+        .builder_pipeline(
+            PipelineLabels::TestPipeline,
+            asset_server.load(SHADER_ASSET_PATH),
+            "main",
+            pipeline_cache.as_ref(),
+        )
+        .with_layout_value(layout.clone())
+        .build();
 
-    wgsl.start_create_pipeline(
-        PipelineLabels::TestPipeline,
-        pipeline_cache.as_ref(),
-        asset_server.load(SHADER_ASSET_PATH),
-        "main",
-    )
-    .with_layouts(&[LayoutLabels::TestLayout])
-    .build();
+    wgsl.insert_layout(LayoutLabels::TestLayout, layout)
+        .insert_pipeline(PipelineLabels::TestPipeline, pipeline);
 }
 
 fn prepare_bind_group(render_device: Res<RenderDevice>, mut wgsl: ResMut<TestRenderBurrito>) {
     wgsl.start_create_buffers(render_device.as_ref())
-        .create_once_empty_storage_readable(
+        .create_empty_storage_readable(
             BufferLabels::TestBuffer,
             (BUFFER_LEN * std::mem::size_of::<u32>()) as u64,
         );
 
-    wgsl.create_once_bind_group(
+    wgsl.create_bind_group(
         BindGroupLabels::TestBindGroup,
         render_device.as_ref(),
         LayoutLabels::TestLayout,

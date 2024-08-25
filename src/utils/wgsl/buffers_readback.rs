@@ -13,11 +13,11 @@ pub struct ReadbackReceiver(pub Receiver<Vec<u8>>);
 #[derive(Resource)]
 pub struct ReadbackSender(pub Sender<Vec<u8>>);
 
-pub(crate) struct ReadbackBuffer {
+pub struct ReadbackBuffer {
     pub buffer: Buffer,
 }
 
-pub trait Readable {
+pub(crate) trait Readable {
     fn try_read_raw(&self) -> Result<Option<Vec<u8>>, BindGroupBuilderError>;
 
     fn try_read<T: bytemuck::AnyBitPattern>(&self) -> Result<Option<T>, BindGroupBuilderError> {
@@ -88,10 +88,7 @@ impl ReadbackSender {
         buffer: &ReadbackBuffer,
     ) -> Result<(), BindGroupBuilderError> {
         let data = poll_map_and_read(device, &buffer.buffer);
-        let result = self
-            .0
-            .send(data)
-            .or_else(|err| Err(BindGroupBuilderError::SendFailed(err)));
+        let result = self.0.send(data).map_err(BindGroupBuilderError::SendFailed);
         // We need to make sure all `BufferView`'s are dropped before we do what we're about
         // to do.
         // Unmap so that we can copy to the staging buffer in the next iteration.

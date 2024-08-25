@@ -18,8 +18,6 @@ use crossbeam_channel::{Receiver, Sender};
 use errors::*;
 
 pub mod prelude {
-    pub use super::builders::*;
-    pub use super::creators::*;
     pub use super::errors::*;
     pub use super::*;
 }
@@ -34,12 +32,25 @@ pub struct WgslBurritoPlugin<B, BL, BG, P> {
     _phantom: PhantomData<(B, BL, BG, P)>,
 }
 
+impl<B, BL, BG, P> WgslBurritoPlugin<B, BL, BG, P> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+impl<B, BL, BG, P> Default for WgslBurritoPlugin<B, BL, BG, P> {
+    fn default() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
 impl<B, BL, BG, P> Plugin for WgslBurritoPlugin<B, BL, BG, P>
 where
     B: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = B>
         + Send
         + Sync
@@ -47,7 +58,7 @@ where
     BL: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = BL>
         + Send
         + Sync
@@ -55,7 +66,7 @@ where
     BG: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = BG>
         + Send
         + Sync
@@ -63,7 +74,7 @@ where
     P: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = P>
         + Send
         + Sync
@@ -84,52 +95,10 @@ where
     }
 }
 
-impl<B, BL, BG, P> WgslBurritoPlugin<B, BL, BG, P>
-where
-    B: PartialEq
-        + Eq
-        + std::hash::Hash
-        + std::fmt::Display
-        + ToOwned<Owned = B>
-        + Send
-        + Sync
-        + 'static,
-    BL: PartialEq
-        + Eq
-        + std::hash::Hash
-        + std::fmt::Display
-        + ToOwned<Owned = BL>
-        + Send
-        + Sync
-        + 'static,
-    BG: PartialEq
-        + Eq
-        + std::hash::Hash
-        + std::fmt::Display
-        + ToOwned<Owned = BG>
-        + Send
-        + Sync
-        + 'static,
-    P: PartialEq
-        + Eq
-        + std::hash::Hash
-        + std::fmt::Display
-        + ToOwned<Owned = P>
-        + Send
-        + Sync
-        + 'static,
-{
-    pub fn new() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
-    }
-}
-
 #[derive(Resource)]
 pub struct WgslMainBurrito<B>
 where
-    B: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = B>,
+    B: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = B>,
 {
     receivers: HashMap<B, ReadbackReceiver>,
 }
@@ -144,14 +113,14 @@ pub struct WgslRenderBurrito<B, BL, BG, P> {
     pipelines: HashMap<P, CachedComputePipelineId>,
 }
 
-pub fn map_and_read_buffer<B, BL, BG, P>(
+fn map_and_read_buffer<B, BL, BG, P>(
     device: Res<RenderDevice>,
     wgsl: Res<WgslRenderBurrito<B, BL, BG, P>>,
 ) where
     B: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = B>
         + Send
         + Sync
@@ -159,7 +128,7 @@ pub fn map_and_read_buffer<B, BL, BG, P>(
     BL: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = BL>
         + Send
         + Sync
@@ -167,7 +136,7 @@ pub fn map_and_read_buffer<B, BL, BG, P>(
     BG: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = BG>
         + Send
         + Sync
@@ -175,28 +144,35 @@ pub fn map_and_read_buffer<B, BL, BG, P>(
     P: PartialEq
         + Eq
         + std::hash::Hash
-        + std::fmt::Display
+        + std::fmt::Debug
         + ToOwned<Owned = P>
         + Send
         + Sync
         + 'static,
 {
-    for key in wgsl.readback_buffer_keys() {
-        match wgsl.send_buffer_to_main(key, device.as_ref()) {
+    for name in wgsl.readback_buffer_keys() {
+        match wgsl.send_buffer_to_main(name, device.as_ref()) {
             Ok(_) => {}
-            Err(err) => error!("error sending buffer {key}: {err}"),
+            Err(err) => error!("error sending buffer {name:?}: {err}"),
         }
     }
 }
 
+impl<B: std::fmt::Debug + std::hash::Hash + PartialEq + Eq + ToOwned<Owned = B>> Default
+    for WgslMainBurrito<B>
+{
+    fn default() -> Self {
+        Self {
+            receivers: HashMap::new(),
+        }
+    }
+}
 impl<B> WgslMainBurrito<B>
 where
-    B: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = B>,
+    B: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = B>,
 {
     pub fn new() -> Self {
-        Self {
-            receivers: HashMap::default(),
-        }
+        Self::default()
     }
 
     pub fn insert_receiver(&mut self, buffer_name: B, receiver: Receiver<Vec<u8>>) -> &mut Self {
@@ -225,7 +201,7 @@ where
         match result {
             Ok(data) => data,
             Err(error) => {
-                error!("error reading buffer {buffer_name}: {error}");
+                error!("error reading buffer {buffer_name:?}: {error}");
                 None
             }
         }
@@ -242,29 +218,40 @@ where
         match result {
             Ok(data) => data,
             Err(error) => {
-                error!("error reading buffer {buffer_name}: {error}");
+                error!("error reading buffer {buffer_name:?}: {error}");
                 None
             }
+        }
+    }
+}
+impl<B, BL, BG, P> Default for WgslRenderBurrito<B, BL, BG, P>
+where
+    B: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = B>,
+    BL: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = BL>,
+    BG: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = BG>,
+    P: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = P>,
+{
+    fn default() -> Self {
+        Self {
+            buffers: HashMap::new(),
+            buffers_readback: HashMap::new(),
+            senders: HashMap::new(),
+            layouts: HashMap::new(),
+            bind_groups: HashMap::new(),
+            pipelines: HashMap::new(),
         }
     }
 }
 
 impl<B, BL, BG, P> WgslRenderBurrito<B, BL, BG, P>
 where
-    B: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = B>,
-    BL: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = BL>,
-    BG: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = BG>,
-    P: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = P>,
+    B: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = B>,
+    BL: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = BL>,
+    BG: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = BG>,
+    P: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = P>,
 {
     pub fn new() -> Self {
-        Self {
-            buffers: HashMap::default(),
-            buffers_readback: HashMap::default(),
-            senders: HashMap::default(),
-            layouts: HashMap::default(),
-            bind_groups: HashMap::default(),
-            pipelines: HashMap::default(),
-        }
+        Self::default()
     }
 
     pub fn start_create_buffers<'a, 'b>(
@@ -272,17 +259,6 @@ where
         device: &'a RenderDevice,
     ) -> BufferMutateBuilder<'a, 'b, 'b, B> {
         BufferMutateBuilder::new(device, &mut self.buffers, &mut self.buffers_readback)
-    }
-    pub fn insert_buffer(&mut self, name: B, buffer: Buffer) -> &mut Self {
-        self.buffers.insert(name, buffer);
-        self
-    }
-    pub fn insert_once_buffer(&mut self, name: B, buffer: Buffer) -> &mut Self {
-        if self.has_buffer(&name) {
-            return self;
-        }
-        self.insert_buffer(name, buffer);
-        self
     }
 
     pub fn get_buffer(&self, buffer_name: &B) -> Option<&Buffer> {
@@ -304,24 +280,16 @@ where
         self.buffers_readback.keys()
     }
 
-    pub fn start_create_layout<'a, 'b>(
-        &'a mut self,
+    pub fn builder_layout<'a>(
+        &mut self,
         name: BL,
+        device: &'a RenderDevice,
         visibility: ShaderStages,
-        device: &'b RenderDevice,
-    ) -> BindLayoutMutateBuilder<'b, 'a, BL> {
-        BindLayoutMutateBuilder::new(device, name, visibility, &mut self.layouts)
+    ) -> BindLayoutBuilder<'a, BL> {
+        BindLayoutBuilder::new(device, name, visibility)
     }
-    pub fn insert_layout(&mut self, key: BL, layout: BindGroupLayout) {
+    pub fn insert_layout(&mut self, key: BL, layout: BindGroupLayout) -> &mut Self {
         self.layouts.insert(key, layout);
-    }
-    pub fn insert_once_layout(&mut self, key: BL, layout: BindGroupLayout) -> &mut Self {
-        if self.has_layout(&key) {
-            return self;
-        }
-
-        self.insert_layout(key, layout);
-
         self
     }
     pub fn get_layout(&self, key: &BL) -> Option<&BindGroupLayout> {
@@ -332,6 +300,114 @@ where
     }
     pub fn layout_keys(&self) -> impl Iterator<Item = &BL> {
         self.layouts.keys()
+    }
+
+    pub fn insert_bind_group(&mut self, bind_group_name: BG, bind_group: BindGroup) -> &mut Self {
+        self.bind_groups.insert(bind_group_name, bind_group);
+        self
+    }
+
+    fn map_buffers(
+        &self,
+        buffer_entries: &[B],
+    ) -> Result<Vec<BindGroupEntry>, BindGroupBuilderError> {
+        let mut bind_group_entries = Vec::with_capacity(buffer_entries.len());
+        for (index, name) in buffer_entries.iter().enumerate() {
+            let Some(buffer) = self.buffers.get(name) else {
+                return Err(BindGroupBuilderError::no_buffer_found(name));
+            };
+
+            bind_group_entries.push(BindGroupEntry {
+                binding: index as u32,
+                resource: buffer.as_entire_binding(),
+            });
+        }
+        Ok(bind_group_entries)
+    }
+
+    pub fn create_bind_group(
+        &mut self,
+        bind_group_name: BG,
+        device: &RenderDevice,
+        layout_name: BL,
+        buffer_names: &[B],
+    ) -> &mut Self {
+        let query_result = match (
+            self.layouts.get(&layout_name),
+            self.map_buffers(buffer_names),
+        ) {
+            (Some(layout), Ok(entries)) => Ok(creators::create_bind_group(
+                device,
+                bind_group_name.to_owned(),
+                layout,
+                entries,
+            )),
+            (None, _) => Err(BindGroupBuilderError::no_layout_found(layout_name)),
+            (_, Err(error)) => Err(error),
+        };
+
+        match query_result {
+            Ok(bind_group) => {
+                self.bind_groups.insert(bind_group_name, bind_group);
+            }
+            Err(error) => error!("binding group failed: {error}"),
+        };
+
+        self
+    }
+
+    pub fn get_bind_group(&self, bind_group_name: &BG) -> Option<&BindGroup> {
+        self.bind_groups.get(bind_group_name)
+    }
+    pub fn has_bind_group(&self, bind_group_name: &BG) -> bool {
+        self.bind_groups.contains_key(bind_group_name)
+    }
+    pub fn bind_group_keys(&self) -> impl Iterator<Item = &BG> {
+        self.bind_groups.keys()
+    }
+
+    pub fn builder_pipeline<'a, 'b, 'c>(
+        &'a self,
+        name: P,
+        shader: Handle<Shader>,
+        entry_point: &'b str,
+        pipeline_cache: &'c PipelineCache,
+    ) -> PipelineBuilder<'b, 'c, 'a, P, BL> {
+        PipelineBuilder::new(name, shader, entry_point, pipeline_cache, &self.layouts)
+    }
+    pub fn insert_pipeline(&mut self, name: P, pipeline: CachedComputePipelineId) -> &mut Self {
+        self.pipelines.insert(name, pipeline);
+        self
+    }
+
+    pub fn get_pipeline(&self, pipeline_name: &P) -> Option<&CachedComputePipelineId> {
+        self.pipelines.get(pipeline_name)
+    }
+
+    pub fn has_pipeline(&self, pipeline_name: &P) -> bool {
+        self.pipelines.contains_key(pipeline_name)
+    }
+
+    pub fn pipeline_keys(&self) -> impl Iterator<Item = &P> {
+        self.pipelines.keys()
+    }
+
+    pub fn copy_to_readback_buffer(&self, buffer_name: &B, encoder: &mut CommandEncoder) {
+        let Some(gpu_buffer) = self.buffers.get(buffer_name) else {
+            let error = BindGroupBuilderError::no_buffer_found(buffer_name);
+            error!("error filling readback buffer {buffer_name:?}: {error}");
+            return;
+        };
+        let Some(cpu_buffer) = self.buffers_readback.get(buffer_name) else {
+            let error = BindGroupBuilderError::no_readback_buffer_found(buffer_name);
+            error!("error filling readback buffer {buffer_name:?}: {error}");
+            return;
+        };
+        if gpu_buffer.size() != cpu_buffer.buffer.size() {
+            warn!("buffer {buffer_name:?} size mismatch");
+        }
+
+        encoder.copy_buffer_to_buffer(gpu_buffer, 0, &cpu_buffer.buffer, 0, gpu_buffer.size());
     }
 
     pub fn insert_sender(&mut self, buffer_name: B, sender: Sender<Vec<u8>>) -> &mut Self {
@@ -355,119 +431,6 @@ where
     }
     pub fn sender_keys(&self) -> impl Iterator<Item = &B> {
         self.senders.keys()
-    }
-
-    pub fn create_bind_group(
-        &mut self,
-        bind_group_name: BG,
-        device: &RenderDevice,
-        layout_name: BL,
-        buffer_entries: &[B],
-    ) -> &mut Self {
-        let query_result = match self.layouts.get(&layout_name) {
-            Some(layout) => bind_group(
-                bind_group_name.to_owned(),
-                device,
-                layout,
-                &self.buffers,
-                buffer_entries,
-            ),
-            None => Err(BindGroupBuilderError::no_layout_found(layout_name)),
-        };
-
-        match query_result {
-            Ok(bind_group) => {
-                self.bind_groups.insert(bind_group_name, bind_group);
-            }
-            Err(error) => error!("binding group failed: {error}"),
-        };
-
-        self
-    }
-
-    pub fn create_once_bind_group(
-        &mut self,
-        bind_group_name: BG,
-        device: &RenderDevice,
-        layout_name: BL,
-        buffer_entries: &[B],
-    ) -> &mut Self {
-        if self.has_bind_group(&bind_group_name) {
-            return self;
-        }
-
-        self.create_bind_group(bind_group_name, device, layout_name, buffer_entries);
-
-        self
-    }
-    pub fn get_bind_group(&self, bind_group_name: &BG) -> Option<&BindGroup> {
-        self.bind_groups.get(bind_group_name)
-    }
-    pub fn has_bind_group(&self, bind_group_name: &BG) -> bool {
-        self.bind_groups.contains_key(bind_group_name)
-    }
-    pub fn bind_group_keys(&self) -> impl Iterator<Item = &BG> {
-        self.bind_groups.keys()
-    }
-
-    pub fn start_create_pipeline<'a, 'b, 'c>(
-        &'a mut self,
-        name: P,
-        pipeline_cache: &'b PipelineCache,
-        shader: Handle<Shader>,
-        entry_point: &'c str,
-    ) -> PipelineMutateBuilder<'b, 'a, 'c, 'a, P, BL> {
-        PipelineMutateBuilder::new(
-            name,
-            pipeline_cache,
-            shader,
-            &self.layouts,
-            entry_point,
-            &mut self.pipelines,
-        )
-    }
-    pub fn insert_pipeline(&mut self, name: P, pipeline: CachedComputePipelineId) -> &mut Self {
-        self.pipelines.insert(name, pipeline);
-        self
-    }
-    pub fn insert_once_pipeline(
-        &mut self,
-        name: P,
-        pipeline: CachedComputePipelineId,
-    ) -> &mut Self {
-        if self.has_pipeline(&name) {
-            return self;
-        }
-        self.insert_pipeline(name, pipeline);
-        self
-    }
-
-    pub fn get_pipeline(&self, pipeline_name: &P) -> Option<&CachedComputePipelineId> {
-        self.pipelines.get(pipeline_name)
-    }
-    pub fn has_pipeline(&self, pipeline_name: &P) -> bool {
-        self.pipelines.contains_key(pipeline_name)
-    }
-    pub fn pipeline_keys(&self) -> impl Iterator<Item = &P> {
-        self.pipelines.keys()
-    }
-
-    pub fn copy_to_readback_buffer(&self, buffer_name: &B, encoder: &mut CommandEncoder) {
-        let Some(gpu_buffer) = self.buffers.get(buffer_name) else {
-            let error = BindGroupBuilderError::no_buffer_found(buffer_name);
-            error!("error filling readback buffer {buffer_name}: {error}");
-            return;
-        };
-        let Some(cpu_buffer) = self.buffers_readback.get(buffer_name) else {
-            let error = BindGroupBuilderError::no_readback_buffer_found(buffer_name);
-            error!("error filling readback buffer {buffer_name}: {error}");
-            return;
-        };
-        if gpu_buffer.size() != cpu_buffer.buffer.size() {
-            warn!("buffer {buffer_name} size mismatch");
-        }
-
-        encoder.copy_buffer_to_buffer(gpu_buffer, 0, &cpu_buffer.buffer, 0, gpu_buffer.size());
     }
 
     pub fn send_buffer_to_main(

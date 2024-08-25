@@ -6,54 +6,82 @@ use bevy::render::render_resource::*;
 use bevy::{
     render::{
         render_resource::{
-            binding_types, encase::internal::WriteInto, BindGroup, BindGroupEntry,
-            BindGroupLayoutEntry, BindGroupLayoutEntryBuilder, Buffer, ShaderStages, ShaderType,
+            binding_types, encase::internal::WriteInto, BindGroupLayoutEntry,
+            BindGroupLayoutEntryBuilder, Buffer, ShaderStages, ShaderType,
         },
         renderer::RenderDevice,
     },
     utils::hashbrown::HashMap,
 };
 
-pub fn buffer_builder<
-    'a,
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>,
->(
-    device: &'a RenderDevice,
-) -> BufferBuilder<'a, K> {
-    BufferBuilder::new(device)
-}
-
-pub struct BufferBuilder<
-    'a,
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>,
-> {
-    device: &'a RenderDevice,
-    buffer_map: HashMap<K, Buffer>,
-    readback_buffer_map: HashMap<K, ReadbackBuffer>,
-}
-
-pub(crate) struct BufferMutateBuilder<
+pub struct BufferMutateBuilder<
     'a,
     'b,
     'c,
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned,
+    B: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned,
 > {
     device: &'a RenderDevice,
-    buffer_map: &'b mut HashMap<K, Buffer>,
-    readback_buffer_map: &'c mut HashMap<K, ReadbackBuffer>,
+    buffer_map: &'b mut HashMap<B, Buffer>,
+    readback_buffer_map: &'c mut HashMap<B, ReadbackBuffer>,
 }
 
-pub trait BufferBuilderExt<
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>,
->
+impl<'a, 'b, 'c, B> BufferMutateBuilder<'a, 'b, 'c, B>
+where
+    B: PartialEq + Eq + std::hash::Hash + std::fmt::Debug + ToOwned<Owned = B>,
 {
-    fn has_buffer(&self, name: &K) -> bool;
-    fn insert_buffer(&mut self, name: K, buffer: Buffer);
+    pub fn new(
+        device: &'a RenderDevice,
+        buffer_map: &'b mut HashMap<B, Buffer>,
+        readback_buffer_map: &'c mut HashMap<B, ReadbackBuffer>,
+    ) -> Self {
+        Self {
+            device,
+            buffer_map,
+            readback_buffer_map,
+        }
+    }
 
-    fn insert_readback_buffer(&mut self, name: K, buffer: Buffer);
-    fn get_device(&self) -> &RenderDevice;
+    pub fn create_once_empty_storage_readable(self, name: B, size: u64) -> Self {
+        if self.has_buffer(&name) {
+            return self;
+        }
 
-    fn create_uniform<T: WriteInto + ShaderType>(mut self, name: K, payload: &T) -> Self
+        self.create_empty_storage_readable(name, size)
+    }
+    pub fn create_once_storage_readable<T: WriteInto + ShaderType>(
+        self,
+        name: B,
+        payload: &T,
+    ) -> Self {
+        if self.has_buffer(&name) {
+            return self;
+        }
+
+        self.create_storage_readable(name, payload)
+    }
+    pub fn create_once_empty_uniform<T: WriteInto + ShaderType>(self, name: B, size: u64) -> Self {
+        if self.has_buffer(&name) {
+            return self;
+        }
+
+        self.create_empty_uniform::<T>(name, size)
+    }
+    pub fn create_once_empty_storage(self, name: B, size: u64) -> Self {
+        if self.has_buffer(&name) {
+            return self;
+        }
+
+        self.create_empty_storage(name, size)
+    }
+    pub fn create_once_empty_storage_rw(self, name: B, size: u64) -> Self {
+        if self.has_buffer(&name) {
+            return self;
+        }
+
+        self.create_empty_storage_rw(name, size)
+    }
+
+    pub fn create_uniform<T: WriteInto + ShaderType>(mut self, name: B, payload: &T) -> Self
     where
         Self: std::marker::Sized,
     {
@@ -66,7 +94,7 @@ pub trait BufferBuilderExt<
         self
     }
 
-    fn create_storage<T: WriteInto + ShaderType>(mut self, name: K, payload: &T) -> Self
+    pub fn create_storage<T: WriteInto + ShaderType>(mut self, name: B, payload: &T) -> Self
     where
         Self: std::marker::Sized,
     {
@@ -78,7 +106,7 @@ pub trait BufferBuilderExt<
         self
     }
 
-    fn create_storage_rw<T: WriteInto + ShaderType>(mut self, name: K, payload: &T) -> Self
+    pub fn create_storage_rw<T: WriteInto + ShaderType>(mut self, name: B, payload: &T) -> Self
     where
         Self: std::marker::Sized,
     {
@@ -90,14 +118,18 @@ pub trait BufferBuilderExt<
         self
     }
 
-    fn create_storage_readable<T: WriteInto + ShaderType>(mut self, name: K, payload: &T) -> Self
+    pub fn create_storage_readable<T: WriteInto + ShaderType>(
+        mut self,
+        name: B,
+        payload: &T,
+    ) -> Self
     where
         Self: std::marker::Sized,
     {
         let device = self.get_device();
         let buffer = creators::storage_buffer_rw(device, &name, payload);
         let size = buffer.size();
-        let readback_buffer = creators::cpu_buffer::<K>(device, &name, size);
+        let readback_buffer = creators::cpu_buffer::<B>(device, &name, size);
 
         self.insert_buffer(name.to_owned(), buffer);
         self.insert_readback_buffer(name, readback_buffer);
@@ -105,14 +137,14 @@ pub trait BufferBuilderExt<
         self
     }
 
-    fn create_empty_storage_readable(mut self, name: K, size: u64) -> Self
+    pub fn create_empty_storage_readable(mut self, name: B, size: u64) -> Self
     where
         Self: std::marker::Sized,
     {
         let device = self.get_device();
         let buffer = creators::storage_empty_rw(device, &name, size);
         let size = buffer.size();
-        let readback_buffer = creators::cpu_buffer::<K>(device, &name, size);
+        let readback_buffer = creators::cpu_buffer::<B>(device, &name, size);
 
         self.insert_buffer(name.to_owned(), buffer);
         self.insert_readback_buffer(name, readback_buffer);
@@ -120,128 +152,51 @@ pub trait BufferBuilderExt<
         self
     }
 
-    fn create_empty_uniform<T: WriteInto + ShaderType>(mut self, name: K, size: u64) -> Self
+    pub fn create_empty_uniform<T: WriteInto + ShaderType>(mut self, name: B, size: u64) -> Self
     where
         Self: std::marker::Sized,
     {
         let device = self.get_device();
-        let buffer = creators::uniform_empty::<K, T>(device, &name, size);
+        let buffer = creators::uniform_empty::<B, T>(device, &name, size);
 
         self.insert_buffer(name.to_owned(), buffer);
 
         self
     }
 
-    fn create_empty_storage<T: WriteInto + ShaderType>(mut self, name: K, size: u64) -> Self
+    pub fn create_empty_storage(mut self, name: B, size: u64) -> Self
     where
         Self: std::marker::Sized,
     {
         let device = self.get_device();
-        let buffer = creators::storage_empty::<K>(device, &name, size);
+        let buffer = creators::storage_empty::<B>(device, &name, size);
 
         self.insert_buffer(name.to_owned(), buffer);
 
         self
     }
 
-    fn create_empty_storage_rw<T: WriteInto + ShaderType>(mut self, name: K, size: u64) -> Self
+    pub fn create_empty_storage_rw(mut self, name: B, size: u64) -> Self
     where
         Self: std::marker::Sized,
     {
         let device = self.get_device();
-        let buffer = creators::storage_empty_rw::<K>(device, &name, size);
+        let buffer = creators::storage_empty_rw::<B>(device, &name, size);
 
         self.insert_buffer(name.to_owned(), buffer);
 
         self
     }
-}
 
-impl<'a, 'b, 'c, K> BufferMutateBuilder<'a, 'b, 'c, K>
-where
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>,
-{
-    pub fn new(
-        device: &'a RenderDevice,
-        buffer_map: &'b mut HashMap<K, Buffer>,
-        readback_buffer_map: &'c mut HashMap<K, ReadbackBuffer>,
-    ) -> Self {
-        Self {
-            device,
-            buffer_map,
-            readback_buffer_map,
-        }
-    }
-
-    pub fn create_once_empty_storage_readable(self, name: K, size: u64) -> Self {
-        if self.has_buffer(&name) {
-            return self;
-        }
-
-        self.create_empty_storage_readable(name, size)
-    }
-    pub fn create_once_storage_readable<T: WriteInto + ShaderType>(
-        self,
-        name: K,
-        payload: &T,
-    ) -> Self {
-        if self.has_buffer(&name) {
-            return self;
-        }
-
-        self.create_storage_readable(name, payload)
-    }
-    pub fn create_once_empty_uniform<T: WriteInto + ShaderType>(self, name: K, size: u64) -> Self {
-        if self.has_buffer(&name) {
-            return self;
-        }
-
-        self.create_empty_uniform::<T>(name, size)
-    }
-    pub fn create_once_empty_storage<T: WriteInto + ShaderType>(self, name: K, size: u64) -> Self {
-        if self.has_buffer(&name) {
-            return self;
-        }
-
-        self.create_empty_storage::<T>(name, size)
-    }
-    pub fn create_once_empty_storage_rw<T: WriteInto + ShaderType>(
-        self,
-        name: K,
-        size: u64,
-    ) -> Self {
-        if self.has_buffer(&name) {
-            return self;
-        }
-
-        self.create_empty_storage_rw::<T>(name, size)
-    }
-}
-
-impl<'a, 'b, 'c, K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>>
-    BufferBuilder<'a, K>
-{
-    pub fn new(device: &'a RenderDevice) -> Self {
-        Self {
-            device,
-            buffer_map: HashMap::new(),
-            readback_buffer_map: HashMap::new(),
-        }
-    }
-}
-impl<'a, 'b, 'c, K> BufferBuilderExt<K> for BufferBuilder<'a, K>
-where
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>,
-{
-    fn has_buffer(&self, name: &K) -> bool {
+    fn has_buffer(&self, name: &B) -> bool {
         self.buffer_map.contains_key(name)
     }
 
-    fn insert_buffer(&mut self, name: K, buffer: Buffer) {
+    fn insert_buffer(&mut self, name: B, buffer: Buffer) {
         self.buffer_map.insert(name, buffer);
     }
 
-    fn insert_readback_buffer(&mut self, name: K, buffer: Buffer) {
+    fn insert_readback_buffer(&mut self, name: B, buffer: Buffer) {
         self.readback_buffer_map
             .insert(name, ReadbackBuffer::new(buffer));
     }
@@ -251,55 +206,25 @@ where
     }
 }
 
-impl<'a, 'b, 'c, K> BufferBuilderExt<K> for BufferMutateBuilder<'a, 'b, 'c, K>
-where
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>,
-{
-    fn insert_buffer(&mut self, name: K, buffer: Buffer) {
-        self.buffer_map.insert(name, buffer);
-    }
-
-    fn insert_readback_buffer(&mut self, name: K, buffer: Buffer) {
-        self.readback_buffer_map
-            .insert(name, ReadbackBuffer::new(buffer));
-    }
-
-    fn has_buffer(&self, name: &K) -> bool {
-        self.buffer_map.contains_key(name)
-    }
-
-    fn get_device(&self) -> &RenderDevice {
-        self.device
-    }
-}
-
-pub struct BindLayoutMutateBuilder<
+pub struct BindLayoutBuilder<
     'a,
-    'b,
-    N: std::fmt::Display + PartialEq + Eq + std::hash::Hash + ToOwned<Owned = N>,
+    N: std::fmt::Debug + PartialEq + Eq + std::hash::Hash + ToOwned<Owned = N>,
 > {
     name: N,
     device: &'a RenderDevice,
-    layout_map: &'b mut HashMap<N, BindGroupLayout>,
     entries: Vec<BindGroupLayoutEntry>,
     visibility: ShaderStages,
 }
 
-impl<'a, 'b, N> BindLayoutMutateBuilder<'a, 'b, N>
+impl<'a, N> BindLayoutBuilder<'a, N>
 where
-    N: std::fmt::Display + PartialEq + Eq + std::hash::Hash + ToOwned<Owned = N>,
+    N: std::fmt::Debug + PartialEq + Eq + std::hash::Hash + ToOwned<Owned = N>,
 {
-    pub fn new(
-        device: &'a RenderDevice,
-        name: N,
-        visibility: ShaderStages,
-        layout_map: &'b mut HashMap<N, BindGroupLayout>,
-    ) -> Self {
+    pub fn new(device: &'a RenderDevice, name: N, visibility: ShaderStages) -> Self {
         Self {
             device,
             name,
             visibility,
-            layout_map,
             entries: Vec::new(),
         }
     }
@@ -325,83 +250,41 @@ where
         self
     }
 
-    pub fn build(self) {
+    pub fn build(self) -> BindGroupLayout {
         let device = &self.device;
         let entries = self.entries.as_slice();
         let name = self.name;
 
-        let layout = creators::create_bind_group_layout(device, name.to_owned(), entries);
-
-        self.layout_map.insert(name, layout);
+        creators::create_bind_group_layout(device, name.to_owned(), entries)
     }
 }
 
-pub fn bind_group<
-    N: std::fmt::Display,
-    K: PartialEq + Eq + std::hash::Hash + std::fmt::Display + ToOwned<Owned = K>,
->(
-    bind_group_name: N,
-    device: &RenderDevice,
-    layout: &BindGroupLayout,
-    buffers: &HashMap<K, Buffer>,
-    binds: &[K],
-) -> Result<BindGroup, BindGroupBuilderError> {
-    let mut bind_group_entries = Vec::with_capacity(binds.len());
-    for (index, name) in binds.iter().enumerate() {
-        let buffer = match buffers.get(name) {
-            Some(entry) => entry,
-            None => return Err(BindGroupBuilderError::no_buffer_found(name.to_owned())),
-        };
-
-        bind_group_entries.push(BindGroupEntry {
-            binding: index as u32,
-            resource: buffer.as_entire_binding(),
-        });
-    }
-
-    Ok(creators::create_bind_group(
-        device,
-        bind_group_name,
-        layout,
-        bind_group_entries,
-    ))
-}
-
-pub struct PipelineMutateBuilder<
+pub struct PipelineBuilder<
     'a,
     'b,
     'c,
-    'd,
-    K: std::fmt::Display + PartialEq + Eq + std::hash::Hash,
-    BL: PartialEq + Eq + std::hash::Hash + std::fmt::Display,
+    P: std::fmt::Debug,
+    BL: PartialEq + Eq + std::hash::Hash + std::fmt::Debug,
 > {
-    pipeline_cache: &'a PipelineCache,
+    entry_point: &'a str,
+    pipeline_cache: &'b PipelineCache,
+    layouts_map: &'c HashMap<BL, BindGroupLayout>,
     shader: Handle<Shader>,
     shader_defs: Vec<ShaderDefVal>,
     push_constant_ranges: Vec<PushConstantRange>,
-    layouts_map: &'b HashMap<BL, BindGroupLayout>,
-    entry_point: &'c str,
-    pipelines_map: &'d mut HashMap<K, CachedComputePipelineId>,
     layouts: Vec<BindGroupLayout>,
-    name: K,
+    name: P,
 }
 
-impl<
-        'a,
-        'b,
-        'c,
-        'd,
-        K: std::fmt::Display + PartialEq + Eq + std::hash::Hash,
-        BL: PartialEq + Eq + std::hash::Hash + std::fmt::Display,
-    > PipelineMutateBuilder<'a, 'b, 'c, 'd, K, BL>
+impl<'a, 'b, 'c, P: std::fmt::Debug, BL: PartialEq + Eq + std::hash::Hash + std::fmt::Debug>
+    PipelineBuilder<'a, 'b, 'c, P, BL>
 {
     pub fn new(
-        name: K,
-        pipeline_cache: &'a PipelineCache,
+        name: P,
         shader: Handle<Shader>,
-        layouts_map: &'b HashMap<BL, BindGroupLayout>,
-        entry_point: &'c str,
-        pipelines_map: &'d mut HashMap<K, CachedComputePipelineId>,
+        entry_point: &'a str,
+        pipeline_cache: &'b PipelineCache,
+        layouts_map: &'c HashMap<BL, BindGroupLayout>,
     ) -> Self {
         Self {
             pipeline_cache,
@@ -409,7 +292,6 @@ impl<
             layouts_map,
             name,
             entry_point,
-            pipelines_map,
             shader_defs: Vec::new(),
             push_constant_ranges: Vec::new(),
             layouts: Vec::new(),
@@ -428,17 +310,14 @@ impl<
         } else {
             let error = BindGroupBuilderError::no_layout_found(layout);
             let name = &self.name;
-            error!("pipeline builder {name} failed: {error}");
+            error!("pipeline builder {name:?} failed: {error}");
         }
 
         self
     }
 
-    pub fn with_layouts(mut self, layouts: &[BL]) -> Self {
-        for layout in layouts.iter() {
-            self = self.with_layout(layout);
-        }
-
+    pub fn with_layout_value(mut self, layout: BindGroupLayout) -> Self {
+        self.layouts.push(layout);
         self
     }
 
@@ -451,18 +330,18 @@ impl<
         self
     }
 
-    pub fn build(self) {
-        let pipeline_id = self
-            .pipeline_cache
+    pub fn build(self) -> CachedComputePipelineId {
+        self.pipeline_cache
             .queue_compute_pipeline(ComputePipelineDescriptor {
-                label: Some(std::borrow::Cow::Owned(format!("{}--pipeline", self.name))),
+                label: Some(std::borrow::Cow::Owned(format!(
+                    "{:?}--pipeline",
+                    self.name
+                ))),
                 layout: self.layouts,
                 push_constant_ranges: self.push_constant_ranges,
                 shader: self.shader,
                 shader_defs: self.shader_defs,
                 entry_point: std::borrow::Cow::Owned(self.entry_point.to_string()),
-            });
-
-        self.pipelines_map.insert(self.name, pipeline_id);
+            })
     }
 }

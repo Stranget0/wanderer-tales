@@ -35,26 +35,26 @@ impl std::fmt::Display for BindGroupBuilderError {
     }
 }
 impl BindGroupBuilderError {
-    pub fn no_buffer_found<K: std::fmt::Display>(name: K) -> Self {
-        Self::NoBufferFound(format!("{name}"))
+    pub fn no_buffer_found<K: std::fmt::Debug>(name: K) -> Self {
+        Self::NoBufferFound(format!("{:?}", name))
     }
-    pub fn no_readback_buffer_found<K: std::fmt::Display>(name: K) -> Self {
-        Self::NoReadbackBufferFound(format!("{name}"))
+    pub fn no_readback_buffer_found<K: std::fmt::Debug>(name: K) -> Self {
+        Self::NoReadbackBufferFound(format!("{:?}", name))
     }
-    pub fn no_sender_found<K: std::fmt::Display>(name: K) -> Self {
-        Self::NoSenderFound(format!("{name}"))
+    pub fn no_sender_found<K: std::fmt::Debug>(name: K) -> Self {
+        Self::NoSenderFound(format!("{:?}", name))
     }
-    pub fn no_receiver_found<K: std::fmt::Display>(name: K) -> Self {
-        Self::NoReceiverFound(format!("{name}"))
+    pub fn no_receiver_found<K: std::fmt::Debug>(name: K) -> Self {
+        Self::NoReceiverFound(format!("{:?}", name))
     }
-    pub fn no_bind_group_found<K: std::fmt::Display>(name: K) -> Self {
-        Self::NoBindGroupFound(format!("{name}"))
+    pub fn no_bind_group_found<K: std::fmt::Debug>(name: K) -> Self {
+        Self::NoBindGroupFound(format!("{:?}", name))
     }
-    pub fn no_layout_found<K: std::fmt::Display>(name: K) -> Self {
-        Self::NoLayoutFound(format!("{name}"))
+    pub fn no_layout_found<K: std::fmt::Debug>(name: K) -> Self {
+        Self::NoLayoutFound(format!("{:?}", name))
     }
-    pub fn no_pipeline_found<K: std::fmt::Display>(name: K) -> Self {
-        Self::NoPipelineFound(format!("{name}"))
+    pub fn no_pipeline_found<K: std::fmt::Debug>(name: K) -> Self {
+        Self::NoPipelineFound(format!("{:?}", name))
     }
 }
 
