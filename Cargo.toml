@@ -78,3 +78,6 @@ inherits = "release"
 opt-level = 3
 # Keep debug information in the binary.
 strip = "none"
+
+[[example]]
+name = "gpu_readback"
