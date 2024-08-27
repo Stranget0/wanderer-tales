@@ -51,27 +51,6 @@ enum PipelineLabels {
     TestPipeline,
 }
 
-impl std::fmt::Display for BufferLabels {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "buffer")
-    }
-}
-impl std::fmt::Display for LayoutLabels {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "layout")
-    }
-}
-impl std::fmt::Display for BindGroupLabels {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "bind-group")
-    }
-}
-impl std::fmt::Display for PipelineLabels {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "pipeline")
-    }
-}
-
 type TestRenderBurrito =
     WgslRenderBurrito<BufferLabels, LayoutLabels, BindGroupLabels, PipelineLabels>;
 
