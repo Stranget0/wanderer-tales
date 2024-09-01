@@ -1,17 +1,18 @@
 use crate::prelude::*;
+
 use bevy::{
     ecs::system::SystemState,
     prelude::*,
     render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
         render_graph::{self, RenderGraph},
-        render_resource::{ComputePassDescriptor, PipelineCache, ShaderStages, ShaderType},
-        renderer::{RenderContext, RenderDevice},
+        render_resource::{PipelineCache, ShaderStages, ShaderType},
+        renderer::RenderDevice,
         Render, RenderApp, RenderSet,
     },
     utils::hashbrown::HashMap,
 };
-use utils::BindLayoutBuilder;
+use utils::{BindLayoutBuilder, RenderBurritoNodeTrait, RenderBurritoPassTrait};
 
 #[derive(Debug, ShaderType, bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
 #[repr(C)]
@@ -86,7 +87,7 @@ impl Plugin for MapPlugin {
         render_app
             .world_mut()
             .resource_mut::<RenderGraph>()
-            .add_node(MapNodeLabel, MapNode::new());
+            .add_node(MapNodeLabel, RenderNode::new(MapNode));
     }
 
     fn finish(&self, app: &mut App) {
@@ -204,33 +205,32 @@ fn receive(
     wgsl: Res<RenderStateMain>,
     mut map_point_requests: ResMut<MapPointRequest>,
 ) {
-    let Some(response) = wgsl
-        .try_receive_vec::<MapPointData>(RenderBufferKey::MapPointData)
-        .and_then(|v| {
-            if v.len() == map_point_requests.len() {
-                Some(v)
-            } else {
-                None
-            }
-        })
-    else {
+    let Some(response) = wgsl.try_receive_vec::<MapPointData>(RenderBufferKey::MapPointData) else {
         return;
     };
 
-    // info!(
-    //     "\n{} requests: {:?}\n{} responses: {:?}",
-    //     map_point_requests.positions.len(),
-    //     map_point_requests.positions,
-    //     response.len(),
-    //     response
-    // );
+    info!(
+        "\n{} requests: {:?}\n{} responses: {:?}",
+        map_point_requests.positions.len(),
+        map_point_requests.positions,
+        response.len(),
+        response
+    );
 
     let mut hash_map: HashMap<Entity, Vec<MapPointData>> = HashMap::with_capacity(response.len());
-    for (entity, height) in map_point_requests.entities.iter().zip(response.iter()) {
-        if hash_map.contains_key(entity) {
-            hash_map.get_mut(entity).unwrap().push(*height);
-        } else {
-            hash_map.insert(*entity, vec![*height]);
+    for (index, height) in response.iter().enumerate() {
+        if index >= map_point_requests.positions.len() {
+            warn!("received more responses than requests");
+            break;
+        }
+        let entity = &map_point_requests.entities[index];
+        match hash_map.get_mut(entity) {
+            Some(results) => {
+                results.push(*height);
+            }
+            None => {
+                hash_map.insert(*entity, vec![*height]);
+            }
         }
     }
 
@@ -246,72 +246,43 @@ fn receive(
 #[derive(Debug, Hash, PartialEq, Eq, Clone, render_graph::RenderLabel)]
 struct MapNodeLabel;
 
-struct MapNode {
-    requests_count: usize,
+enum MapNodePass {
+    HeightPass,
 }
 
-impl MapNode {
-    fn new() -> Self {
-        Self { requests_count: 0 }
+struct MapNode;
+
+impl RenderBurritoNodeTrait<RenderBufferKey, RenderBindGroupKey, RenderPipelineKey, MapNodePass>
+    for MapNode
+{
+    fn passes(&self) -> &[MapNodePass] {
+        &[MapNodePass::HeightPass]
+    }
+    fn label(&self) -> &str {
+        "MapNode"
+    }
+    fn staging_buffers(&self, _: &World) -> &[RenderBufferKey] {
+        &[RenderBufferKey::MapPointData]
+    }
+
+    fn should_run(&self, world: &World) -> bool {
+        !world.resource::<MapPointRequest>().positions.is_empty()
     }
 }
 
-impl render_graph::Node for MapNode {
-    fn update(&mut self, world: &mut World) {
-        let requests_count = world.resource::<MapPointRequest>().positions.len();
-        self.requests_count = requests_count;
-
-        if requests_count > 0 {
-            let wgsl = &mut world.resource_mut::<RenderStateRender>();
-            let Some(buffer) = wgsl.get_buffer_readback_mut(&RenderBufferKey::MapPointData) else {
-                return;
-            };
-            buffer.mark_changed();
-        }
+impl RenderBurritoPassTrait<RenderBufferKey, RenderBindGroupKey, RenderPipelineKey>
+    for MapNodePass
+{
+    fn pipeline_key(&self, _: &World) -> &RenderPipelineKey {
+        &RenderPipelineKey::MapPipeline
     }
-    fn run(
-        &self,
-        _graph: &mut render_graph::RenderGraphContext,
-        render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), render_graph::NodeRunError> {
-        if self.requests_count == 0 {
-            return Ok(());
-        }
 
-        {
-            let wgsl = world.resource::<RenderStateRender>();
-            let pipeline_cache = world.resource::<PipelineCache>();
-            let Some(pipeline) = wgsl
-                .get_pipeline(&RenderPipelineKey::MapPipeline)
-                .and_then(|p| pipeline_cache.get_compute_pipeline(*p))
-            else {
-                return Ok(());
-            };
+    fn bind_group_key(&self, _: &World) -> &RenderBindGroupKey {
+        &RenderBindGroupKey::MapBindGroup
+    }
 
-            let Some(bind_group) = wgsl.get_bind_group(&RenderBindGroupKey::MapBindGroup) else {
-                return Ok(());
-            };
-
-            let mut pass =
-                render_context
-                    .command_encoder()
-                    .begin_compute_pass(&ComputePassDescriptor {
-                        label: Some("Map compute pass"),
-                        ..default()
-                    });
-
-            pass.set_bind_group(0, bind_group, &[]);
-            pass.set_pipeline(pipeline);
-            pass.dispatch_workgroups(self.requests_count as u32, 1, 1);
-            drop(pass);
-
-            // Copy the gpu accessible buffer to the cpu accessible buffer
-            let encoder = render_context.command_encoder();
-            info!("copying buffer");
-            wgsl.copy_to_readback_buffer(encoder, &RenderBufferKey::MapPointData);
-
-            Ok(())
-        }
+    fn workgroup_size(&self, world: &World) -> [u32; 3] {
+        let x = world.resource::<MapPointRequest>().positions.len() as u32;
+        [x, 1, 1]
     }
 }

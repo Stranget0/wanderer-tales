@@ -3,6 +3,7 @@ mod builders;
 mod creators;
 mod errors;
 mod plugin;
+mod render_node;
 mod resources;
 
 use buffers_readback::*;
@@ -14,6 +15,7 @@ pub mod prelude {
     pub use super::creators::*;
     pub use super::errors::*;
     pub use super::plugin::*;
+    pub use super::render_node::*;
     pub use super::resources::*;
     pub use super::*;
 }

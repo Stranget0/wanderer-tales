@@ -1,4 +1,6 @@
-use crate::utils::{insert_burrito_channel, WgslBurritoPlugin, WgslMainBurrito, WgslRenderBurrito};
+use crate::utils::{
+    insert_burrito_channel, NodeBurrito, WgslBurritoPlugin, WgslMainBurrito, WgslRenderBurrito,
+};
 use bevy::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,6 +31,9 @@ pub type RenderStateMain = WgslMainBurrito<RenderBufferKey>;
 
 pub type RenderStateRender =
     WgslRenderBurrito<RenderBufferKey, RenderLayoutKey, RenderBindGroupKey, RenderPipelineKey>;
+
+pub type RenderNode<N, Pass> =
+    NodeBurrito<N, Pass, RenderBufferKey, RenderLayoutKey, RenderBindGroupKey, RenderPipelineKey>;
 
 pub fn insert_readback_channel(app: &mut App, buffer_key: RenderBufferKey) {
     insert_burrito_channel::<RenderBufferKey, RenderLayoutKey, RenderBindGroupKey, RenderPipelineKey>(
