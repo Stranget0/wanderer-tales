@@ -3407,6 +3407,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
+name = "sequential_gen"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d630b1418311e028ceb45e1e567845501a9d9c770a258b80d2edc025ffad17c"
+dependencies = [
+ "lazy_static",
+ "uuid",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.204"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3772,6 +3782,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-ds"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba93bd6a2167eae091428ff34bbef09edd870f941ff736afdb02e05585e258bd"
+dependencies = [
+ "lazy_static",
+ "sequential_gen",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "ttf-parser"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3865,6 +3887,7 @@ dependencies = [
  "itertools 0.13.0",
  "log",
  "rand",
+ "tree-ds",
 ]
 
 [[package]]

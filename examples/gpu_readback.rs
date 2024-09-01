@@ -119,18 +119,18 @@ fn setup_pipeline(
             render_device.as_ref(),
             ShaderStages::COMPUTE,
         )
-        .storage_slot::<BufferVecType>()
+        .with_storage_slot::<BufferVecType>()
         .build();
 
-    let pipeline = wgsl
-        .builder_pipeline(
+    let pipeline = pipeline_cache.queue_compute_pipeline(
+        wgsl.builder_pipeline(
             PipelineLabels::TestPipeline,
             asset_server.load(SHADER_ASSET_PATH),
             "main",
-            pipeline_cache.as_ref(),
         )
         .with_layout_value(layout.clone())
-        .build();
+        .build(),
+    );
 
     wgsl.insert_layout(LayoutLabels::TestLayout, layout)
         .insert_pipeline(PipelineLabels::TestPipeline, pipeline);
@@ -186,7 +186,7 @@ impl render_graph::Node for ComputeNode {
         }
 
         // Copy the gpu accessible buffer to the cpu accessible buffer
-        wgsl.copy_to_readback_buffer(&BufferLabels::TestBuffer, render_context.command_encoder());
+        wgsl.copy_to_readback_buffer(render_context.command_encoder(), &BufferLabels::TestBuffer);
 
         Ok(())
     }

@@ -4,6 +4,7 @@ mod game;
 mod screen;
 mod ui;
 pub mod utils;
+pub mod wgsl_keys;
 
 use bevy::{
     asset::AssetMetaCheck,
@@ -15,6 +16,14 @@ use bevy::{
         RenderPlugin,
     },
 };
+use wgsl_keys::RenderStatePlugin;
+
+pub mod prelude {
+    pub use super::utils;
+    pub use super::wgsl_keys::*;
+    pub use bevy::prelude::*;
+    pub use itertools::Itertools;
+}
 
 pub struct AppPlugin;
 
@@ -67,6 +76,8 @@ impl Plugin for AppPlugin {
                     ..default()
                 }),
         );
+
+        app.add_plugins(RenderStatePlugin::new());
 
         // Add other plugins.
         app.add_plugins((game::plugin, screen::plugin, ui::plugin));

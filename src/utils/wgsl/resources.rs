@@ -25,7 +25,7 @@ pub struct WgslRenderBurrito<B, BL, BG, P> {
 
 pub(crate) fn map_and_read_buffer<B, BL, BG, P>(
     device: Res<RenderDevice>,
-    wgsl: Res<WgslRenderBurrito<B, BL, BG, P>>,
+    mut wgsl: ResMut<WgslRenderBurrito<B, BL, BG, P>>,
 ) where
     B: PartialEq
         + Eq
@@ -60,11 +60,44 @@ pub(crate) fn map_and_read_buffer<B, BL, BG, P>(
         + Sync
         + 'static,
 {
+    let mut sent_buffers = Vec::new();
     for name in wgsl.readback_buffer_keys() {
-        match wgsl.send_buffer_to_main(name, device.as_ref()) {
-            Ok(_) => {}
+        let buffer = wgsl
+            .buffers_readback
+            .get(name)
+            .ok_or_else(|| (BindGroupBuilderError::no_readback_buffer_found(name)));
+
+        let sender = wgsl
+            .senders
+            .get(name)
+            .ok_or_else(|| (BindGroupBuilderError::no_sender_found(name)));
+
+        let buffer_sender = match (buffer, sender) {
+            (Ok(buffer), Ok(sender)) => Ok((buffer, sender)),
+            (Err(err), _) | (_, Err(err)) => Err(err),
+        };
+
+        let sent_result = buffer_sender.and_then(|(buffer, sender)| {
+            if buffer.has_changed() {
+                sender.try_send(device.as_ref(), buffer).map(|_| true)
+            } else {
+                Ok(false)
+            }
+        });
+
+        match sent_result {
+            Ok(true) => {
+                info!("buffer {name:?} sent to main");
+                sent_buffers.push(name.to_owned());
+            }
             Err(err) => error!("error sending buffer {name:?}: {err}"),
+            _ => {}
         }
+    }
+
+    for name in sent_buffers {
+        info!("marking {name:?} as sent");
+        wgsl.get_buffer_readback_mut(&name).unwrap().mark_sent();
     }
 }
 
@@ -192,6 +225,9 @@ where
     pub fn get_buffer_readback(&self, buffer_name: &B) -> Option<&ReadbackBuffer> {
         self.buffers_readback.get(buffer_name)
     }
+    pub fn get_buffer_readback_mut(&mut self, buffer_name: &B) -> Option<&mut ReadbackBuffer> {
+        self.buffers_readback.get_mut(buffer_name)
+    }
     pub fn has_buffer_readback(&self, buffer_name: &B) -> bool {
         self.buffers_readback.contains_key(buffer_name)
     }
@@ -200,7 +236,7 @@ where
     }
 
     pub fn builder_layout<'a>(
-        &mut self,
+        &self,
         name: BL,
         device: &'a RenderDevice,
         visibility: ShaderStages,
@@ -226,22 +262,19 @@ where
         self
     }
 
-    pub(crate) fn map_buffers(
+    pub(crate) fn get_buffers(
         &self,
         buffer_entries: &[B],
-    ) -> Result<Vec<BindGroupEntry>, BindGroupBuilderError> {
-        let mut bind_group_entries = Vec::with_capacity(buffer_entries.len());
-        for (index, name) in buffer_entries.iter().enumerate() {
+    ) -> Result<Vec<&Buffer>, BindGroupBuilderError> {
+        let mut buffers = Vec::with_capacity(buffer_entries.len());
+        for name in buffer_entries.iter() {
             let Some(buffer) = self.buffers.get(name) else {
                 return Err(BindGroupBuilderError::no_buffer_found(name));
             };
-
-            bind_group_entries.push(BindGroupEntry {
-                binding: index as u32,
-                resource: buffer.as_entire_binding(),
-            });
+            buffers.push(buffer);
         }
-        Ok(bind_group_entries)
+
+        Ok(buffers)
     }
 
     pub fn create_bind_group(
@@ -253,7 +286,8 @@ where
     ) -> &mut Self {
         let query_result = match (
             self.layouts.get(&layout_name),
-            self.map_buffers(buffer_names),
+            self.get_buffers(buffer_names)
+                .and_then(|buffers| buffers_to_bind_entries(buffers, buffer_names)),
         ) {
             (Some(layout), Ok(entries)) => Ok(creators::create_bind_group(
                 device,
@@ -285,14 +319,13 @@ where
         self.bind_groups.keys()
     }
 
-    pub fn builder_pipeline<'a, 'b, 'c>(
+    pub fn builder_pipeline<'a, 'b>(
         &'a self,
         name: P,
         shader: Handle<Shader>,
         entry_point: &'b str,
-        pipeline_cache: &'c PipelineCache,
-    ) -> PipelineBuilder<'b, 'c, 'a, P, BL> {
-        PipelineBuilder::new(name, shader, entry_point, pipeline_cache, &self.layouts)
+    ) -> PipelineBuilder<'b, 'a, P, BL> {
+        PipelineBuilder::new(name, shader, entry_point, &self.layouts)
     }
     pub fn insert_pipeline(&mut self, name: P, pipeline: CachedComputePipelineId) -> &mut Self {
         self.pipelines.insert(name, pipeline);
@@ -311,7 +344,7 @@ where
         self.pipelines.keys()
     }
 
-    pub fn copy_to_readback_buffer(&self, buffer_name: &B, encoder: &mut CommandEncoder) {
+    pub fn copy_to_readback_buffer(&self, encoder: &mut CommandEncoder, buffer_name: &B) {
         let Some(gpu_buffer) = self.buffers.get(buffer_name) else {
             let error = BindGroupBuilderError::no_buffer_found(buffer_name);
             error!("error filling readback buffer {buffer_name:?}: {error}");
@@ -327,6 +360,32 @@ where
         }
 
         encoder.copy_buffer_to_buffer(gpu_buffer, 0, &cpu_buffer.buffer, 0, gpu_buffer.size());
+    }
+
+    pub fn copy_buffer_to_buffer(&self, encoder: &mut CommandEncoder, from: &B, to: &B) {
+        let buffers = match (self.buffers.get(from), self.buffers.get(to)) {
+            (Some(from), Some(to)) => {
+                if from.size() != to.size() {
+                    Err(BindGroupBuilderError::BufferSizeMismatch(
+                        from.size(),
+                        to.size(),
+                    ))
+                } else {
+                    Ok((from, to))
+                }
+            }
+            (None, _) => Err(BindGroupBuilderError::no_buffer_found(from)),
+            _ => Err(BindGroupBuilderError::no_buffer_found(to)),
+        };
+
+        match buffers {
+            Ok((from, to)) => {
+                encoder.copy_buffer_to_buffer(from, 0, to, 0, to.size());
+            }
+            Err(error) => {
+                error!("error copying buffer {from:?} to {to:?}: {error}");
+            }
+        }
     }
 
     pub fn insert_sender(
@@ -358,19 +417,23 @@ where
     pub fn sender_keys(&self) -> impl Iterator<Item = &B> {
         self.senders.keys()
     }
+}
 
-    pub fn send_buffer_to_main(
-        &self,
-        buffer_key: &B,
-        device: &RenderDevice,
-    ) -> Result<(), BindGroupBuilderError> {
-        let Some(sender) = self.senders.get(buffer_key) else {
-            return Err(BindGroupBuilderError::no_sender_found(buffer_key));
-        };
-        let Some(buffer) = self.buffers_readback.get(buffer_key) else {
-            return Err(BindGroupBuilderError::no_readback_buffer_found(buffer_key));
-        };
-
-        sender.try_send(device, buffer)
+fn buffers_to_bind_entries<'a, B: std::fmt::Debug + ToOwned<Owned = B>>(
+    buffers: Vec<&'a Buffer>,
+    buffer_names: &[B],
+) -> Result<Vec<BindGroupEntry<'a>>, BindGroupBuilderError> {
+    let mut entries = Vec::with_capacity(buffers.len());
+    for (index, buffer) in buffers.iter().enumerate() {
+        if buffer.size() == 0 {
+            return Err(BindGroupBuilderError::empty_buffer(
+                buffer_names[index].to_owned(),
+            ));
+        }
+        entries.push(BindGroupEntry {
+            binding: index as u32,
+            resource: buffer.as_entire_binding(),
+        });
     }
+    Ok(entries)
 }

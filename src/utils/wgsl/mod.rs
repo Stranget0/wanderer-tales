@@ -10,6 +10,8 @@ use builders::*;
 use errors::*;
 
 pub mod prelude {
+    pub use super::builders::{BindLayoutBuilder, PipelineBuilder};
+    pub use super::creators::*;
     pub use super::errors::*;
     pub use super::plugin::*;
     pub use super::resources::*;

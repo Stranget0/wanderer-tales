@@ -15,6 +15,8 @@ pub enum BindGroupBuilderError {
     ReceiverDistonnected,
     CastFailed(PodCastError),
     SendFailed(SendError<Vec<u8>>),
+    BufferSizeMismatch(u64, u64),
+    EmptyBuffer(String),
 }
 impl std::fmt::Display for BindGroupBuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -31,6 +33,10 @@ impl std::fmt::Display for BindGroupBuilderError {
             Self::ReceiverDistonnected => write!(f, "Receiver is disconnected"),
             Self::CastFailed(err) => write!(f, "Cast failed: {err}"),
             Self::SendFailed(err) => write!(f, "Send failed: {err}"),
+            Self::BufferSizeMismatch(from_size, to_size) => {
+                write!(f, "Buffer size mismatch: {from_size} != {to_size}")
+            }
+            Self::EmptyBuffer(name) => write!(f, "Buffer {name} is empty"),
         }
     }
 }
@@ -55,6 +61,9 @@ impl BindGroupBuilderError {
     }
     pub fn no_pipeline_found<K: std::fmt::Debug>(name: K) -> Self {
         Self::NoPipelineFound(format!("{:?}", name))
+    }
+    pub fn empty_buffer<K: std::fmt::Debug>(name: K) -> Self {
+        Self::EmptyBuffer(format!("{:?}", name))
     }
 }
 

@@ -15,6 +15,7 @@ pub struct ReadbackSender(pub Sender<Vec<u8>>);
 
 pub struct ReadbackBuffer {
     pub buffer: Buffer,
+    has_changed: bool,
 }
 
 pub(crate) trait Readable {
@@ -67,12 +68,28 @@ impl Readable for ReadbackReceiver {
 impl ReadbackBuffer {
     #[inline]
     pub fn new(buffer: Buffer) -> Self {
-        Self { buffer }
+        Self {
+            buffer,
+            has_changed: false,
+        }
     }
 
     #[inline]
     pub fn unmap(&self) {
         self.buffer.unmap();
+    }
+
+    #[inline]
+    pub fn mark_sent(&mut self) {
+        self.has_changed = false;
+    }
+    #[inline]
+    pub fn has_changed(&self) -> bool {
+        self.has_changed
+    }
+    #[inline]
+    pub fn mark_changed(&mut self) {
+        self.has_changed = true;
     }
 }
 

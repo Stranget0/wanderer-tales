@@ -74,18 +74,7 @@ fn add_directions_gizmos(gizmos: &mut Gizmos, start: Vec3, rotation: Quat) {
 fn log_shader_load(mut asset_event: EventReader<AssetEvent<Shader>>, shaders: Res<Assets<Shader>>) {
     for event in asset_event.read() {
         let e = match event {
-            AssetEvent::Added { id } => {
-                let shader = shaders.get(*id).unwrap();
-                Some(("Added", shader))
-            }
-            AssetEvent::Unused { id } => {
-                let shader = shaders.get(*id).unwrap();
-                Some(("Unused", shader))
-            }
-            AssetEvent::Removed { id } => {
-                let shader = shaders.get(*id).unwrap();
-                Some(("Reoved", shader))
-            }
+            AssetEvent::Added { id } => shaders.get(*id).map(|s| ("Added", s)),
             _ => None,
         };
         let Some((action, path, import_path)) = e.and_then(|e| {

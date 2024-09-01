@@ -229,14 +229,16 @@ where
         }
     }
 
-    fn push_binding(&mut self, binding: BindGroupLayoutEntryBuilder) {
+    fn push_binding(&mut self, binding_builder: BindGroupLayoutEntryBuilder) {
         let binding_index = self.entries.len() as u32;
+        let name = &self.name;
+        let binding = binding_builder.build(binding_index, self.visibility);
+        info!("layout {name:?} binding {binding_index} {binding:?}");
 
-        self.entries
-            .push(binding.build(binding_index, self.visibility));
+        self.entries.push(binding);
     }
 
-    pub fn uniform_slot<T: WriteInto + ShaderType>(mut self) -> Self {
+    pub fn with_uniform_slot<T: WriteInto + ShaderType>(mut self) -> Self {
         T::assert_uniform_compat();
 
         self.push_binding(binding_types::uniform_buffer::<T>(false));
@@ -244,7 +246,7 @@ where
         self
     }
 
-    pub fn storage_slot<T: WriteInto + ShaderType>(mut self) -> Self {
+    pub fn with_storage_slot<T: WriteInto + ShaderType>(mut self) -> Self {
         self.push_binding(binding_types::storage_buffer::<T>(false));
 
         self
@@ -261,13 +263,11 @@ where
 
 pub struct PipelineBuilder<
     'a,
-    'b,
     'c,
     P: std::fmt::Debug,
     BL: PartialEq + Eq + std::hash::Hash + std::fmt::Debug,
 > {
     entry_point: &'a str,
-    pipeline_cache: &'b PipelineCache,
     layouts_map: &'c HashMap<BL, BindGroupLayout>,
     shader: Handle<Shader>,
     shader_defs: Vec<ShaderDefVal>,
@@ -276,18 +276,16 @@ pub struct PipelineBuilder<
     name: P,
 }
 
-impl<'a, 'b, 'c, P: std::fmt::Debug, BL: PartialEq + Eq + std::hash::Hash + std::fmt::Debug>
-    PipelineBuilder<'a, 'b, 'c, P, BL>
+impl<'a, 'c, P: std::fmt::Debug, BL: PartialEq + Eq + std::hash::Hash + std::fmt::Debug>
+    PipelineBuilder<'a, 'c, P, BL>
 {
     pub fn new(
         name: P,
         shader: Handle<Shader>,
         entry_point: &'a str,
-        pipeline_cache: &'b PipelineCache,
         layouts_map: &'c HashMap<BL, BindGroupLayout>,
     ) -> Self {
         Self {
-            pipeline_cache,
             shader,
             layouts_map,
             name,
@@ -330,18 +328,17 @@ impl<'a, 'b, 'c, P: std::fmt::Debug, BL: PartialEq + Eq + std::hash::Hash + std:
         self
     }
 
-    pub fn build(self) -> CachedComputePipelineId {
-        self.pipeline_cache
-            .queue_compute_pipeline(ComputePipelineDescriptor {
-                label: Some(std::borrow::Cow::Owned(format!(
-                    "{:?}--pipeline",
-                    self.name
-                ))),
-                layout: self.layouts,
-                push_constant_ranges: self.push_constant_ranges,
-                shader: self.shader,
-                shader_defs: self.shader_defs,
-                entry_point: std::borrow::Cow::Owned(self.entry_point.to_string()),
-            })
+    pub fn build(self) -> ComputePipelineDescriptor {
+        ComputePipelineDescriptor {
+            label: Some(std::borrow::Cow::Owned(format!(
+                "{:?}--pipeline",
+                self.name
+            ))),
+            layout: self.layouts,
+            push_constant_ranges: self.push_constant_ranges,
+            shader: self.shader,
+            shader_defs: self.shader_defs,
+            entry_point: std::borrow::Cow::Owned(self.entry_point.to_string()),
+        }
     }
 }
