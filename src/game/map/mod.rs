@@ -14,21 +14,25 @@ use bevy::{
 };
 use utils::{BindLayoutBuilder, RenderBurritoNodeTrait, RenderBurritoPassTrait};
 
+const CHUNK_SUBDIVISIONS: u32 = 32;
+
 #[derive(Debug, ShaderType, bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
 #[repr(C)]
 struct MapPosition {
-    position: Vec3,
+    chunk_pos: IVec2,
 }
 
 #[derive(Debug, ShaderType, bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
 #[repr(C)]
 struct MapPointData {
-    pub height: f32,
+    pub height: [f32; CHUNK_SUBDIVISIONS as usize],
 }
 
 impl MapPosition {
-    pub fn new(position: Vec3) -> Self {
-        Self { position }
+    pub fn new(chunk_pos: ChunkPos) -> Self {
+        Self {
+            chunk_pos: chunk_pos.0,
+        }
     }
 }
 
@@ -69,9 +73,6 @@ impl MapPointResponse {
     }
 }
 
-#[derive(Component)]
-pub struct TestEntity;
-
 pub struct MapPlugin;
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
@@ -80,7 +81,7 @@ impl Plugin for MapPlugin {
         app.add_plugins(ExtractResourcePlugin::<MapPointRequest>::default())
             .insert_resource(MapPointRequest::default())
             .add_systems(PreUpdate, receive)
-            .add_systems(Update, test);
+            .add_systems(Update, (spawn_chunks, despawn_chunks));
 
         let render_app = app.sub_app_mut(RenderApp);
         render_app.add_systems(Render, prepare_bind_group.in_set(RenderSet::Prepare));
@@ -128,45 +129,124 @@ impl Plugin for MapPlugin {
     }
 }
 
-fn test(
-    mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
-    entities_query: Query<(Entity, &Name, Option<&MapPointResponse>), With<TestEntity>>,
-    mut requests: ResMut<MapPointRequest>,
-) {
-    let entities = entities_query.iter().collect_vec();
-    let digits = [
-        KeyCode::Digit1,
-        KeyCode::Digit2,
-        KeyCode::Digit3,
-        KeyCode::Digit4,
-    ];
-
-    for (i, key) in digits.into_iter().enumerate() {
-        if keys.just_pressed(key) {
-            println!("\x1B[2J\x1B[1;1H"); // ANSI escape codes to clear terminal screen
-            if let Some((entity, _, __)) = entities.get(i) {
-                requests.send_request(
-                    entity,
-                    vec![MapPosition::new(Vec3::new(i as f32, i as f32, i as f32))],
-                );
-                requests.send_request(
-                    entity,
-                    vec![MapPosition::new(Vec3::new(i as f32, i as f32, i as f32))],
-                );
-            } else {
-                commands.spawn((TestEntity, Name::from(format!("tester {}", i))));
-            }
-        }
+#[derive(Component, Debug, Hash, PartialEq, Eq, Clone, Copy)]
+struct ChunkPos(pub IVec2);
+impl ChunkPos {
+    fn new(x: i32, y: i32) -> Self {
+        Self(IVec2::new(x, y))
+    }
+    fn from_world_pos(position: Vec2) -> Self {
+        let x = (position.x / CHUNK_SIZE as f32) as i32;
+        let y = (position.y / CHUNK_SIZE as f32) as i32;
+        Self(IVec2::new(x, y))
     }
 
-    if keys.just_pressed(KeyCode::Space) {
-        for (_, name, response) in entities_query.iter() {
-            if let Some(response) = response {
-                info!("{}: {:?}", name, response);
-            } else {
-                warn!("{}: no response", name);
+    fn to_world_pos(&self) -> Vec2 {
+        Vec2::new(
+            self.0.x as f32 * CHUNK_SIZE as f32,
+            self.0.y as f32 * CHUNK_SIZE as f32,
+        )
+    }
+}
+impl std::fmt::Display for ChunkPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}x{})", self.0.x, self.0.y)
+    }
+}
+
+#[derive(Resource, Default)]
+struct ChunkManager {
+    chunks: HashMap<ChunkPos, Entity>,
+}
+impl ChunkManager {
+    fn handle_position_add(&mut self, commands: &mut Commands, position: Vec3) {
+        let camera_pos = ChunkPos::from_world_pos(position.xz());
+        let mut new_chunks = Vec::new();
+        for i in -CHUNK_RADIUS..CHUNK_RADIUS {
+            for j in -CHUNK_RADIUS..CHUNK_RADIUS {
+                let x = camera_pos.0.x + i;
+                let y = camera_pos.0.y + j;
+                let chunk_pos = ChunkPos::new(x, y);
+                if self.chunks.contains_key(&chunk_pos) {
+                    continue;
+                }
+                new_chunks.push(chunk_pos);
             }
+        }
+
+        let bundles = new_chunks
+            .iter()
+            .map(|chunk_pos| (Name::from(format!("chunk {}", chunk_pos))))
+            .map(|bundle| commands.spawn(bundle).id())
+            .collect_vec()
+            .into_iter()
+            .zip_eq(new_chunks);
+
+        for (entity, pos) in bundles {
+            self.chunks.insert(pos, entity);
+        }
+    }
+    fn handle_position_sub(&mut self, commands: &mut Commands, position: Vec3) {
+        let camera_pos = ChunkPos::from_world_pos(position.xz());
+        let mut removed_chunks = Vec::new();
+        for pos in self.chunks.keys() {
+            let from = Vec2::new(pos.0.x as f32, pos.0.y as f32);
+            let to = Vec2::new(camera_pos.0.x as f32, camera_pos.0.y as f32);
+            if from.distance(to) > CHUNK_RADIUS as f32 {
+                removed_chunks.push(pos.to_owned());
+            }
+        }
+
+        for key in removed_chunks {
+            let entity = self.chunks.remove(&key).unwrap();
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+const CHUNK_SIZE: i32 = 16;
+const CHUNK_RADIUS: i32 = 4;
+
+fn spawn_chunks(
+    mut commands: Commands,
+    mut chunks: ResMut<ChunkManager>,
+    camera_query: Query<(&Transform, &Camera), With<Camera3d>>,
+) {
+    let Some(camera_pos) = camera_query
+        .iter()
+        .max_by_key(|(_, camera)| camera.order)
+        .map(|(transform, _)| transform.translation)
+    else {
+        return;
+    };
+
+    chunks.handle_position_add(&mut commands, camera_pos);
+}
+
+fn despawn_chunks(
+    mut commands: Commands,
+    mut chunks: ResMut<ChunkManager>,
+    camera_query: Query<(&Transform, &Camera), With<Camera3d>>,
+) {
+    let Some(camera_pos) = camera_query
+        .iter()
+        .max_by_key(|(_, camera)| camera.order)
+        .map(|(transform, _)| transform.translation)
+    else {
+        return;
+    };
+
+    chunks.handle_position_sub(&mut commands, camera_pos);
+}
+
+fn request_render_chunks(
+    mut commands: Commands,
+    chunks: Query<(Entity, Ref<ChunkPos>)>,
+    map_point_requests: ResMut<MapPointRequest>,
+) {
+    for (entity, pos) in chunks.iter() {
+        if !pos.is_changed() && !pos.is_added() {
+            continue;
         }
     }
 }
