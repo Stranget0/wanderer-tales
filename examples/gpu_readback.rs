@@ -16,6 +16,7 @@ use bevy::{
         Render, RenderApp, RenderSet,
     },
 };
+use prelude::*;
 use wanderer_tales::utils::*;
 
 /// This example uses a shader source file from the assets subdirectory

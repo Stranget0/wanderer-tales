@@ -1,4 +1,5 @@
 use super::camera::*;
+use super::map::ChunkOrigin;
 use super::movement::*;
 use super::prelude::*;
 use bevy::prelude::*;
@@ -16,6 +17,7 @@ pub fn spawn_player(mut commands: Commands, asset_server: ResMut<AssetServer>) {
         MovementController::default(),
         RotationController::default(),
         CameraOrbitTarget { zoom: 5.0 },
+        ChunkOrigin,
         PbrBundle {
             mesh: asset_server.add(Cuboid::new(1.0, 1.0, 1.0).into()),
             material: asset_server.add(Color::srgb(0.5, 0.5, 0.5).into()),

@@ -21,6 +21,8 @@ use wgsl_keys::RenderStatePlugin;
 pub mod prelude {
     pub use super::utils;
     pub use super::wgsl_keys::*;
+    pub use bevy::math::*;
+    pub use bevy::prelude::*;
     pub use bevy::prelude::*;
     pub use itertools::Itertools;
 }

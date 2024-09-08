@@ -1,5 +1,5 @@
-pub(crate) mod primitives;
-pub(crate) mod wgsl;
+pub mod noise;
+pub mod primitives;
+pub mod wgsl;
 
-pub use primitives::*;
-pub use wgsl::prelude::*;
+pub use wgsl::prelude;

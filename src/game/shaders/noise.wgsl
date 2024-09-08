@@ -83,11 +83,6 @@ fn value_noise_2d(p: vec2f) -> ValueDt2 {
     let vc = rand21(i + vec2(0.0, 1.0));
     let vd = rand21(i + vec2(1.0, 1.0));
 
-    let k0 = va;
-    let k1 = vb - va;
-    let k2 = vc - va;
-    let k4 = va - vb - vc + vd;
-
     return ValueDt2(va + (vb - va) * u.x + (vc - va) * u.y + (va - vb - vc + vd) * u.x * u.y, // value
         du * (u.yx * (va - vb - vc + vd) + vec2(vb, vc) - va));     // derivative
 }

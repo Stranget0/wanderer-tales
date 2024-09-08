@@ -52,8 +52,8 @@ fn handle_zoom(
     for event in wheel.read() {
         for mut target in &mut observed_target {
             match event.unit {
-                MouseScrollUnit::Line => target.zoom += event.y * 0.1,
-                MouseScrollUnit::Pixel => target.zoom += event.y,
+                MouseScrollUnit::Line => target.zoom += target.zoom / 10.0 * event.y * 0.1,
+                MouseScrollUnit::Pixel => target.zoom += target.zoom / 10.0 * event.y,
             }
         }
     }

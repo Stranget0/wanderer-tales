@@ -1,368 +1,333 @@
 use crate::prelude::*;
+use libnoise::prelude::*;
 
 use bevy::{
-    ecs::system::SystemState,
+    color::palettes::tailwind,
+    pbr::{wireframe::Wireframe, ExtendedMaterial, MaterialExtension},
     prelude::*,
-    render::{
-        extract_resource::{ExtractResource, ExtractResourcePlugin},
-        render_graph::{self, RenderGraph},
-        render_resource::{PipelineCache, ShaderStages, ShaderType},
-        renderer::RenderDevice,
-        Render, RenderApp, RenderSet,
-    },
+    render::render_resource::{AsBindGroup, ShaderRef},
     utils::hashbrown::HashMap,
 };
-use utils::{BindLayoutBuilder, RenderBurritoNodeTrait, RenderBurritoPassTrait};
 
-const CHUNK_SUBDIVISIONS: u32 = 32;
+const CHUNK_SUBDIVISIONS: u32 = 2;
+const CHUNK_DATA_LEN: u32 = CHUNK_SUBDIVISIONS * CHUNK_SUBDIVISIONS;
 
-#[derive(Debug, ShaderType, bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
-#[repr(C)]
-struct MapPosition {
-    chunk_pos: IVec2,
+// World to chunk coordinates
+const CHUNK_SIZE: f32 = 16.0;
+
+// These are in chunks
+const CHUNK_SPAWN_RADIUS: u8 = 64;
+const CHUNK_VISIBILITY_RADIUS: u8 = 64;
+
+#[derive(Component)]
+pub struct ChunkOrigin;
+
+#[derive(Component)]
+struct Chunk;
+
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
+struct ChunkUnit(pub i32);
+impl ChunkUnit {
+    pub fn to_world_unit(self) -> i32 {
+        self.0 * CHUNK_SIZE as i32
+    }
+    pub fn from_world_unit(v: f32) -> i32 {
+        (v / CHUNK_SIZE) as i32
+    }
 }
-
-#[derive(Debug, ShaderType, bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
+#[derive(Component, Debug, Hash, PartialEq, Eq, Clone, Copy, Default)]
 #[repr(C)]
-struct MapPointData {
-    pub height: [f32; CHUNK_SUBDIVISIONS as usize],
+struct ChunkPosition3 {
+    pub x: ChunkUnit,
+    pub y: ChunkUnit,
+    pub z: ChunkUnit,
 }
-
-impl MapPosition {
-    pub fn new(chunk_pos: ChunkPos) -> Self {
+impl ChunkPosition3 {
+    pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self {
-            chunk_pos: chunk_pos.0,
+            x: ChunkUnit(x),
+            y: ChunkUnit(y),
+            z: ChunkUnit(z),
         }
     }
-}
 
-#[derive(Resource, ExtractResource, Clone, Debug, Default)]
-struct MapPointRequest {
-    positions: Vec<MapPosition>,
-    entities: Vec<Entity>,
-}
-
-impl MapPointRequest {
-    pub fn send_request(&mut self, entity: &Entity, positions: Vec<MapPosition>) {
-        self.entities
-            .extend(std::iter::repeat(*entity).take(positions.len()));
-        self.positions.extend(positions);
-        assert_eq!(self.positions.len(), self.entities.len());
-    }
-
-    pub fn clear(&mut self) {
-        info!("clearing ALL request");
-        self.positions.clear();
-        self.entities.clear();
-        // TODO: remove allocations?
-    }
-
-    pub fn len(&self) -> usize {
-        self.positions.len()
-    }
-}
-
-#[derive(Component, Clone, Debug, Default)]
-struct MapPointResponse {
-    heights: Vec<MapPointData>,
-}
-
-impl MapPointResponse {
-    pub fn new(heights: Vec<MapPointData>) -> Self {
-        Self { heights }
-    }
-}
-
-pub struct MapPlugin;
-impl Plugin for MapPlugin {
-    fn build(&self, app: &mut App) {
-        insert_readback_channel(app, RenderBufferKey::MapPointData);
-
-        app.add_plugins(ExtractResourcePlugin::<MapPointRequest>::default())
-            .insert_resource(MapPointRequest::default())
-            .add_systems(PreUpdate, receive)
-            .add_systems(Update, (spawn_chunks, despawn_chunks));
-
-        let render_app = app.sub_app_mut(RenderApp);
-        render_app.add_systems(Render, prepare_bind_group.in_set(RenderSet::Prepare));
-        render_app
-            .world_mut()
-            .resource_mut::<RenderGraph>()
-            .add_node(MapNodeLabel, RenderNode::new(MapNode));
-    }
-
-    fn finish(&self, app: &mut App) {
-        let world = app.sub_app_mut(RenderApp).world_mut();
-
-        let mut system_state: SystemState<(
-            ResMut<RenderStateRender>,
-            Res<RenderDevice>,
-            Res<PipelineCache>,
-            Res<AssetServer>,
-        )> = SystemState::new(world);
-
-        let (mut wgsl, render_device, pipeline_cache, asset_server) = system_state.get_mut(world);
-
-        wgsl.insert_layout(
-            RenderLayoutKey::MapLayout,
-            BindLayoutBuilder::new(
-                render_device.as_ref(),
-                RenderLayoutKey::MapLayout,
-                ShaderStages::COMPUTE,
-            )
-            .with_storage_slot::<Vec<MapPosition>>()
-            .with_storage_slot::<Vec<MapPointData>>()
-            .build(),
-        );
-
-        let pipeline_id = pipeline_cache.queue_compute_pipeline(
-            wgsl.builder_pipeline(
-                RenderPipelineKey::MapPipeline,
-                asset_server.load("shaders/map.wgsl"),
-                "main",
-            )
-            .with_layout(&RenderLayoutKey::MapLayout)
-            .build(),
-        );
-
-        wgsl.insert_pipeline(RenderPipelineKey::MapPipeline, pipeline_id);
-    }
-}
-
-#[derive(Component, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-struct ChunkPos(pub IVec2);
-impl ChunkPos {
-    fn new(x: i32, y: i32) -> Self {
-        Self(IVec2::new(x, y))
-    }
-    fn from_world_pos(position: Vec2) -> Self {
-        let x = (position.x / CHUNK_SIZE as f32) as i32;
-        let y = (position.y / CHUNK_SIZE as f32) as i32;
-        Self(IVec2::new(x, y))
-    }
-
-    fn to_world_pos(&self) -> Vec2 {
-        Vec2::new(
-            self.0.x as f32 * CHUNK_SIZE as f32,
-            self.0.y as f32 * CHUNK_SIZE as f32,
+    pub fn to_vec(self) -> Vec3 {
+        vec3(
+            self.x.0 as f32 * CHUNK_SIZE,
+            self.y.0 as f32 * CHUNK_SIZE,
+            self.z.0 as f32 * CHUNK_SIZE,
         )
     }
+    pub fn to_ivec(self) -> IVec3 {
+        ivec3(self.x.0, self.y.0, self.z.0)
+    }
+    pub fn to_world_pos(self) -> Vec3 {
+        vec3(
+            self.x.to_world_unit() as f32,
+            self.y.to_world_unit() as f32,
+            self.z.to_world_unit() as f32,
+        )
+    }
+    pub fn from_world_pos(pos: Vec3) -> Self {
+        let x = ChunkUnit::from_world_unit(pos.x);
+        let y = ChunkUnit::from_world_unit(pos.y);
+        let z = ChunkUnit::from_world_unit(pos.z);
+        Self::new(x, y, z)
+    }
+    pub fn to_2d(self) -> ChunkPosition2 {
+        ChunkPosition2::new(self.x.0, self.z.0)
+    }
 }
-impl std::fmt::Display for ChunkPos {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}x{})", self.0.x, self.0.y)
+
+#[derive(Component, Debug, Hash, PartialEq, Eq, Clone, Copy, Default)]
+struct ChunkPosition2 {
+    pub x: ChunkUnit,
+    pub y: ChunkUnit,
+}
+impl ChunkPosition2 {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self {
+            x: ChunkUnit(x),
+            y: ChunkUnit(y),
+        }
+    }
+
+    pub fn to_vec(self) -> Vec2 {
+        vec2(self.x.0 as f32 * CHUNK_SIZE, self.y.0 as f32 * CHUNK_SIZE)
+    }
+    pub fn to_ivec(self) -> IVec2 {
+        ivec2(self.x.0, self.y.0)
+    }
+    pub fn to_world_pos(self) -> Vec2 {
+        vec2(self.x.to_world_unit() as f32, self.y.to_world_unit() as f32)
+    }
+}
+
+fn chunk_position_3(x: i32, y: i32, z: i32) -> ChunkPosition3 {
+    ChunkPosition3::new(x, y, z)
+}
+fn chunk_position_2(x: i32, y: i32) -> ChunkPosition2 {
+    ChunkPosition2::new(x, y)
+}
+
+#[derive(Resource, Default)]
+pub struct MapRenderCenter {
+    center: ChunkPosition3,
+}
+impl MapRenderCenter {
+    pub fn to_world_pos(&self) -> Vec3 {
+        self.center.to_vec()
     }
 }
 
 #[derive(Resource, Default)]
 struct ChunkManager {
-    chunks: HashMap<ChunkPos, Entity>,
-}
-impl ChunkManager {
-    fn handle_position_add(&mut self, commands: &mut Commands, position: Vec3) {
-        let camera_pos = ChunkPos::from_world_pos(position.xz());
-        let mut new_chunks = Vec::new();
-        for i in -CHUNK_RADIUS..CHUNK_RADIUS {
-            for j in -CHUNK_RADIUS..CHUNK_RADIUS {
-                let x = camera_pos.0.x + i;
-                let y = camera_pos.0.y + j;
-                let chunk_pos = ChunkPos::new(x, y);
-                if self.chunks.contains_key(&chunk_pos) {
-                    continue;
-                }
-                new_chunks.push(chunk_pos);
-            }
-        }
-
-        let bundles = new_chunks
-            .iter()
-            .map(|chunk_pos| (Name::from(format!("chunk {}", chunk_pos))))
-            .map(|bundle| commands.spawn(bundle).id())
-            .collect_vec()
-            .into_iter()
-            .zip_eq(new_chunks);
-
-        for (entity, pos) in bundles {
-            self.chunks.insert(pos, entity);
-        }
-    }
-    fn handle_position_sub(&mut self, commands: &mut Commands, position: Vec3) {
-        let camera_pos = ChunkPos::from_world_pos(position.xz());
-        let mut removed_chunks = Vec::new();
-        for pos in self.chunks.keys() {
-            let from = Vec2::new(pos.0.x as f32, pos.0.y as f32);
-            let to = Vec2::new(camera_pos.0.x as f32, camera_pos.0.y as f32);
-            if from.distance(to) > CHUNK_RADIUS as f32 {
-                removed_chunks.push(pos.to_owned());
-            }
-        }
-
-        for key in removed_chunks {
-            let entity = self.chunks.remove(&key).unwrap();
-            commands.entity(entity).despawn();
-        }
-    }
+    chunks: HashMap<ChunkPosition2, Entity>,
 }
 
-const CHUNK_SIZE: i32 = 16;
-const CHUNK_RADIUS: i32 = 4;
+pub fn plugin(app: &mut App) {
+    app.init_resource::<MapRenderCenter>()
+        .init_resource::<ChunkManager>()
+        .add_plugins(MaterialPlugin::<
+            ExtendedMaterial<StandardMaterial, MapMaterialExtension>,
+        >::default())
+        .add_systems(Startup, spawn_map_shader)
+        .add_systems(
+            Update,
+            (
+                spawn_chunks,
+                register_chunks,
+                despawn_unregister_chunks,
+                render_chunks,
+                update_map_render_center,
+            ),
+        );
+}
+
+fn update_map_render_center(
+    query: Query<&Transform, With<ChunkOrigin>>,
+    mut map_render_center: ResMut<MapRenderCenter>,
+) {
+    let Ok(transform) = query.get_single() else {
+        return;
+    };
+
+    let position = transform.translation;
+    let chunk_position = ChunkPosition3::from_world_pos(position);
+    if map_render_center.center != chunk_position {
+        *map_render_center = MapRenderCenter {
+            center: chunk_position,
+        };
+        info!(
+            "Map render center ({}, {})",
+            chunk_position.x.0, chunk_position.z.0
+        );
+    }
+}
 
 fn spawn_chunks(
     mut commands: Commands,
-    mut chunks: ResMut<ChunkManager>,
-    camera_query: Query<(&Transform, &Camera), With<Camera3d>>,
+    center: Res<MapRenderCenter>,
+    chunk_manager: Res<ChunkManager>,
 ) {
-    let Some(camera_pos) = camera_query
-        .iter()
-        .max_by_key(|(_, camera)| camera.order)
-        .map(|(transform, _)| transform.translation)
-    else {
+    if !center.is_changed() {
         return;
-    };
+    }
+    let ChunkRect {
+        from_x,
+        to_x,
+        from_y,
+        to_y,
+    } = ChunkRect::from_circle_outside(center.center, CHUNK_SPAWN_RADIUS.into());
 
-    chunks.handle_position_add(&mut commands, camera_pos);
+    let mut bundles = Vec::new();
+    for x in from_x.0..=to_x.0 {
+        for y in from_y.0..=to_y.0 {
+            let chunk_position = chunk_position_3(x, 0, y);
+            if chunk_manager.chunks.contains_key(&chunk_position.to_2d()) {
+                continue;
+            }
+
+            bundles.push((
+                Chunk,
+                Name::new(format!("Chunk {}x{}", x, y)),
+                chunk_position,
+            ));
+        }
+    }
+    info!("Spawning {} chunks", bundles.len());
+    commands.spawn_batch(bundles);
 }
 
-fn despawn_chunks(
+fn despawn_unregister_chunks(
     mut commands: Commands,
-    mut chunks: ResMut<ChunkManager>,
-    camera_query: Query<(&Transform, &Camera), With<Camera3d>>,
+    center: Res<MapRenderCenter>,
+    mut chunk_manager: ResMut<ChunkManager>,
 ) {
-    let Some(camera_pos) = camera_query
-        .iter()
-        .max_by_key(|(_, camera)| camera.order)
-        .map(|(transform, _)| transform.translation)
-    else {
+    if !center.is_changed() {
         return;
-    };
+    }
+    let chunk_rect = ChunkRect::from_circle_outside(center.center, CHUNK_SPAWN_RADIUS.into());
 
-    chunks.handle_position_sub(&mut commands, camera_pos);
+    let removed_chunks = chunk_manager
+        .chunks
+        .extract_if(|pos, _| !chunk_rect.contains(pos));
+
+    let mut count = 0;
+    for (_, chunk) in removed_chunks {
+        count += 1;
+        commands.entity(chunk).despawn();
+    }
+    info!("Despawned {} chunks", count);
 }
 
-fn request_render_chunks(
-    mut commands: Commands,
-    chunks: Query<(Entity, Ref<ChunkPos>)>,
-    map_point_requests: ResMut<MapPointRequest>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct ChunkRect {
+    from_x: ChunkUnit,
+    to_x: ChunkUnit,
+    from_y: ChunkUnit,
+    to_y: ChunkUnit,
+}
+
+impl ChunkRect {
+    fn from_circle_outside(center: ChunkPosition3, chunk_radius: i32) -> Self {
+        let center = center.to_ivec();
+        let from_x = center.x - chunk_radius;
+        let to_x = center.x + chunk_radius;
+
+        let from_y = center.y - chunk_radius;
+        let to_y = center.y + chunk_radius;
+
+        Self {
+            from_x: ChunkUnit(from_x),
+            to_x: ChunkUnit(to_x),
+            from_y: ChunkUnit(from_y),
+            to_y: ChunkUnit(to_y),
+        }
+    }
+    fn contains(&self, chunk_position: &ChunkPosition2) -> bool {
+        self.from_x <= chunk_position.x
+            && chunk_position.x <= self.to_x
+            && self.from_y <= chunk_position.y
+            && chunk_position.y <= self.to_y
+    }
+}
+
+fn register_chunks(
+    mut chunk_manager: ResMut<ChunkManager>,
+    chunks: Query<(Entity, &ChunkPosition3), Added<Chunk>>,
 ) {
-    for (entity, pos) in chunks.iter() {
-        if !pos.is_changed() && !pos.is_added() {
+    for (chunk, chunk_position) in chunks.iter() {
+        chunk_manager.chunks.insert(chunk_position.to_2d(), chunk);
+    }
+}
+
+fn render_chunks(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    center: Res<MapRenderCenter>,
+    chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, Without<Handle<Mesh>>)>,
+) {
+    if !center.is_changed() {
+        return;
+    }
+
+    let center = center.center.to_ivec().xz();
+    let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
+
+    for (chunk_entity, chunk_position) in chunks.iter() {
+        let distance_squared = center.distance_squared(chunk_position.to_ivec().xz());
+        if distance_squared > render_radius_squared {
             continue;
         }
+        let chunk_translation = chunk_position.to_2d().to_world_pos();
+        let mesh =
+            utils::primitives::create_subdivided_plane(CHUNK_SUBDIVISIONS, CHUNK_SIZE, |x, y| {
+                let pos = chunk_translation + vec2(x, y);
+                let height = utils::noise::value_noise_2d(pos / 100.0);
+                (height.value * 10.0, height.get_normal().into())
+            });
+        let mesh_handle = asset_server.add(mesh);
+        let material_handle = asset_server.add(StandardMaterial {
+            base_color: Color::srgba(1.0, 0.0, 0.0, 0.1),
+            ..default()
+        });
+
+        commands.entity(chunk_entity).insert(PbrBundle {
+            mesh: mesh_handle,
+            material: material_handle,
+            transform: Transform::from_translation(chunk_position.to_world_pos()),
+            ..default()
+        });
     }
 }
 
-fn prepare_bind_group(
-    render_device: Res<RenderDevice>,
-    mut wgsl: ResMut<RenderStateRender>,
-    requested_points_query: Res<MapPointRequest>,
-) {
-    let points = &requested_points_query.positions;
-    if points.is_empty() {
-        return;
-    }
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+struct MapMaterialExtension {}
 
-    info!("preparing bind group {points:?}");
-    wgsl.start_create_buffers(render_device.as_ref())
-        .create_storage_rw(RenderBufferKey::MapPointPositions, points)
-        .create_empty_storage_readable(
-            RenderBufferKey::MapPointData,
-            (size_of::<MapPointData>() * points.len()) as u64,
-        );
-
-    wgsl.create_bind_group(
-        RenderBindGroupKey::MapBindGroup,
-        render_device.as_ref(),
-        RenderLayoutKey::MapLayout,
-        &[
-            RenderBufferKey::MapPointPositions,
-            RenderBufferKey::MapPointData,
-        ],
-    );
-}
-
-fn receive(
-    mut commands: Commands,
-    wgsl: Res<RenderStateMain>,
-    mut map_point_requests: ResMut<MapPointRequest>,
-) {
-    let Some(response) = wgsl.try_receive_vec::<MapPointData>(RenderBufferKey::MapPointData) else {
-        return;
-    };
-
-    info!(
-        "\n{} requests: {:?}\n{} responses: {:?}",
-        map_point_requests.positions.len(),
-        map_point_requests.positions,
-        response.len(),
-        response
-    );
-
-    let mut hash_map: HashMap<Entity, Vec<MapPointData>> = HashMap::with_capacity(response.len());
-    for (index, height) in response.iter().enumerate() {
-        if index >= map_point_requests.positions.len() {
-            warn!("received more responses than requests");
-            break;
-        }
-        let entity = &map_point_requests.entities[index];
-        match hash_map.get_mut(entity) {
-            Some(results) => {
-                results.push(*height);
-            }
-            None => {
-                hash_map.insert(*entity, vec![*height]);
-            }
-        }
-    }
-
-    for (entity, response) in hash_map.into_iter() {
-        if let Some(mut entity_commands) = commands.get_entity(entity) {
-            entity_commands.insert(MapPointResponse::new(response));
-        }
-    }
-
-    map_point_requests.clear();
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, render_graph::RenderLabel)]
-struct MapNodeLabel;
-
-enum MapNodePass {
-    HeightPass,
-}
-
-struct MapNode;
-
-impl RenderBurritoNodeTrait<RenderBufferKey, RenderBindGroupKey, RenderPipelineKey, MapNodePass>
-    for MapNode
-{
-    fn passes(&self) -> &[MapNodePass] {
-        &[MapNodePass::HeightPass]
-    }
-    fn label(&self) -> &str {
-        "MapNode"
-    }
-    fn staging_buffers(&self, _: &World) -> &[RenderBufferKey] {
-        &[RenderBufferKey::MapPointData]
-    }
-
-    fn should_run(&self, world: &World) -> bool {
-        !world.resource::<MapPointRequest>().positions.is_empty()
+impl MaterialExtension for MapMaterialExtension {
+    fn vertex_shader() -> ShaderRef {
+        "shaders/map.wgsl".into()
     }
 }
 
-impl RenderBurritoPassTrait<RenderBufferKey, RenderBindGroupKey, RenderPipelineKey>
-    for MapNodePass
-{
-    fn pipeline_key(&self, _: &World) -> &RenderPipelineKey {
-        &RenderPipelineKey::MapPipeline
-    }
+fn spawn_map_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let mesh = asset_server.add(utils::primitives::create_subdivided_plane(
+        CHUNK_SUBDIVISIONS * CHUNK_SPAWN_RADIUS as u32 * 2,
+        CHUNK_SIZE * CHUNK_SPAWN_RADIUS as f32 * 2.0,
+        |x, y| (0.0, [0.0, 1.0, 0.0]),
+    ));
 
-    fn bind_group_key(&self, _: &World) -> &RenderBindGroupKey {
-        &RenderBindGroupKey::MapBindGroup
-    }
-
-    fn workgroup_size(&self, world: &World) -> [u32; 3] {
-        let x = world.resource::<MapPointRequest>().positions.len() as u32;
-        [x, 1, 1]
-    }
+    let material = asset_server.add(ExtendedMaterial {
+        base: StandardMaterial {
+            base_color: tailwind::GREEN_700.into(),
+            ..default()
+        },
+        extension: MapMaterialExtension {},
+    });
+    commands.spawn(MaterialMeshBundle {
+        mesh,
+        material,
+        ..default()
+    });
 }

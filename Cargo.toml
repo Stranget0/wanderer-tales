@@ -9,6 +9,7 @@ bevy = { version = "0.14", features = ["wayland"] }
 bytemuck = "1.16.3"
 crossbeam-channel = "0.5.13"
 itertools = "0.13.0"
+libnoise = "1.1.2"
 # Disable low-severity logs at compile time for performance.
 log = { version = "0.4", features = [
     "max_level_debug",

@@ -1,7 +1,6 @@
-use crate::utils::{
-    insert_burrito_channel, NodeBurrito, WgslBurritoPlugin, WgslMainBurrito, WgslRenderBurrito,
-};
 use bevy::prelude::*;
+
+use crate::utils::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RenderBufferKey {
