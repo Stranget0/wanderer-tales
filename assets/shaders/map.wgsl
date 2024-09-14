@@ -1,5 +1,5 @@
 #import wanderer_tales::utils::morph_vertex
-#import wanderer_tales::noise::value_noise_2d
+#import wanderer_tales::noise::{value_noise_2d,compute_normal}
 
 #import bevy_pbr::{
     mesh_bindings::mesh,
@@ -28,23 +28,31 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
     var world_from_local = mesh_functions::get_world_from_local(vertex_no_morph.instance_index);
 #endif
 
+#ifdef VERTEX_POSITIONS
+    out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
+    let noise = value_noise_2d(out.world_position.xz / 100.0);
+    out.world_position.y = noise.value * 10.0;
+    out.position = position_world_to_clip(out.world_position.xyz);
+
+    #ifdef SKINNED
+    out.world_normal = skinning::skin_normals(world_from_local, compute_normal(noise.derivative));
+    #else
+    out.world_normal = mesh_functions::mesh_normal_local_to_world(
+        compute_normal(noise.derivative),
+        vertex_no_morph.instance_index
+    );
+#else
 #ifdef VERTEX_NORMALS
 #ifdef SKINNED
     out.world_normal = skinning::skin_normals(world_from_local, vertex.normal);
 #else
     out.world_normal = mesh_functions::mesh_normal_local_to_world(
         vertex.normal,
-        // Use vertex_no_morph.instance_index instead of vertex.instance_index to work around a wgpu dx12 bug.
-        // See https://github.com/gfx-rs/naga/issues/2416
         vertex_no_morph.instance_index
     );
 #endif
 #endif
-
-#ifdef VERTEX_POSITIONS
-    out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
-    out.world_position.y = value_noise_2d(out.world_position.xz/100.0).value * 10.0;
-    out.position = position_world_to_clip(out.world_position.xyz);
+#endif
 #endif
 
 #ifdef VERTEX_UVS_A
@@ -76,7 +84,8 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 
 #ifdef VISIBILITY_RANGE_DITHER
     out.visibility_range_dither = mesh_functions::get_visibility_range_dither_level(
-        vertex_no_morph.instance_index, world_from_local[3]);
+        vertex_no_morph.instance_index, world_from_local[3]
+    );
 #endif
 
     return out;

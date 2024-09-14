@@ -1,29 +1,37 @@
 use crate::prelude::*;
-use libnoise::prelude::*;
 
 use bevy::{
     color::palettes::tailwind,
-    pbr::{wireframe::Wireframe, ExtendedMaterial, MaterialExtension},
+    input::keyboard::KeyboardInput,
+    pbr::{ExtendedMaterial, MaterialExtension},
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderRef},
+    render::{
+        mesh::VertexAttributeValues,
+        render_resource::{AsBindGroup, ShaderRef},
+    },
     utils::hashbrown::HashMap,
 };
 
 const CHUNK_SUBDIVISIONS: u32 = 2;
-const CHUNK_DATA_LEN: u32 = CHUNK_SUBDIVISIONS * CHUNK_SUBDIVISIONS;
 
 // World to chunk coordinates
 const CHUNK_SIZE: f32 = 16.0;
 
 // These are in chunks
 const CHUNK_SPAWN_RADIUS: u8 = 64;
-const CHUNK_VISIBILITY_RADIUS: u8 = 64;
+const CHUNK_VISIBILITY_RADIUS: u8 = 16;
 
 #[derive(Component)]
 pub struct ChunkOrigin;
 
 #[derive(Component)]
 struct Chunk;
+
+#[derive(Component)]
+struct ShaderMap;
+
+#[derive(Component)]
+struct DrawNormals;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
 struct ChunkUnit(pub i32);
@@ -128,10 +136,13 @@ struct ChunkManager {
 pub fn plugin(app: &mut App) {
     app.init_resource::<MapRenderCenter>()
         .init_resource::<ChunkManager>()
-        .add_plugins(MaterialPlugin::<
-            ExtendedMaterial<StandardMaterial, MapMaterialExtension>,
-        >::default())
-        .add_systems(Startup, spawn_map_shader)
+        .add_plugins((
+            MaterialPlugin::<ExtendedMaterial<StandardMaterial, MapMaterialExtension>>::default(),
+            MaterialPlugin::<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>::default(),
+            MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>, MapMaterialExtension>>::default(),
+            MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, MapMaterialExtension>, DebugNormalsMaterialExtension>>::default(),
+        ))
+        // .add_systems(Startup, spawn_map_shader)
         .add_systems(
             Update,
             (
@@ -140,8 +151,12 @@ pub fn plugin(app: &mut App) {
                 despawn_unregister_chunks,
                 render_chunks,
                 update_map_render_center,
+
+                draw_normals_system,
             ),
-        );
+        )
+
+    ;
 }
 
 fn update_map_render_center(
@@ -275,6 +290,7 @@ fn render_chunks(
     let center = center.center.to_ivec().xz();
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
+    let mut count = 0;
     for (chunk_entity, chunk_position) in chunks.iter() {
         let distance_squared = center.distance_squared(chunk_position.to_ivec().xz());
         if distance_squared > render_radius_squared {
@@ -284,22 +300,44 @@ fn render_chunks(
         let mesh =
             utils::primitives::create_subdivided_plane(CHUNK_SUBDIVISIONS, CHUNK_SIZE, |x, y| {
                 let pos = chunk_translation + vec2(x, y);
-                let height = utils::noise::value_noise_2d(pos / 100.0);
-                (height.value * 10.0, height.get_normal().into())
-            });
-        let mesh_handle = asset_server.add(mesh);
-        let material_handle = asset_server.add(StandardMaterial {
-            base_color: Color::srgba(1.0, 0.0, 0.0, 0.1),
-            ..default()
-        });
 
-        commands.entity(chunk_entity).insert(PbrBundle {
-            mesh: mesh_handle,
-            material: material_handle,
-            transform: Transform::from_translation(chunk_position.to_world_pos()),
-            ..default()
-        });
+                let mut layer_1 = utils::noise::value_noise_2d(pos / 100.0);
+                let compound_derivative = layer_1.derivative;
+                layer_1.value *= 1.0 / (1.0 + compound_derivative.length());
+
+                (layer_1.value * 10.0, layer_1.get_normal().into())
+            });
+
+        let transform = Transform::from_translation(chunk_position.to_world_pos());
+        let debug_normals = create_debug_normals(&mesh, &transform);
+
+        let mesh_handle = asset_server.add(mesh);
+        let material_handle = asset_server.add(
+            // ExtendedMaterial {
+            // base:
+            StandardMaterial {
+                base_color: tailwind::GRAY_400.into(),
+                perceptual_roughness: 0.9,
+
+                ..default() // },
+                            // extension: DebugNormalsMaterialExtension {},
+            },
+        );
+
+        commands.entity(chunk_entity).insert((
+            MaterialMeshBundle {
+                mesh: mesh_handle,
+                material: material_handle,
+                transform,
+                ..default()
+            },
+            debug_normals,
+        ));
+
+        count += 1;
     }
+
+    info!("Rendered {} chunks", count);
 }
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
@@ -311,6 +349,15 @@ impl MaterialExtension for MapMaterialExtension {
     }
 }
 
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+struct DebugNormalsMaterialExtension {}
+
+impl MaterialExtension for DebugNormalsMaterialExtension {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/fragment_debug_normals.wgsl".into()
+    }
+}
+
 fn spawn_map_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mesh = asset_server.add(utils::primitives::create_subdivided_plane(
         CHUNK_SUBDIVISIONS * CHUNK_SPAWN_RADIUS as u32 * 2,
@@ -318,16 +365,57 @@ fn spawn_map_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
         |x, y| (0.0, [0.0, 1.0, 0.0]),
     ));
 
-    let material = asset_server.add(ExtendedMaterial {
-        base: StandardMaterial {
-            base_color: tailwind::GREEN_700.into(),
+    let base = StandardMaterial {
+        base_color: tailwind::GREEN_700.into(),
+        ..default()
+    };
+    let base = ExtendedMaterial {
+        base,
+        extension: MapMaterialExtension {},
+    };
+    let asset = ExtendedMaterial {
+        base,
+        extension: DebugNormalsMaterialExtension {},
+    };
+    let material = asset_server.add(asset);
+
+    commands.spawn((
+        ShaderMap,
+        MaterialMeshBundle {
+            mesh,
+            material,
             ..default()
         },
-        extension: MapMaterialExtension {},
-    });
-    commands.spawn(MaterialMeshBundle {
-        mesh,
-        material,
-        ..default()
-    });
+    ));
+}
+
+fn draw_normals_system(mut gizmos: Gizmos, query: Query<&DebugNormals>) {
+    for normals in query.iter() {
+        for normal in &normals.0 {
+            gizmos.line(normal.0, normal.1, tailwind::RED_400);
+        }
+    }
+}
+
+#[derive(Component)]
+struct DebugNormals(pub Vec<(Vec3, Vec3)>);
+
+fn create_debug_normals(mesh: &Mesh, transform: &Transform) -> DebugNormals {
+    let mut debug_normals = Vec::new();
+    if let Some(VertexAttributeValues::Float32x3(positions)) =
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+    {
+        if let Some(VertexAttributeValues::Float32x3(normals)) =
+            mesh.attribute(Mesh::ATTRIBUTE_NORMAL)
+        {
+            for (i, position) in positions.iter().enumerate() {
+                let pos = Vec3::new(position[0], position[1], position[2]);
+                let normal = Vec3::new(normals[i][0], normals[i][1], normals[i][2]);
+                let world_pos = transform.transform_point(pos);
+
+                debug_normals.push((world_pos, world_pos + normal));
+            }
+        }
+    }
+    DebugNormals(debug_normals)
 }

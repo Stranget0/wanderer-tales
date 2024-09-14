@@ -110,3 +110,6 @@ fn gradient_noise_2d(p: vec2f) -> ValueDt2 {
                  du * (u.yx * (va - vb - vc + vd) + vec2(vb, vc) - va));
 }
 
+fn compute_normal(derivative: vec2<f32>) -> vec3<f32> {
+    return (vec3(-derivative.x, 1.0, -derivative.y));
+}

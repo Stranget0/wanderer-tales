@@ -16,6 +16,7 @@ use bevy::{
         RenderPlugin,
     },
 };
+use bevy_dexterous_developer::reloadable_main;
 use wgsl_keys::RenderStatePlugin;
 
 pub mod prelude {
@@ -23,26 +24,19 @@ pub mod prelude {
     pub use super::wgsl_keys::*;
     pub use bevy::math::*;
     pub use bevy::prelude::*;
-    pub use bevy::prelude::*;
     pub use itertools::Itertools;
 }
 
 pub struct AppPlugin;
 
-impl Plugin for AppPlugin {
-    fn build(&self, app: &mut App) {
+reloadable_main!( bevy_main(initial_plugins) {
         // Order new `AppStep` variants by adding them here:
-        app.configure_sets(
+       App::new().configure_sets(
             Update,
             (AppSet::TickTimers, AppSet::RecordInput, AppSet::Update).chain(),
-        );
-
-        // Spawn the main camera.
-        app.add_systems(Startup, spawn_camera_ui);
-
-        // Add Bevy plugins.
-        app.add_plugins(
-            DefaultPlugins
+        ).add_systems(Startup, spawn_camera_ui)
+        .add_plugins(
+            initial_plugins.initialize::<DefaultPlugins>()
                 .set(AssetPlugin {
                     // Wasm builds will check for meta files (that don't exist) if this isn't set.
                     // This causes errors and even panics on web build on itch.
@@ -77,18 +71,10 @@ impl Plugin for AppPlugin {
                     level: bevy::log::Level::INFO,
                     ..default()
                 }),
-        );
-
-        app.add_plugins(RenderStatePlugin::new());
-
-        // Add other plugins.
-        app.add_plugins((game::plugin, screen::plugin, ui::plugin));
-
-        // Enable dev tools for dev builds.
-        #[cfg(feature = "dev")]
-        app.add_plugins(dev_tools::plugin);
-    }
-}
+        ).add_plugins(RenderStatePlugin::new())
+        .add_plugins((game::plugin, screen::plugin, ui::plugin))
+        .add_plugins(dev_tools::plugin);
+});
 
 /// High-level groupings of systems for the app in the `Update` schedule.
 /// When adding a new variant, make sure to order it in the `configure_sets`

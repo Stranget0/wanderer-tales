@@ -1,5 +1,8 @@
+use std::ops::*;
+
 pub use bevy::math::*;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ValueDt2 {
     pub value: f32,
     pub derivative: Vec2,
@@ -9,9 +12,59 @@ impl ValueDt2 {
         Self { value, derivative }
     }
     pub fn get_normal(&self) -> Vec3 {
-        vec3(-self.derivative.x, 1.0, -self.derivative.x)
+        vec3(-self.derivative.x, 1.0, -self.derivative.y).normalize()
     }
 }
+
+// impl Add<f32> for ValueDt2 {
+//     type Output = Self;
+//     fn add(self, rhs: f32) -> Self {
+//         Self::new(self.value + rhs, self.derivative)
+//     }
+// }
+//
+// impl Sub<f32> for ValueDt2 {
+//     type Output = Self;
+//     fn sub(self, rhs: f32) -> Self {
+//         Self::new(self.value - rhs, self.derivative)
+//     }
+// }
+//
+// impl Mul<f32> for ValueDt2 {
+//     type Output = Self;
+//     fn mul(self, rhs: f32) -> Self {
+//         Self::new(self.value * rhs, self.derivative * rhs)
+//     }
+// }
+// impl Div<f32> for ValueDt2 {
+//     type Output = Self;
+//     fn div(self, rhs: f32) -> Self {
+//         Self::new(self.value / rhs, self.derivative / rhs)
+//     }
+// }
+//
+// impl Add<ValueDt2> for ValueDt2 {
+//     type Output = Self;
+//     fn add(self, rhs: Self) -> Self {
+//         Self::new(self.value + rhs.value, self.derivative + rhs.derivative)
+//     }
+// }
+//
+// impl Sub<ValueDt2> for ValueDt2 {
+//     type Output = Self;
+//     fn sub(self, rhs: Self) -> Self {
+//         Self::new(self.value - rhs.value, self.derivative - rhs.derivative)
+//     }
+// }
+//
+// impl Mul<ValueDt2> for ValueDt2 {
+//     type Output = Self;
+//     fn mul(self, rhs: Self) -> Self {
+//         let derivative = self.derivative * rhs.value + rhs.derivative * self.value;
+//         let value = self.value * rhs.value;
+//         Self::new(value, derivative)
+//     }
+// }
 
 pub struct ValueDt3 {
     pub value: f32,

@@ -22,8 +22,8 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            add_forward_gizmo,
-            add_world_gizmo,
+            // add_forward_gizmo,
+            // add_world_gizmo,
             add_camera_debug,
             log_shader_load,
         ),
