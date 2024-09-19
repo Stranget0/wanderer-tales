@@ -1,13 +1,8 @@
 use crate::prelude::*;
 
 use bevy::{
-    color::palettes::tailwind,
     pbr::{ExtendedMaterial, MaterialExtension},
-    prelude::*,
-    render::{
-        mesh::VertexAttributeValues,
-        render_resource::{AsBindGroup, ShaderRef},
-    },
+    render::render_resource::{AsBindGroup, ShaderRef},
     utils::hashbrown::HashMap,
 };
 
@@ -28,9 +23,6 @@ struct Chunk;
 
 #[derive(Component)]
 struct ShaderMap;
-
-#[derive(Component)]
-struct DrawNormals;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
 struct ChunkUnit(pub i32);
@@ -143,9 +135,9 @@ pub fn plugin(app: &mut App) {
         ))
         // .add_systems(Startup, spawn_map_shader)
         .add_systems(Startup, (
-                        spawn_chunks,
-                                    render_chunks,
-                register_chunks.after(spawn_chunks),
+            spawn_chunks,
+            render_chunks,
+            register_chunks.after(spawn_chunks),
         ))
         .add_systems(
             Update,
@@ -154,11 +146,9 @@ pub fn plugin(app: &mut App) {
                 register_chunks,
                 (
                     spawn_chunks,
-                despawn_unregister_chunks,
-                render_chunks
+                    despawn_unregister_chunks,
+                    render_chunks
                 ).run_if(render_center_changed),
-
-                draw_normals_system,
             ),
         )
             ;
@@ -289,6 +279,9 @@ fn render_chunks(
     let center = center.center.to_ivec().xz();
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
+    // size amplitude sharpness
+    let weights = [(1000.0, 5000.0, 100.0)];
+
     let mut count = 0;
     for (chunk_entity, chunk_position) in chunks.iter() {
         let distance_squared = center.distance_squared(chunk_position.to_ivec().xz());
@@ -300,15 +293,25 @@ fn render_chunks(
             utils::primitives::create_subdivided_plane(CHUNK_SUBDIVISIONS, CHUNK_SIZE, |x, y| {
                 let pos = chunk_translation + vec2(x, y);
 
-                let mut layer_1 = utils::noise::value_noise_2d(pos / 100.0);
-                let compound_derivative = layer_1.derivative;
-                layer_1.value *= 1.0 / (1.0 + compound_derivative.length());
+                let (size, amplitude, sharpness) = weights[0];
+                let layer_1 = utils::noise::value_noise_2d(pos / size);
+                let mut compound_derivative = layer_1.derivative;
+                let mut value =
+                    layer_1.value * amplitude / (1.0 + sharpness * compound_derivative.length());
 
-                (layer_1.value * 1.0, layer_1.get_normal().into())
+                for (size, amplitude, sharpness) in weights.into_iter().skip(1) {
+                    let layer = utils::noise::value_noise_2d(pos / size);
+                    compound_derivative += layer.derivative;
+                    value +=
+                        layer.value * amplitude / (1.0 + sharpness * compound_derivative.length());
+                }
+
+                (value, compound_derivative.get_normal().into())
             });
 
         let transform = Transform::from_translation(chunk_position.to_world_pos());
-        let debug_normals = create_debug_normals(&mesh, &transform);
+        let mut debug_normals = DebugNormals::from_mesh(&mesh);
+        debug_normals.apply_transform(&transform);
 
         let mesh_handle = asset_server.add(mesh);
         let material_handle = asset_server.add(
@@ -386,35 +389,4 @@ fn spawn_map_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
     ));
-}
-
-fn draw_normals_system(mut gizmos: Gizmos, query: Query<&DebugNormals>) {
-    for normals in query.iter() {
-        for normal in &normals.0 {
-            gizmos.line(normal.0, normal.1, tailwind::RED_400);
-        }
-    }
-}
-
-#[derive(Component)]
-struct DebugNormals(pub Vec<(Vec3, Vec3)>);
-
-fn create_debug_normals(mesh: &Mesh, transform: &Transform) -> DebugNormals {
-    let mut debug_normals = Vec::new();
-    if let Some(VertexAttributeValues::Float32x3(positions)) =
-        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
-    {
-        if let Some(VertexAttributeValues::Float32x3(normals)) =
-            mesh.attribute(Mesh::ATTRIBUTE_NORMAL)
-        {
-            for (i, position) in positions.iter().enumerate() {
-                let pos = Vec3::new(position[0], position[1], position[2]);
-                let normal = Vec3::new(normals[i][0], normals[i][1], normals[i][2]);
-                let world_pos = transform.transform_point(pos);
-
-                debug_normals.push((world_pos, world_pos + normal));
-            }
-        }
-    }
-    DebugNormals(debug_normals)
 }

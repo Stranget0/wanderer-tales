@@ -1,4 +1,3 @@
-#[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
 mod screen;
@@ -6,21 +5,14 @@ mod ui;
 pub mod utils;
 pub mod wgsl_keys;
 
-use bevy::{
-    asset::AssetMetaCheck,
-    audio::{AudioPlugin, Volume},
-    log::LogPlugin,
-    prelude::*,
-    render::{
-        settings::{RenderCreation, WgpuFeatures, WgpuSettings},
-        RenderPlugin,
-    },
-};
+use bevy::prelude::*;
 use wgsl_keys::RenderStatePlugin;
 
 pub mod prelude {
     pub use super::utils;
     pub use super::wgsl_keys::*;
+    pub use crate::dev_tools::*;
+    pub use bevy::color::palettes::tailwind;
     pub use bevy::math::*;
     pub use bevy::prelude::*;
     pub use itertools::Itertools;

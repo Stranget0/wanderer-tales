@@ -12,7 +12,7 @@ pub fn spawn_player(mut commands: Commands, asset_server: ResMut<AssetServer>) {
     commands.spawn((
         Name::new("Player"),
         StateScoped(Screen::Playing),
-        MovementSpeed(10.0),
+        MovementSpeed(100.0),
         RotationSpeed(10.0),
         MovementController::default(),
         RotationController::default(),
