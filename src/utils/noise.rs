@@ -162,7 +162,8 @@ mod tests {
         for x in -10000..10000 {
             for y in -10000..10000 {
                 let v = value_noise_2d(vec2(x as f32 / 100.0, y as f32 / 100.0));
-                assert!(v.value.abs() <= 1.0);
+                assert!(v.value <= 1.0);
+                assert!(v.value >= 0.0);
             }
         }
     }
