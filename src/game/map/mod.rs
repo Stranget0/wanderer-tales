@@ -2,7 +2,6 @@ use crate::prelude::*;
 
 use bevy::{
     color::palettes::tailwind,
-    input::keyboard::KeyboardInput,
     pbr::{ExtendedMaterial, MaterialExtension},
     prelude::*,
     render::{
@@ -143,20 +142,26 @@ pub fn plugin(app: &mut App) {
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, MapMaterialExtension>, DebugNormalsMaterialExtension>>::default(),
         ))
         // .add_systems(Startup, spawn_map_shader)
+        .add_systems(Startup, (
+                        spawn_chunks,
+                                    render_chunks,
+                register_chunks.after(spawn_chunks),
+        ))
         .add_systems(
             Update,
             (
-                spawn_chunks,
-                register_chunks,
-                despawn_unregister_chunks,
-                render_chunks,
                 update_map_render_center,
+                register_chunks,
+                (
+                    spawn_chunks,
+                despawn_unregister_chunks,
+                render_chunks
+                ).run_if(render_center_changed),
 
                 draw_normals_system,
             ),
         )
-
-    ;
+            ;
 }
 
 fn update_map_render_center(
@@ -185,9 +190,6 @@ fn spawn_chunks(
     center: Res<MapRenderCenter>,
     chunk_manager: Res<ChunkManager>,
 ) {
-    if !center.is_changed() {
-        return;
-    }
     let ChunkRect {
         from_x,
         to_x,
@@ -214,14 +216,15 @@ fn spawn_chunks(
     commands.spawn_batch(bundles);
 }
 
+fn render_center_changed(center: Res<MapRenderCenter>) -> bool {
+    center.is_changed()
+}
+
 fn despawn_unregister_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     mut chunk_manager: ResMut<ChunkManager>,
 ) {
-    if !center.is_changed() {
-        return;
-    }
     let chunk_rect = ChunkRect::from_circle_outside(center.center, CHUNK_SPAWN_RADIUS.into());
 
     let removed_chunks = chunk_manager
@@ -283,10 +286,6 @@ fn render_chunks(
     center: Res<MapRenderCenter>,
     chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, Without<Handle<Mesh>>)>,
 ) {
-    if !center.is_changed() {
-        return;
-    }
-
     let center = center.center.to_ivec().xz();
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
@@ -305,7 +304,7 @@ fn render_chunks(
                 let compound_derivative = layer_1.derivative;
                 layer_1.value *= 1.0 / (1.0 + compound_derivative.length());
 
-                (layer_1.value * 10.0, layer_1.get_normal().into())
+                (layer_1.value * 1.0, layer_1.get_normal().into())
             });
 
         let transform = Transform::from_translation(chunk_position.to_world_pos());

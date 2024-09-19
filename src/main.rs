@@ -11,13 +11,12 @@ use bevy::{
         RenderPlugin,
     },
 };
-use bevy_dexterous_developer::*;
 use wanderer_tales::AppPlugin;
 
-reloadable_main!((initial_plugins) {
+fn main() {
     App::new()
-        .add_plugins(
-            initial_plugins.initialize::<DefaultPlugins>()
+        .add_plugins((
+            DefaultPlugins
                 .set(AssetPlugin {
                     // Wasm builds will check for meta files (that don't exist) if this isn't set.
                     // This causes errors and even panics on web build on itch.
@@ -52,7 +51,7 @@ reloadable_main!((initial_plugins) {
                     level: bevy::log::Level::INFO,
                     ..default()
                 }),
-        )
-        .add_plugins(AppPlugin)
-        .run()
-});
+            AppPlugin,
+        ))
+        .run();
+}

@@ -1,5 +1,7 @@
 features = [
-    "hot"
+    "hot",
+    "bevy/dynamic_linking"
+
 ]
 code_watch_folders = ["./src"]
 asset_folders = ["./assets"]
