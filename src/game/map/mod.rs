@@ -1,10 +1,12 @@
 use crate::prelude::*;
 
 use bevy::{
+    input::{common_conditions::input_just_pressed, keyboard::KeyboardInput},
     pbr::{ExtendedMaterial, MaterialExtension},
     render::render_resource::{AsBindGroup, ShaderRef},
     utils::hashbrown::HashMap,
 };
+use utils::noise::PcgHasher;
 
 const CHUNK_SUBDIVISIONS: u32 = 2;
 
@@ -121,37 +123,58 @@ impl MapRenderCenter {
 
 #[derive(Resource, Default)]
 struct ChunkManager {
-    chunks: HashMap<ChunkPosition2, Entity>,
+    pub chunks: HashMap<ChunkPosition2, Entity>,
+}
+
+#[derive(Resource, Default)]
+struct MapSeed(pub u32);
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+enum MapSystemSets {
+    ChunkMutate,
+    ChunkRegister,
+    ChunkRender,
+
+    ChunkReload,
+    Input,
 }
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<MapRenderCenter>()
         .init_resource::<ChunkManager>()
+        .init_resource::<MapSeed>()
         .add_plugins((
             MaterialPlugin::<ExtendedMaterial<StandardMaterial, MapMaterialExtension>>::default(),
             MaterialPlugin::<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>::default(),
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>, MapMaterialExtension>>::default(),
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, MapMaterialExtension>, DebugNormalsMaterialExtension>>::default(),
         ))
-        // .add_systems(Startup, spawn_map_shader)
+            .configure_sets(Startup, (MapSystemSets::ChunkMutate, MapSystemSets::ChunkRegister, MapSystemSets::ChunkRender).chain())
+            .configure_sets(Update, (MapSystemSets::ChunkReload.run_if(seed_changed),MapSystemSets::ChunkMutate.run_if(render_center_changed), MapSystemSets::ChunkRegister, MapSystemSets::ChunkRender).chain())
         .add_systems(Startup, (
-            spawn_chunks,
-            render_chunks,
-            register_chunks.after(spawn_chunks),
+            spawn_chunks.in_set(MapSystemSets::ChunkMutate),
+            render_chunks.in_set(MapSystemSets::ChunkRender),
+            register_chunks.in_set(MapSystemSets::ChunkRegister),
         ))
         .add_systems(
             Update,
             (
-                update_map_render_center,
-                register_chunks,
+                update_map_render_center.before(MapSystemSets::ChunkMutate),
+                register_chunks.in_set(MapSystemSets::ChunkRegister),
                 (
-                    spawn_chunks,
-                    despawn_unregister_chunks,
-                    render_chunks
+                    spawn_chunks.in_set(MapSystemSets::ChunkMutate),
+                    despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
+                    render_chunks.in_set(MapSystemSets::ChunkRender)
                 ).run_if(render_center_changed),
+                change_map_seed.in_set(MapSystemSets::Input).run_if(input_just_pressed(KeyCode::Space)),
+                (
+                    despawn_entities::<Chunk>,
+                    clear_chunk_registry,
+                    spawn_chunks.after(clear_chunk_registry),
+                    // render_chunks.after(spawn_chunks),
+                ).in_set(MapSystemSets::ChunkReload),
             ),
-        )
-            ;
+        );
 }
 
 fn update_map_render_center(
@@ -210,7 +233,7 @@ fn render_center_changed(center: Res<MapRenderCenter>) -> bool {
     center.is_changed()
 }
 
-fn despawn_unregister_chunks(
+fn despawn_unregister_out_of_range_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     mut chunk_manager: ResMut<ChunkManager>,
@@ -275,12 +298,15 @@ fn render_chunks(
     asset_server: Res<AssetServer>,
     center: Res<MapRenderCenter>,
     chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, Without<Handle<Mesh>>)>,
+
+    seed: Res<MapSeed>,
 ) {
+    info!("Rendering {} chunks", chunks.iter().count());
     let center = center.center.to_ivec().xz();
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
     // size amplitude sharpness
-    let weights = [(1000.0, 5000.0, 100.0)];
+    let weights = [(100.0, 100.0, 100.0)];
 
     let mut count = 0;
     for (chunk_entity, chunk_position) in chunks.iter() {
@@ -294,16 +320,19 @@ fn render_chunks(
                 let pos = chunk_translation + vec2(x, y);
 
                 let (size, amplitude, sharpness) = weights[0];
-                let layer_1 = utils::noise::value_noise_2d(pos / size);
+                let layer_1 = utils::noise::value_noise_2d(pos / size, &PcgHasher::new(seed.0));
                 let mut compound_derivative = layer_1.derivative;
                 let mut value =
                     layer_1.value * amplitude / (1.0 + sharpness * compound_derivative.length());
 
+                let mut count = seed.0 + 1;
                 for (size, amplitude, sharpness) in weights.into_iter().skip(1) {
-                    let layer = utils::noise::value_noise_2d(pos / size);
+                    let hasher = PcgHasher::new(count);
+                    let layer = utils::noise::value_noise_2d(pos / size, &hasher);
                     compound_derivative += layer.derivative;
                     value +=
                         layer.value * amplitude / (1.0 + sharpness * compound_derivative.length());
+                    count += 1;
                 }
 
                 (value, compound_derivative.get_normal().into())
@@ -314,17 +343,12 @@ fn render_chunks(
         debug_normals.apply_transform(&transform);
 
         let mesh_handle = asset_server.add(mesh);
-        let material_handle = asset_server.add(
-            // ExtendedMaterial {
-            // base:
-            StandardMaterial {
-                base_color: tailwind::GRAY_400.into(),
-                perceptual_roughness: 0.9,
+        let material_handle = asset_server.add(StandardMaterial {
+            base_color: tailwind::GRAY_400.into(),
+            perceptual_roughness: 0.9,
 
-                ..default() // },
-                            // extension: DebugNormalsMaterialExtension {},
-            },
-        );
+            ..default()
+        });
 
         commands.entity(chunk_entity).insert((
             MaterialMeshBundle {
@@ -389,4 +413,23 @@ fn spawn_map_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
     ));
+}
+
+fn change_map_seed(mut map_seed: ResMut<MapSeed>) {
+    map_seed.0 = map_seed.0.wrapping_add(1);
+    info!("Map seed: {}", map_seed.0);
+}
+
+fn seed_changed(map_seed: Res<MapSeed>) -> bool {
+    map_seed.is_changed() && !map_seed.is_added()
+}
+
+fn clear_chunk_registry(mut chunk_manager: ResMut<ChunkManager>) {
+    chunk_manager.chunks.clear();
+}
+
+fn despawn_entities<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
 }
