@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use bevy::{
-    input::{common_conditions::input_just_pressed, keyboard::KeyboardInput},
+    input::common_conditions::input_just_pressed,
     pbr::{ExtendedMaterial, MaterialExtension},
     render::render_resource::{AsBindGroup, ShaderRef},
     utils::hashbrown::HashMap,
@@ -150,7 +150,7 @@ pub fn plugin(app: &mut App) {
             MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, MapMaterialExtension>, DebugNormalsMaterialExtension>>::default(),
         ))
             .configure_sets(Startup, (MapSystemSets::ChunkMutate, MapSystemSets::ChunkRegister, MapSystemSets::ChunkRender).chain())
-            .configure_sets(Update, (MapSystemSets::ChunkReload.run_if(seed_changed),MapSystemSets::ChunkMutate.run_if(render_center_changed), MapSystemSets::ChunkRegister, MapSystemSets::ChunkRender).chain())
+            .configure_sets(Update, (MapSystemSets::ChunkReload.run_if(map_devtools::seed_changed),MapSystemSets::ChunkMutate.run_if(render_center_changed), MapSystemSets::ChunkRegister, MapSystemSets::ChunkRender).chain())
         .add_systems(Startup, (
             spawn_chunks.in_set(MapSystemSets::ChunkMutate),
             render_chunks.in_set(MapSystemSets::ChunkRender),
@@ -167,18 +167,13 @@ pub fn plugin(app: &mut App) {
                     render_chunks.in_set(MapSystemSets::ChunkRender),
                     derender_chunks.in_set(MapSystemSets::ChunkRender)
                 ).run_if(render_center_changed),
-                    render_chunks.in_set(MapSystemSets::ChunkRender).run_if(seed_changed),
+                    render_chunks.in_set(MapSystemSets::ChunkRender).run_if(map_devtools::seed_changed),
 
-                change_map_seed.in_set(MapSystemSets::Input).run_if(input_just_pressed(KeyCode::Space)),
-                (
-                    despawn_entities::<Chunk>,
-                    clear_chunk_registry,
-                    spawn_chunks.after(clear_chunk_registry),
-                ).in_set(MapSystemSets::ChunkReload),
-                #[cfg(feature = "dev")]
-                debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
             ),
         );
+
+    #[cfg(feature = "dev")]
+    app.add_plugins(map_devtools::map_devtools_plugin);
 }
 
 fn update_map_render_center(
@@ -212,7 +207,7 @@ fn spawn_chunks(
         to_x,
         from_y,
         to_y,
-    } = ChunkRect::from_circle_outside(center.center, CHUNK_SPAWN_RADIUS.into());
+    } = ChunkRect::from_circle_outside(center.center.to_2d(), CHUNK_SPAWN_RADIUS.into());
 
     let mut bundles = Vec::new();
     for x in from_x.0..=to_x.0 {
@@ -244,7 +239,8 @@ fn despawn_unregister_out_of_range_chunks(
     center: Res<MapRenderCenter>,
     mut chunk_manager: ResMut<ChunkManager>,
 ) {
-    let chunk_rect = ChunkRect::from_circle_outside(center.center, CHUNK_SPAWN_RADIUS.into());
+    let chunk_rect =
+        ChunkRect::from_circle_outside(center.center.to_2d(), CHUNK_SPAWN_RADIUS.into());
 
     let removed_chunks = chunk_manager
         .chunks
@@ -270,7 +266,7 @@ struct ChunkRect {
 }
 
 impl ChunkRect {
-    fn from_circle_outside(center: ChunkPosition3, chunk_radius: i32) -> Self {
+    fn from_circle_outside(center: ChunkPosition2, chunk_radius: i32) -> Self {
         let center = center.to_ivec();
         let from_x = center.x - chunk_radius;
         let to_x = center.x + chunk_radius;
@@ -444,19 +440,6 @@ fn spawn_map_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-fn change_map_seed(mut map_seed: ResMut<MapSeed>) {
-    map_seed.0 = map_seed.0.wrapping_add(1);
-    info!("Map seed: {}", map_seed.0);
-}
-
-fn seed_changed(map_seed: Res<MapSeed>) -> bool {
-    map_seed.is_changed() && !map_seed.is_added()
-}
-
-fn clear_chunk_registry(mut chunk_manager: ResMut<ChunkManager>) {
-    chunk_manager.chunks.clear();
-}
-
 fn despawn_entities<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive();
@@ -473,17 +456,56 @@ fn is_chunk_in_range(
     distance_squared <= render_radius_squared
 }
 
-#[cfg(feature = "dev")]
-fn debug_invisible_chunks(
-    chunks: Query<&ChunkPosition3, (With<Chunk>, Without<Handle<Mesh>>)>,
-    mut gizmos: Gizmos,
-) {
-    for pos in chunks.iter() {
-        gizmos.rect(
-            pos.to_world_pos(),
-            Quat::from_euler(EulerRot::XYZ, 90.0_f32.to_radians(), 0.0, 0.0),
-            Vec2::splat(CHUNK_SIZE),
-            tailwind::RED_500,
+mod map_devtools {
+    use super::*;
+
+    pub(crate) fn map_devtools_plugin(app: &mut App) {
+        #[cfg(feature = "dev")]
+        app.add_systems(
+            Update,
+            (
+                change_map_seed
+                    .in_set(MapSystemSets::Input)
+                    .run_if(input_just_pressed(KeyCode::Space)),
+                (
+                    despawn_entities::<Chunk>,
+                    clear_chunk_registry,
+                    spawn_chunks,
+                )
+                    .in_set(MapSystemSets::ChunkReload)
+                    .chain(),
+                debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
+            ),
         );
+    }
+
+    #[cfg(feature = "dev")]
+    fn change_map_seed(mut map_seed: ResMut<MapSeed>) {
+        map_seed.0 = map_seed.0.wrapping_add(1);
+        info!("Map seed: {}", map_seed.0);
+    }
+
+    pub(crate) fn seed_changed(map_seed: Res<MapSeed>) -> bool {
+        map_seed.is_changed() && !map_seed.is_added()
+    }
+
+    #[cfg(feature = "dev")]
+    fn clear_chunk_registry(mut chunk_manager: ResMut<ChunkManager>) {
+        chunk_manager.chunks.clear();
+    }
+
+    #[cfg(feature = "dev")]
+    fn debug_invisible_chunks(
+        chunks: Query<&ChunkPosition3, (With<Chunk>, Without<Handle<Mesh>>)>,
+        mut gizmos: Gizmos,
+    ) {
+        for pos in chunks.iter() {
+            gizmos.rect(
+                pos.to_world_pos(),
+                Quat::from_euler(EulerRot::XYZ, 90.0_f32.to_radians(), 0.0, 0.0),
+                Vec2::splat(CHUNK_SIZE),
+                tailwind::RED_500,
+            );
+        }
     }
 }
