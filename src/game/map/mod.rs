@@ -164,15 +164,19 @@ pub fn plugin(app: &mut App) {
                 (
                     spawn_chunks.in_set(MapSystemSets::ChunkMutate),
                     despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
-                    render_chunks.in_set(MapSystemSets::ChunkRender)
+                    render_chunks.in_set(MapSystemSets::ChunkRender),
+                    derender_chunks.in_set(MapSystemSets::ChunkRender)
                 ).run_if(render_center_changed),
+                    render_chunks.in_set(MapSystemSets::ChunkRender).run_if(seed_changed),
+
                 change_map_seed.in_set(MapSystemSets::Input).run_if(input_just_pressed(KeyCode::Space)),
                 (
                     despawn_entities::<Chunk>,
                     clear_chunk_registry,
                     spawn_chunks.after(clear_chunk_registry),
-                    // render_chunks.after(spawn_chunks),
                 ).in_set(MapSystemSets::ChunkReload),
+                #[cfg(feature = "dev")]
+                debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
             ),
         );
 }
@@ -225,7 +229,9 @@ fn spawn_chunks(
             ));
         }
     }
-    info!("Spawning {} chunks", bundles.len());
+    if !bundles.is_empty() {
+        info!("Spawning {} chunks", bundles.len());
+    }
     commands.spawn_batch(bundles);
 }
 
@@ -249,7 +255,10 @@ fn despawn_unregister_out_of_range_chunks(
         count += 1;
         commands.entity(chunk).despawn();
     }
-    info!("Despawned {} chunks", count);
+
+    if count > 0 {
+        info!("Despawned {} chunks", count);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -301,7 +310,6 @@ fn render_chunks(
 
     seed: Res<MapSeed>,
 ) {
-    info!("Rendering {} chunks", chunks.iter().count());
     let center = center.center.to_ivec().xz();
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
@@ -310,8 +318,7 @@ fn render_chunks(
 
     let mut count = 0;
     for (chunk_entity, chunk_position) in chunks.iter() {
-        let distance_squared = center.distance_squared(chunk_position.to_ivec().xz());
-        if distance_squared > render_radius_squared {
+        if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
             continue;
         }
         let chunk_translation = chunk_position.to_2d().to_world_pos();
@@ -363,7 +370,29 @@ fn render_chunks(
         count += 1;
     }
 
-    info!("Rendered {} chunks", count);
+    if count > 0 {
+        info!("Rendered {} chunks", count);
+    }
+}
+
+fn derender_chunks(
+    mut commands: Commands,
+    center: Res<MapRenderCenter>,
+    chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, With<Handle<Mesh>>)>,
+) {
+    let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
+    let center = center.center.to_ivec().xz();
+    for (chunk_entity, chunk_position) in chunks.iter() {
+        if is_chunk_in_range(center, chunk_position, render_radius_squared) {
+            continue;
+        }
+
+        commands.entity(chunk_entity).remove::<Handle<Mesh>>();
+        commands
+            .entity(chunk_entity)
+            .remove::<Handle<StandardMaterial>>();
+        commands.entity(chunk_entity).remove::<DebugNormals>();
+    }
 }
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
@@ -431,5 +460,30 @@ fn clear_chunk_registry(mut chunk_manager: ResMut<ChunkManager>) {
 fn despawn_entities<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive();
+    }
+}
+
+fn is_chunk_in_range(
+    center: IVec2,
+    chunk_position: &ChunkPosition3,
+    render_radius_squared: i32,
+) -> bool {
+    let distance_squared = center.distance_squared(chunk_position.to_ivec().xz());
+
+    distance_squared <= render_radius_squared
+}
+
+#[cfg(feature = "dev")]
+fn debug_invisible_chunks(
+    chunks: Query<&ChunkPosition3, (With<Chunk>, Without<Handle<Mesh>>)>,
+    mut gizmos: Gizmos,
+) {
+    for pos in chunks.iter() {
+        gizmos.rect(
+            pos.to_world_pos(),
+            Quat::from_euler(EulerRot::XYZ, 90.0_f32.to_radians(), 0.0, 0.0),
+            Vec2::splat(CHUNK_SIZE),
+            tailwind::RED_500,
+        );
     }
 }
