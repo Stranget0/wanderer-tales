@@ -1,5 +1,5 @@
 #import wanderer_tales::utils::morph_vertex
-#import wanderer_tales::noise::{value_noise_2d,compute_normal}
+#import wanderer_tales::noise::{value_noise_2d,compute_normal, fbm}
 
 #import bevy_pbr::{
     mesh_bindings::mesh,
@@ -30,7 +30,8 @@ fn vertex(vertex_no_morph: Vertex) -> VertexOutput {
 
 #ifdef VERTEX_POSITIONS
     out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
-    let noise = value_noise_2d(out.world_position.xz / 100.0);
+    // let noise = value_noise_2d(out.world_position.xz / 100.0);
+    let noise = fbm(out.world_position.xz, 0.003, 180.0);
     out.world_position.y = noise.value * 10.0;
     out.position = position_world_to_clip(out.world_position.xyz);
 

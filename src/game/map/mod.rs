@@ -1,33 +1,31 @@
 use crate::prelude::*;
 
-use bevy::{
-    input::common_conditions::input_just_pressed,
-    pbr::{ExtendedMaterial, MaterialExtension},
-    render::render_resource::{AsBindGroup, ShaderRef},
-    utils::hashbrown::HashMap,
-};
-use utils::noise::PcgHasher;
+use bevy::utils::hashbrown::HashMap;
+use utils::noise::{self, estimate_hessian, Dt2, NoiseHasher};
 
-const CHUNK_SUBDIVISIONS: u32 = 2;
+#[cfg(feature = "dev")]
+pub mod map_devtools;
+
+const CHUNK_SUBDIVISIONS: u32 = 32;
 
 // World to chunk coordinates
-const CHUNK_SIZE: f32 = 16.0;
+const CHUNK_SIZE: f32 = 64.0;
 
 // These are in chunks
-const CHUNK_SPAWN_RADIUS: u8 = 64;
+const CHUNK_SPAWN_RADIUS: u8 = 16;
 const CHUNK_VISIBILITY_RADIUS: u8 = 16;
+
+// size amplitude sharpness
+const MAP_GENERATOR_WEIGHTS: [(f32, f32, f32); 1] = [(1000.0, 1000.0, 10000.0)];
 
 #[derive(Component)]
 pub struct ChunkOrigin;
 
 #[derive(Component)]
-struct Chunk;
-
-#[derive(Component)]
-struct ShaderMap;
+pub struct Chunk;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
-struct ChunkUnit(pub i32);
+pub struct ChunkUnit(pub i32);
 impl ChunkUnit {
     pub fn to_world_unit(self) -> i32 {
         self.0 * CHUNK_SIZE as i32
@@ -38,7 +36,7 @@ impl ChunkUnit {
 }
 #[derive(Component, Debug, Hash, PartialEq, Eq, Clone, Copy, Default)]
 #[repr(C)]
-struct ChunkPosition3 {
+pub struct ChunkPosition3 {
     pub x: ChunkUnit,
     pub y: ChunkUnit,
     pub z: ChunkUnit,
@@ -127,7 +125,7 @@ struct ChunkManager {
 }
 
 #[derive(Resource, Default)]
-struct MapSeed(pub u32);
+pub struct MapSeed(pub u32);
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 enum MapSystemSets {
@@ -143,19 +141,34 @@ pub fn plugin(app: &mut App) {
     app.init_resource::<MapRenderCenter>()
         .init_resource::<ChunkManager>()
         .init_resource::<MapSeed>()
-        .add_plugins((
-            MaterialPlugin::<ExtendedMaterial<StandardMaterial, MapMaterialExtension>>::default(),
-            MaterialPlugin::<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>::default(),
-            MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>, MapMaterialExtension>>::default(),
-            MaterialPlugin::<ExtendedMaterial<ExtendedMaterial<StandardMaterial, MapMaterialExtension>, DebugNormalsMaterialExtension>>::default(),
-        ))
-            .configure_sets(Startup, (MapSystemSets::ChunkMutate, MapSystemSets::ChunkRegister, MapSystemSets::ChunkRender).chain())
-            .configure_sets(Update, (MapSystemSets::ChunkReload.run_if(map_devtools::seed_changed),MapSystemSets::ChunkMutate.run_if(render_center_changed), MapSystemSets::ChunkRegister, MapSystemSets::ChunkRender).chain())
-        .add_systems(Startup, (
-            spawn_chunks.in_set(MapSystemSets::ChunkMutate),
-            render_chunks.in_set(MapSystemSets::ChunkRender),
-            register_chunks.in_set(MapSystemSets::ChunkRegister),
-        ))
+        .configure_sets(
+            Startup,
+            (
+                MapSystemSets::ChunkMutate,
+                MapSystemSets::ChunkRegister,
+                MapSystemSets::ChunkRender,
+            )
+                .chain(),
+        )
+        .configure_sets(
+            Update,
+            (
+                #[cfg(feature = "dev")]
+                MapSystemSets::ChunkReload.run_if(map_devtools::seed_changed),
+                MapSystemSets::ChunkMutate.run_if(render_center_changed),
+                MapSystemSets::ChunkRegister,
+                MapSystemSets::ChunkRender,
+            )
+                .chain(),
+        )
+        .add_systems(
+            Startup,
+            (
+                spawn_chunks.in_set(MapSystemSets::ChunkMutate),
+                render_chunks.in_set(MapSystemSets::ChunkRender),
+                register_chunks.in_set(MapSystemSets::ChunkRegister),
+            ),
+        )
         .add_systems(
             Update,
             (
@@ -165,15 +178,42 @@ pub fn plugin(app: &mut App) {
                     spawn_chunks.in_set(MapSystemSets::ChunkMutate),
                     despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
                     render_chunks.in_set(MapSystemSets::ChunkRender),
-                    derender_chunks.in_set(MapSystemSets::ChunkRender)
-                ).run_if(render_center_changed),
-                    render_chunks.in_set(MapSystemSets::ChunkRender).run_if(map_devtools::seed_changed),
-
+                    derender_chunks.in_set(MapSystemSets::ChunkRender),
+                )
+                    .run_if(render_center_changed),
             ),
         );
+}
 
-    #[cfg(feature = "dev")]
-    app.add_plugins(map_devtools::map_devtools_plugin);
+pub fn map_generator(
+    chunk_translation: Vec2,
+    hasher: &impl NoiseHasher,
+) -> impl Fn(f32, f32) -> (f32, [f32; 3]) + '_ {
+    move |x, y| {
+        let pos = chunk_translation + vec2(x, y);
+
+        let value = sample_terrain(pos, hasher);
+
+        // let mut count = seed.0 + 1;
+        // for (size, amplitude, sharpness) in weights.into_iter().skip(1) {
+        //     let hasher = PcgHasher::new(count);
+        //     let layer = utils::noise::value_noise_2d(pos / size, &hasher);
+        //     compound_derivative += layer.derivative;
+        //     value +=
+        //         layer.value * amplitude / (1.0 + sharpness);
+        //     count += 1;
+        // }
+
+        value.to_mesh_input()
+        // (value.value, calc_brute_normal(pos, hasher).into())
+    }
+}
+
+fn sample_terrain(pos: Vec2, hasher: &impl NoiseHasher) -> noise::ValueDt2 {
+    let (size, amplitude, sharpness) = MAP_GENERATOR_WEIGHTS[0];
+    let layer_1 = utils::noise::perlin_noise_2d(pos, 1.0 / size, hasher) / 2.0 + 0.5;
+
+    layer_1.to_dt2() / (1.0 + sharpness * layer_1.dt_length()) * amplitude
 }
 
 fn update_map_render_center(
@@ -309,59 +349,33 @@ fn render_chunks(
     let center = center.center.to_ivec().xz();
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
-    // size amplitude sharpness
-    let weights = [(100.0, 100.0, 100.0)];
-
     let mut count = 0;
+    let hasher = noise::PcgHasher::new(seed.0);
     for (chunk_entity, chunk_position) in chunks.iter() {
         if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
             continue;
         }
         let chunk_translation = chunk_position.to_2d().to_world_pos();
-        let mesh =
-            utils::primitives::create_subdivided_plane(CHUNK_SUBDIVISIONS, CHUNK_SIZE, |x, y| {
-                let pos = chunk_translation + vec2(x, y);
-
-                let (size, amplitude, sharpness) = weights[0];
-                let layer_1 = utils::noise::value_noise_2d(pos / size, &PcgHasher::new(seed.0));
-                let mut compound_derivative = layer_1.derivative;
-                let mut value =
-                    layer_1.value * amplitude / (1.0 + sharpness * compound_derivative.length());
-
-                let mut count = seed.0 + 1;
-                for (size, amplitude, sharpness) in weights.into_iter().skip(1) {
-                    let hasher = PcgHasher::new(count);
-                    let layer = utils::noise::value_noise_2d(pos / size, &hasher);
-                    compound_derivative += layer.derivative;
-                    value +=
-                        layer.value * amplitude / (1.0 + sharpness * compound_derivative.length());
-                    count += 1;
-                }
-
-                (value, compound_derivative.get_normal().into())
-            });
+        let mesh = utils::primitives::create_subdivided_plane(
+            CHUNK_SUBDIVISIONS,
+            CHUNK_SIZE,
+            map_generator(chunk_translation, &hasher),
+        );
 
         let transform = Transform::from_translation(chunk_position.to_world_pos());
-        let mut debug_normals = DebugNormals::from_mesh(&mesh);
-        debug_normals.apply_transform(&transform);
-
-        let mesh_handle = asset_server.add(mesh);
-        let material_handle = asset_server.add(StandardMaterial {
+        let material = StandardMaterial {
             base_color: tailwind::GRAY_400.into(),
             perceptual_roughness: 0.9,
 
             ..default()
-        });
+        };
 
-        commands.entity(chunk_entity).insert((
-            MaterialMeshBundle {
-                mesh: mesh_handle,
-                material: material_handle,
-                transform,
-                ..default()
-            },
-            debug_normals,
-        ));
+        commands.entity(chunk_entity).insert((MaterialMeshBundle {
+            mesh: asset_server.add(mesh),
+            material: asset_server.add(material),
+            transform,
+            ..default()
+        },));
 
         count += 1;
     }
@@ -391,59 +405,11 @@ fn derender_chunks(
     }
 }
 
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-struct MapMaterialExtension {}
+fn estimate_map_normal(pos: Vec2, hasher: &impl NoiseHasher) -> Vec3 {
+    let dfdx = noise::estimate_derivative(pos.x, |x| sample_terrain(vec2(x, pos.y), hasher).value);
+    let dfdy = noise::estimate_derivative(pos.y, |y| sample_terrain(vec2(pos.x, y), hasher).value);
 
-impl MaterialExtension for MapMaterialExtension {
-    fn vertex_shader() -> ShaderRef {
-        "shaders/map.wgsl".into()
-    }
-}
-
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-struct DebugNormalsMaterialExtension {}
-
-impl MaterialExtension for DebugNormalsMaterialExtension {
-    fn fragment_shader() -> ShaderRef {
-        "shaders/fragment_debug_normals.wgsl".into()
-    }
-}
-
-fn spawn_map_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let mesh = asset_server.add(utils::primitives::create_subdivided_plane(
-        CHUNK_SUBDIVISIONS * CHUNK_SPAWN_RADIUS as u32 * 2,
-        CHUNK_SIZE * CHUNK_SPAWN_RADIUS as f32 * 2.0,
-        |x, y| (0.0, [0.0, 1.0, 0.0]),
-    ));
-
-    let base = StandardMaterial {
-        base_color: tailwind::GREEN_700.into(),
-        ..default()
-    };
-    let base = ExtendedMaterial {
-        base,
-        extension: MapMaterialExtension {},
-    };
-    let asset = ExtendedMaterial {
-        base,
-        extension: DebugNormalsMaterialExtension {},
-    };
-    let material = asset_server.add(asset);
-
-    commands.spawn((
-        ShaderMap,
-        MaterialMeshBundle {
-            mesh,
-            material,
-            ..default()
-        },
-    ));
-}
-
-fn despawn_entities<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
-    for entity in query.iter() {
-        commands.entity(entity).despawn_recursive();
-    }
+    Dt2(vec2(dfdx, dfdy)).get_normal()
 }
 
 fn is_chunk_in_range(
@@ -456,56 +422,102 @@ fn is_chunk_in_range(
     distance_squared <= render_radius_squared
 }
 
-mod map_devtools {
+#[cfg(test)]
+mod tests {
+    use bevy::render::mesh::VertexAttributeValues;
+
     use super::*;
 
-    pub(crate) fn map_devtools_plugin(app: &mut App) {
-        #[cfg(feature = "dev")]
-        app.add_systems(
-            Update,
-            (
-                change_map_seed
-                    .in_set(MapSystemSets::Input)
-                    .run_if(input_just_pressed(KeyCode::Space)),
-                (
-                    despawn_entities::<Chunk>,
-                    clear_chunk_registry,
-                    spawn_chunks,
-                )
-                    .in_set(MapSystemSets::ChunkReload)
-                    .chain(),
-                debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
-            ),
-        );
-    }
-
-    #[cfg(feature = "dev")]
-    fn change_map_seed(mut map_seed: ResMut<MapSeed>) {
-        map_seed.0 = map_seed.0.wrapping_add(1);
-        info!("Map seed: {}", map_seed.0);
-    }
-
-    pub(crate) fn seed_changed(map_seed: Res<MapSeed>) -> bool {
-        map_seed.is_changed() && !map_seed.is_added()
-    }
-
-    #[cfg(feature = "dev")]
-    fn clear_chunk_registry(mut chunk_manager: ResMut<ChunkManager>) {
-        chunk_manager.chunks.clear();
-    }
-
-    #[cfg(feature = "dev")]
-    fn debug_invisible_chunks(
-        chunks: Query<&ChunkPosition3, (With<Chunk>, Without<Handle<Mesh>>)>,
-        mut gizmos: Gizmos,
-    ) {
-        for pos in chunks.iter() {
-            gizmos.rect(
-                pos.to_world_pos(),
-                Quat::from_euler(EulerRot::XYZ, 90.0_f32.to_radians(), 0.0, 0.0),
-                Vec2::splat(CHUNK_SIZE),
-                tailwind::RED_500,
-            );
+    fn extract_values(data: Option<&VertexAttributeValues>) -> Vec<Vec3> {
+        match data {
+            Some(VertexAttributeValues::Float32x3(d)) => {
+                d.iter().map(|v| Vec3::new(v[0], v[1], v[2])).collect_vec()
+            }
+            _ => panic!("Expected Float32x3"),
         }
+    }
+
+    // #[test]
+    fn should_have_correct_normals() {
+        let epsilon = 0.05;
+        let max_error_epsilon = 0.1;
+        let min_success_percent = 95.0;
+
+        let pcg_hasher = noise::PcgHasher::new(0);
+        let generator = map_generator(vec2(0.0, 0.0), &pcg_hasher);
+
+        let auto_mesh = utils::primitives::create_subdivided_plane_smooth(
+            CHUNK_SUBDIVISIONS,
+            CHUNK_SIZE,
+            |x, y| {
+                (
+                    generator(x, y).0,
+                    estimate_map_normal(vec2(x, y), &pcg_hasher).into(),
+                )
+            },
+        );
+        let mesh =
+            utils::primitives::create_subdivided_plane(CHUNK_SUBDIVISIONS, CHUNK_SIZE, generator);
+
+        let auto_mesh_positions = extract_values(auto_mesh.attribute(Mesh::ATTRIBUTE_POSITION));
+        let auto_mesh_normals = extract_values(auto_mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+
+        let mesh_positions = extract_values(mesh.attribute(Mesh::ATTRIBUTE_POSITION));
+        let mesh_normals = extract_values(mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
+
+        assert_eq!(auto_mesh_positions.len(), mesh_positions.len());
+        assert_eq!(auto_mesh_normals.len(), mesh_normals.len());
+
+        let positions_zip = auto_mesh_positions
+            .into_iter()
+            .zip(mesh_positions)
+            .collect_vec();
+        let normals_zip = auto_mesh_normals
+            .into_iter()
+            .zip(mesh_normals)
+            .collect_vec();
+
+        let normals_errors = normals_zip
+            .clone()
+            .into_iter()
+            .map(|(a, b)| (a - b).abs())
+            .collect_vec();
+
+        let unacceptable_errors = normals_errors
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| v.x > epsilon || v.y > epsilon || v.z > epsilon)
+            .collect_vec();
+
+        let max_error = normals_errors
+            .iter()
+            .max_by(|a, b| a.length().partial_cmp(&b.length()).unwrap())
+            .copied()
+            .unwrap_or_default();
+
+        let average_error = normals_errors.iter().sum::<Vec3>() / normals_errors.len() as f32;
+
+        let success_percent = (normals_errors.len() - unacceptable_errors.len()) as f32
+            / normals_errors.len() as f32
+            * 100.0;
+
+        println!("Failed normals: ");
+        for (i, error) in unacceptable_errors {
+            let auto_pos = positions_zip[i].0;
+            let (auto_normal, mesh_normal) = normals_zip[i];
+
+            println!("P{auto_pos:.3}\t{auto_normal:.3}!={mesh_normal}\tE: {error:.3}");
+        }
+
+        assert!(
+            success_percent > min_success_percent,
+            "SUCCESS: {success_percent:.2}% < {min_success_percent:.2}%"
+        );
+        assert!(
+            max_error.x < max_error_epsilon
+                && max_error.y < max_error_epsilon
+                && max_error.z < max_error_epsilon,
+            "MAX E: {max_error}, AVG E: {average_error}, MAX ACCEPTED: {max_error_epsilon}"
+        );
     }
 }

@@ -13,6 +13,10 @@ mod shaders;
 
 pub use camera::CameraOrbit;
 
+pub mod devtools {
+    pub use super::map::map_devtools::*;
+}
+
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
         lights::plugin,

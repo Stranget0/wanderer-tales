@@ -10,9 +10,11 @@ use wgsl_keys::RenderStatePlugin;
 
 pub mod prelude {
     pub use super::utils;
+    pub use super::utils::ecs::*;
     pub use super::wgsl_keys::*;
     pub use crate::dev_tools::*;
     pub use bevy::color::palettes::tailwind;
+    pub use bevy::input::common_conditions::*;
     pub use bevy::math::*;
     pub use bevy::prelude::*;
     pub use itertools::Itertools;

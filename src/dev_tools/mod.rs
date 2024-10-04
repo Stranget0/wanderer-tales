@@ -2,25 +2,33 @@
 pub mod data;
 
 pub use data::*;
+
 #[cfg(feature = "dev")]
 pub(super) use plugin::plugin;
-
-use crate::prelude::*;
 
 #[cfg(feature = "dev")]
 pub(super) mod plugin {
     use super::*;
+    use crate::{game, prelude::*};
     use crate::{game::CameraOrbit, screen::Screen};
+    use bevy::pbr::ExtendedMaterial;
     use bevy::{
         color::palettes::tailwind,
         dev_tools::states::log_transitions,
-        pbr::wireframe::{WireframeConfig, WireframePlugin},
+        pbr::{
+            wireframe::{WireframeConfig, WireframePlugin},
+            MaterialExtension,
+        },
         prelude::*,
-        render::render_resource::ShaderImport,
+        render::render_resource::{AsBindGroup, ShaderImport, ShaderRef},
     };
 
     pub fn plugin(app: &mut App) {
-        app.add_plugins(WireframePlugin);
+        app.add_plugins((
+            WireframePlugin,
+            MaterialPlugin::<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>::default(),
+            game::devtools::map_devtools_plugin
+        ));
 
         app.insert_resource(WireframeConfig {
             default_color: Color::srgb(1.0, 1.0, 1.0),
@@ -36,9 +44,54 @@ pub(super) mod plugin {
                 // add_world_gizmo,
                 add_camera_debug,
                 log_shader_load,
-                draw_debug_normals,
+                // draw_debug_normals,
+                game::devtools::change_map_seed.run_if(input_just_pressed(KeyCode::Numpad0)),
+                toggle_debug_normals.run_if(input_just_pressed(KeyCode::Numpad1)),
+                game::devtools::toggle_debug_chunks.run_if(input_just_pressed(KeyCode::Numpad2)),
             ),
         );
+    }
+
+    #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+    struct DebugNormalsMaterialExtension {}
+
+    impl MaterialExtension for DebugNormalsMaterialExtension {
+        fn fragment_shader() -> ShaderRef {
+            "shaders/fragment_debug_normals.wgsl".into()
+        }
+    }
+
+    fn toggle_debug_normals(
+        mut commands: Commands,
+        mut materials: ResMut<Assets<StandardMaterial>>,
+        mut debug_materials: ResMut<
+            Assets<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>,
+        >,
+        standard_query: Query<(Entity, &Handle<StandardMaterial>)>,
+        debug_query: Query<(
+            Entity,
+            &Handle<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>,
+        )>,
+    ) {
+        for (entity, handle) in standard_query.iter() {
+            let material = materials.get(handle).unwrap();
+            let bundle = debug_materials.add(with_map_debug(material.clone()));
+            commands.entity(entity).remove::<Handle<StandardMaterial>>();
+            commands.entity(entity).insert(bundle);
+        }
+
+        if !standard_query.is_empty() {
+            return;
+        }
+
+        for (entity, handle) in debug_query.iter() {
+            let material = debug_materials.get(handle).unwrap();
+            let bundle = materials.add(material.base.clone());
+            commands
+            .entity(entity)
+            .remove::<Handle<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>>();
+            commands.entity(entity).insert(bundle);
+        }
     }
 
     fn add_world_gizmo(mut gizmos: Gizmos) {
@@ -112,6 +165,13 @@ pub(super) mod plugin {
             for normal in &normals.0 {
                 gizmos.line(normal.0, normal.1, tailwind::RED_400);
             }
+        }
+    }
+
+    fn with_map_debug<T: Material>(base: T) -> ExtendedMaterial<T, DebugNormalsMaterialExtension> {
+        ExtendedMaterial {
+            extension: DebugNormalsMaterialExtension {},
+            base,
         }
     }
 }
