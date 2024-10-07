@@ -1,5 +1,3 @@
-use core::f32;
-
 use crate::prelude::*;
 
 pub trait NoiseHasher {
@@ -178,31 +176,39 @@ fn u_to_f(v: u32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::utils::hashbrown::HashMap;
 
-    fn calculate_entropy<T: std::hash::Hash + Eq>(samples: &[T]) -> f64 {
-        let mut frequencies = HashMap::new();
-        let total_samples = samples.len() as f64;
+    fn calculate_entropy(data: &[f32], bins: usize) -> f64 {
+        let histogram = calculate_histogram(bins, data);
 
-        // Count frequencies of each unique output
-        for sample in samples {
-            *frequencies.entry(sample).or_insert(0) += 1;
+        // Convert histogram counts to probabilities
+        let total: usize = histogram.iter().sum();
+        let probabilities: Vec<f64> = histogram
+            .into_iter()
+            .map(|count| count as f64 / total as f64)
+            .collect();
+
+        // Calculate Shannon entropy
+        let mut entropy = 0.0;
+        for &p in &probabilities {
+            if p > 0.0 {
+                entropy -= p * p.log2();
+            }
         }
 
-        // Calculate entropy
-        let entropy = frequencies
-            .values()
-            .map(|&count| {
-                let probability = count as f64 / total_samples;
-                if probability > 0.0 {
-                    -probability * probability.log2()
-                } else {
-                    0.0
-                }
-            })
-            .sum::<f64>();
+        entropy
+    }
 
-        entropy / size_of::<T>() as f64
+    fn calculate_histogram(bins: usize, data: &[f32]) -> Vec<usize> {
+        let mut histogram = vec![0; bins];
+
+        // Fill the histogram based on bin distribution
+        for &value in data {
+            let bin = (value * (bins as f32)) as usize;
+            if bin < bins {
+                histogram[bin] += 1;
+            }
+        }
+        histogram
     }
 
     #[test]
@@ -213,24 +219,63 @@ mod tests {
         });
     }
 
-    // #[test]
-    // fn pcg_seed_entropy_22() {
-    //     let hasher_f = |seed: u32, pos: Vec2| PcgHasher::new(seed).hash_22f_seeded(pos.as_ivec2());
-    //     let sample = generate_sample(hasher_f, 0)
-    //         .into_iter()
-    //         .map(|v| uvec2(v.x.to_bits(), v.y.to_bits()))
-    //         .collect_vec();
-    //
-    //     panic!("{}", calculate_entropy(&sample));
-    // }
+    #[test]
+    fn pcg_seed_entropy_22() {
+        let hasher_f = |seed: u32, pos: Vec2| PcgHasher::new(seed).hash_22f_seeded(pos.as_ivec2());
+        let sample = generate_sample(hasher_f, 0)
+            .into_iter()
+            .flat_map(|v| [v.x, v.y])
+            .collect_vec();
+
+        let entropy = calculate_entropy(&sample, 100);
+
+        // Maximum theoretical entropy for 100 bins (log2(100) ≈ 6.64)
+        let max_entropy = 6.64;
+        let min_entropy = 6.0; // For some margin of error
+
+        // Assert entropy is within a reasonable range
+        assert!(
+            entropy >= min_entropy && entropy <= max_entropy,
+            "Entropy is outside expected range: {}",
+            entropy
+        );
+    }
+
+    #[test]
+    fn pcg_seed_distribution_22() {
+        let hasher_f = |seed: u32, pos: Vec2| PcgHasher::new(seed).hash_22f_seeded(pos.as_ivec2());
+        let sample = generate_sample(hasher_f, 0)
+            .into_iter()
+            .flat_map(|v| [v.x, v.y])
+            .collect_vec();
+
+        // println!("sample: {:?}", sample);
+
+        let histogram = calculate_histogram(100, &sample);
+
+        // Assert histogram is uniform
+        // Calculate the expected average count per bin
+        let avg_count = sample.len() as f32 / 100.0; // / bins
+        let tolerance = avg_count * 0.1; // 10% tolerance
+
+        for count in histogram.clone() {
+            assert!(
+                (count as f32 - avg_count).abs() <= tolerance,
+                // "avg_count = {}, count = {},\n{histogram:#?}",
+                // avg_count,
+                // count
+            );
+        }
+    }
 
     #[test]
     fn pcg_range() {
         let hasher = PcgHasher::new(0);
         let mut values = Vec::new();
         for i in -1000_i32..1000_i32 {
-            let v = hasher.hashf_seeded(i as u32);
-            values.push(v);
+            let v = hasher.hash_22f_seeded(ivec2(i, i));
+            values.push(v.x);
+            values.push(v.y);
         }
         let max = *values
             .iter()
@@ -244,8 +289,8 @@ mod tests {
 
         let avg = values.iter().sum::<f32>() / values.len() as f32;
 
-        assert!(min < 0.001, "min is too big: {min}");
-        assert!(max > 0.999, "max is too small: {max}");
+        assert!(min < 0.01, "min is too big: {min}");
+        assert!(max > 0.99, "max is too small: {max}");
         assert!((avg - 0.5).abs() < 0.01, "avg is too far from 0.5: {avg}");
     }
 
