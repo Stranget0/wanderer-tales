@@ -5,17 +5,17 @@ use super::*;
 // output  [0, 1]
 pub fn value_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -> ValueDtDt2 {
     let p = unscaled_p * scale;
-    let i = p.floor();
+    let i = p.floor().as_ivec2();
     let f = p.fract_gl();
 
     let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
     let du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
     let ddu = 60.0 * f * (1.0 + f * (-3.0 + 2.0 * f));
 
-    let va = hasher.hash(i + vec2(0.0, 0.0));
-    let vb = hasher.hash(i + vec2(1.0, 0.0));
-    let vc = hasher.hash(i + vec2(0.0, 1.0));
-    let vd = hasher.hash(i + vec2(1.0, 1.0));
+    let va = hasher.hash_22f_seeded(i + ivec2(0, 0)).x;
+    let vb = hasher.hash_22f_seeded(i + ivec2(1, 0)).x;
+    let vc = hasher.hash_22f_seeded(i + ivec2(0, 1)).x;
+    let vd = hasher.hash_22f_seeded(i + ivec2(1, 1)).x;
 
     let k0 = va;
     let k1 = vb - va;
@@ -40,7 +40,7 @@ pub fn value_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -
 // output  [-1, 1]
 pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -> ValueDtDt2 {
     let p = unscaled_p * scale;
-    let i = p.floor();
+    let i = p.floor().as_ivec2();
     let f = p.fract_gl();
 
     // quintic interpolation
@@ -55,10 +55,10 @@ pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) 
     // d/dy^2 v(y) = 120y^3 - 180y^2 + 60y
     let dduv = 60.0 * f * (2.0 * f - 1.0) * (f - 1.0);
 
-    let ga = hasher.hash_2d(i + vec2(0.0, 0.0));
-    let gb = hasher.hash_2d(i + vec2(1.0, 0.0));
-    let gc = hasher.hash_2d(i + vec2(0.0, 1.0));
-    let gd = hasher.hash_2d(i + vec2(1.0, 1.0));
+    let ga = hasher.hash_22f_seeded(i + ivec2(0, 0));
+    let gb = hasher.hash_22f_seeded(i + ivec2(1, 0));
+    let gc = hasher.hash_22f_seeded(i + ivec2(0, 1));
+    let gd = hasher.hash_22f_seeded(i + ivec2(1, 1));
 
     let va = ga.dot(f - vec2(0.0, 0.0));
     let vb = gb.dot(f - vec2(1.0, 0.0));

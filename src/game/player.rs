@@ -1,5 +1,6 @@
+use utils::noise::PcgHasher;
+
 use crate::prelude::*;
-use crate::utils::noise::PcgHasher;
 
 use super::camera::*;
 use super::map::map_generator;

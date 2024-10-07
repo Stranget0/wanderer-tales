@@ -41,6 +41,7 @@ pub struct ChunkPosition3 {
     pub y: ChunkUnit,
     pub z: ChunkUnit,
 }
+
 impl ChunkPosition3 {
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self {
