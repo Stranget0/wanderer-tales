@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use bevy::utils::hashbrown::HashMap;
-use utils::noise::{self, estimate_hessian, Dt2, NoiseHasher, PcgHasher};
+use utils::noise::{self, Dt2, NoiseHasher, PcgHasher};
 
 #[cfg(feature = "dev")]
 pub mod map_devtools;
@@ -12,11 +12,18 @@ const CHUNK_SUBDIVISIONS: u32 = 32;
 const CHUNK_SIZE: f32 = 64.0;
 
 // These are in chunks
-const CHUNK_SPAWN_RADIUS: u8 = 16;
-const CHUNK_VISIBILITY_RADIUS: u8 = 16;
+const CHUNK_SPAWN_RADIUS: u8 = 100;
+const CHUNK_VISIBILITY_RADIUS: u8 = CHUNK_SPAWN_RADIUS;
 
 // size amplitude erosion
-const MAP_GENERATOR_WEIGHTS: [(f32, f32, f32); 1] = [(1000.0, 1000.0, 10.0)];
+const MAP_GENERATOR_WEIGHTS: [(f32, f32, f32); 6] = [
+    (10000.0, 1000.0, 100.0),
+    (5000.0, 700.0, 40.0),
+    (2500.0, 200.0, 10.0),
+    (500.0, 150.0, 10.0),
+    (100.0, 100.0, 10.0),
+    (50.0, 10.0, 1.0),
+];
 
 #[derive(Component)]
 pub struct ChunkOrigin;
@@ -80,7 +87,7 @@ impl ChunkPosition3 {
 }
 
 #[derive(Component, Debug, Hash, PartialEq, Eq, Clone, Copy, Default)]
-struct ChunkPosition2 {
+pub struct ChunkPosition2 {
     pub x: ChunkUnit,
     pub y: ChunkUnit,
 }
@@ -209,7 +216,7 @@ fn sample_terrain(pos: Vec2, seed: u32) -> noise::ValueDt2 {
 
         erosion_factor = erosion_factor + layer.dt_length();
 
-        terrain = terrain + layer.to_dt2() / (1.0 + erosion * erosion_factor);
+        terrain = terrain + (layer.to_dt2() / (1.0 + erosion * erosion_factor));
     }
 
     terrain
@@ -350,6 +357,8 @@ fn render_chunks(
 
     let mut count = 0;
 
+    let mut highest_point = -1.0;
+    let mut lowest_point = 1.0;
     for (chunk_entity, chunk_position) in chunks.iter() {
         if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
             continue;
@@ -360,6 +369,20 @@ fn render_chunks(
             CHUNK_SIZE,
             map_generator(chunk_translation, seed.0),
         );
+
+        if let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(positions)) =
+            mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+        {
+            for v in positions {
+                let y = v[1];
+                if y > highest_point {
+                    highest_point = y;
+                }
+                if y < lowest_point {
+                    lowest_point = y;
+                }
+            }
+        }
 
         let transform = Transform::from_translation(chunk_position.to_world_pos());
         let material = StandardMaterial {
@@ -378,6 +401,8 @@ fn render_chunks(
 
         count += 1;
     }
+
+    info!("Highest point: {highest_point}, lowest point: {lowest_point}");
 
     if count > 0 {
         info!("Rendered {} chunks", count);
