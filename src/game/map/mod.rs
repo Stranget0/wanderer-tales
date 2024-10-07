@@ -438,7 +438,7 @@ mod tests {
         }
     }
 
-    // #[test]
+    #[test]
     fn should_have_correct_normals() {
         let epsilon = 0.05;
         let max_error_epsilon = 0.1;
