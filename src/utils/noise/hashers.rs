@@ -5,6 +5,9 @@ pub trait NoiseHasher {
 
     fn seed(&self) -> u32;
 
+    fn from_seed(seed: u32) -> Self;
+    fn with_next_seed(&self) -> Self;
+
     fn hashf(v: i32) -> f32 {
         u_to_f(Self::hash(v))
     }
@@ -151,6 +154,12 @@ impl NoiseHasher for PcgHasher {
     }
     fn seed(&self) -> u32 {
         self.seed
+    }
+    fn from_seed(seed: u32) -> Self {
+        Self::new(seed)
+    }
+    fn with_next_seed(&self) -> Self {
+        Self::new(self.seed.wrapping_add(1))
     }
 
     fn hash_22f(v: IVec2) -> Vec2 {

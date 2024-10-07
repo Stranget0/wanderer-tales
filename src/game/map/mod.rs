@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use bevy::utils::hashbrown::HashMap;
-use utils::noise::{self, estimate_hessian, Dt2, NoiseHasher};
+use utils::noise::{self, estimate_hessian, Dt2, NoiseHasher, PcgHasher};
 
 #[cfg(feature = "dev")]
 pub mod map_devtools;
@@ -15,8 +15,8 @@ const CHUNK_SIZE: f32 = 64.0;
 const CHUNK_SPAWN_RADIUS: u8 = 16;
 const CHUNK_VISIBILITY_RADIUS: u8 = 16;
 
-// size amplitude sharpness
-const MAP_GENERATOR_WEIGHTS: [(f32, f32, f32); 1] = [(1000.0, 1000.0, 10000.0)];
+// size amplitude erosion
+const MAP_GENERATOR_WEIGHTS: [(f32, f32, f32); 1] = [(1000.0, 1000.0, 10.0)];
 
 #[derive(Component)]
 pub struct ChunkOrigin;
@@ -186,35 +186,33 @@ pub fn plugin(app: &mut App) {
         );
 }
 
-pub fn map_generator(
-    chunk_translation: Vec2,
-    hasher: &impl NoiseHasher,
-) -> impl Fn(f32, f32) -> (f32, [f32; 3]) + '_ {
+pub fn map_generator(chunk_translation: Vec2, seed: u32) -> impl Fn(f32, f32) -> (f32, [f32; 3]) {
     move |x, y| {
         let pos = chunk_translation + vec2(x, y);
 
-        let value = sample_terrain(pos, hasher);
-
-        // let mut count = seed.0 + 1;
-        // for (size, amplitude, sharpness) in weights.into_iter().skip(1) {
-        //     let hasher = PcgHasher::new(count);
-        //     let layer = utils::noise::value_noise_2d(pos / size, &hasher);
-        //     compound_derivative += layer.derivative;
-        //     value +=
-        //         layer.value * amplitude / (1.0 + sharpness);
-        //     count += 1;
-        // }
-
-        value.to_mesh_input()
-        // (value.value, calc_brute_normal(pos, hasher).into())
+        sample_terrain(pos, seed).to_mesh_input()
     }
 }
 
-fn sample_terrain(pos: Vec2, hasher: &impl NoiseHasher) -> noise::ValueDt2 {
-    let (size, amplitude, sharpness) = MAP_GENERATOR_WEIGHTS[0];
-    let layer_1 = utils::noise::perlin_noise_2d(pos, 1.0 / size, hasher) / 2.0 + 0.5;
+fn sample_terrain(pos: Vec2, seed: u32) -> noise::ValueDt2 {
+    let (size, amplitude, erosion) = MAP_GENERATOR_WEIGHTS[0];
+    let mut hasher = PcgHasher::from_seed(seed);
+    let layer_1 = (utils::noise::perlin_noise_2d(pos, 1.0 / size, &hasher) / 2.0 + 0.5) * amplitude;
 
-    layer_1.to_dt2() / (1.0 + sharpness * layer_1.dt_length()) * amplitude
+    let mut erosion_factor = layer_1.dt_length();
+    let mut terrain = layer_1.to_dt2() / (1.0 + erosion * erosion_factor);
+
+    for (size, amplitude, erosion) in MAP_GENERATOR_WEIGHTS.into_iter().skip(1) {
+        hasher = hasher.with_next_seed();
+        let layer =
+            (utils::noise::perlin_noise_2d(pos, 1.0 / size, &hasher) / 2.0 + 0.5) * amplitude;
+
+        erosion_factor = erosion_factor + layer.dt_length();
+
+        terrain = terrain + layer.to_dt2() / (1.0 + erosion * erosion_factor);
+    }
+
+    terrain
 }
 
 fn update_map_render_center(
@@ -351,7 +349,7 @@ fn render_chunks(
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
     let mut count = 0;
-    let hasher = noise::PcgHasher::new(seed.0);
+
     for (chunk_entity, chunk_position) in chunks.iter() {
         if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
             continue;
@@ -360,7 +358,7 @@ fn render_chunks(
         let mesh = utils::primitives::create_subdivided_plane(
             CHUNK_SUBDIVISIONS,
             CHUNK_SIZE,
-            map_generator(chunk_translation, &hasher),
+            map_generator(chunk_translation, seed.0),
         );
 
         let transform = Transform::from_translation(chunk_position.to_world_pos());
@@ -406,9 +404,9 @@ fn derender_chunks(
     }
 }
 
-fn estimate_map_normal(pos: Vec2, hasher: &impl NoiseHasher) -> Vec3 {
-    let dfdx = noise::estimate_derivative(pos.x, |x| sample_terrain(vec2(x, pos.y), hasher).value);
-    let dfdy = noise::estimate_derivative(pos.y, |y| sample_terrain(vec2(pos.x, y), hasher).value);
+fn estimate_map_normal(pos: Vec2, seed: u32) -> Vec3 {
+    let dfdx = noise::estimate_derivative(pos.x, |x| sample_terrain(vec2(x, pos.y), seed).value);
+    let dfdy = noise::estimate_derivative(pos.y, |y| sample_terrain(vec2(pos.x, y), seed).value);
 
     Dt2(vec2(dfdx, dfdy)).get_normal()
 }
@@ -444,18 +442,12 @@ mod tests {
         let max_error_epsilon = 0.1;
         let min_success_percent = 95.0;
 
-        let pcg_hasher = noise::PcgHasher::new(0);
-        let generator = map_generator(vec2(0.0, 0.0), &pcg_hasher);
+        let generator = map_generator(vec2(0.0, 0.0), 0);
 
         let auto_mesh = utils::primitives::create_subdivided_plane_smooth(
             CHUNK_SUBDIVISIONS,
             CHUNK_SIZE,
-            |x, y| {
-                (
-                    generator(x, y).0,
-                    estimate_map_normal(vec2(x, y), &pcg_hasher).into(),
-                )
-            },
+            |x, y| (generator(x, y).0, estimate_map_normal(vec2(x, y), 0).into()),
         );
         let mesh =
             utils::primitives::create_subdivided_plane(CHUNK_SUBDIVISIONS, CHUNK_SIZE, generator);

@@ -71,7 +71,6 @@ pub fn toggle_debug_chunks(
     let center = center.center.to_ivec().xz();
     let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
 
-    let hasher = noise::PcgHasher::new(seed.0);
     for chunk_position in chunks.iter() {
         if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
             continue;
@@ -80,7 +79,7 @@ pub fn toggle_debug_chunks(
         let mesh = utils::primitives::create_subdivided_plane_smooth(
             CHUNK_SUBDIVISIONS,
             CHUNK_SIZE,
-            map_generator(chunk_translation, &hasher),
+            map_generator(chunk_translation, seed.0),
         );
 
         let transform =

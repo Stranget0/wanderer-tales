@@ -27,7 +27,7 @@ pub fn spawn_player(mut commands: Commands, asset_server: ResMut<AssetServer>) {
             material: asset_server.add(Color::srgb(0.5, 0.5, 0.5).into()),
             transform: Transform::from_translation(vec3(
                 0.0,
-                map_generator(vec2(0.0, 0.0), &PcgHasher::new(0))(0.0, 0.0).0,
+                map_generator(vec2(0.0, 0.0), 0)(0.0, 0.0).0,
                 0.0,
             )),
             ..Default::default()
