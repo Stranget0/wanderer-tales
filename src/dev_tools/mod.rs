@@ -22,13 +22,19 @@ pub(super) mod plugin {
         prelude::*,
         render::render_resource::{AsBindGroup, ShaderImport, ShaderRef},
     };
+    use bevy_editor_pls::*;
 
     pub fn plugin(app: &mut App) {
-        app.add_plugins((
-            WireframePlugin,
-            MaterialPlugin::<ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>>::default(),
-            game::devtools::map_devtools_plugin
-        ));
+        app
+            .add_plugins(
+                (
+                    MaterialPlugin::<
+                        ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>,
+                    >::default(),
+                    game::devtools::map_devtools_plugin,
+                ),
+            )
+            .add_plugins(EditorPlugin::default());
 
         app.insert_resource(WireframeConfig {
             default_color: Color::srgb(1.0, 1.0, 1.0),

@@ -39,6 +39,27 @@ impl ValueDtDt2 {
 
         ValueDt2::new(grad_len, vec2(grad_len_dx, grad_len_dy))
     }
+
+    pub fn dt_length_squared(&self) -> ValueDt2 {
+        let value = self.derivative.0.x.powi(2) + self.derivative.0.y.powi(2);
+        let d1 = 2.0 * self.derivative.0.x * self.hessian.x_axis.x;
+        let d2 = 2.0 * self.derivative.0.y * self.hessian.y_axis.y;
+
+        ValueDt2::new(value, vec2(d1, d2))
+    }
+
+    pub fn dt_sum(&self) -> ValueDt2 {
+        // let value = self.derivative.0.x.abs() + self.derivative.0.y.abs();
+        //
+        // let d1 = self.derivative.0.x * self.hessian.x_axis.x / self.derivative.0.x.abs()
+        //     + self.derivative.0.y * self.hessian.x_axis.y / self.derivative.0.y.abs();
+        //
+        // let d2 = self.derivative.0.x * self.hessian.y_axis.x / self.derivative.0.x.abs()
+        //     + self.derivative.0.y * self.hessian.y_axis.y / self.derivative.0.y.abs();
+        //
+        // ValueDt2::new(value, vec2(d1, d2))
+        self.dt_length()
+    }
 }
 
 impl Add<f32> for ValueDtDt2 {
@@ -305,6 +326,8 @@ impl ValueDt3 {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::noise::{estimate_derivative, perlin_noise_2d, PcgHasher};
+
     use super::*;
 
     fn f1(x: f32) -> f32 {
@@ -445,54 +468,144 @@ mod tests {
     #[test]
     fn test_dt_length() {
         // Function f(x, y)
-        fn f1(x: f32, y: f32) -> f32 {
-            x.powi(3) + 3.0 * x + 2.0 + y.powi(3) + 3.0 * y + 2.0
-        }
-
-        // First derivative function (gradient)
-        fn df1(pos: Vec2) -> Vec2 {
-            let dfx = 3.0 * pos.x.powi(2) + 3.0; // Partial derivative with respect to x
-            let dfy = 3.0 * pos.y.powi(2) + 3.0; // Partial derivative with respect to y
-            Vec2::new(dfx, dfy)
-        }
-
-        // Second derivative function (Hessian matrix)
-        fn ddf1(pos: Vec2) -> Mat2 {
-            let ddxx = 6.0 * pos.x; // Second partial derivative with respect to x
-            let ddyy = 6.0 * pos.y; // Second partial derivative with respect to y
-            Mat2::from_cols(Vec2::new(ddxx, 0.0), Vec2::new(0.0, ddyy))
-        }
         // Given position
-        let pos = Vec2::new(1.0, 2.0); // example position
-        let x = pos.x;
-        let y = pos.y;
+        for x in -10..10 {
+            for y in -10..10 {
+                let pos = Vec2::new(x as f32 / 3.0, y as f32 / 3.0);
+                let x = pos.x;
+                let y = pos.y;
 
-        // Evaluate the function at the given position
-        let value = f1(x, y); // Function value
+                fn function(pos: Vec2) -> ValueDt2 {
+                    fn f1(x: f32, y: f32) -> f32 {
+                        x.powi(3) + 3.0 * x + 2.0 + y.powi(3) + 3.0 * y + 2.0
+                    }
 
-        // Compute first derivatives (gradient)
-        let derivative = df1(pos); // Gradient: Vec2
+                    // First derivative function (gradient)
+                    fn df1(pos: Vec2) -> Vec2 {
+                        let dfx = 3.0 * pos.x.powi(2) + 3.0; // Partial derivative with respect to x
+                        let dfy = 3.0 * pos.y.powi(2) + 3.0; // Partial derivative with respect to y
+                        Vec2::new(dfx, dfy)
+                    }
 
-        // Compute second derivatives (Hessian)
-        let hessian = ddf1(pos); // Hessian: Mat2
+                    // Second derivative function (Hessian matrix)
+                    fn ddf1(pos: Vec2) -> Mat2 {
+                        let ddxx = 6.0 * pos.x; // Second partial derivative with respect to x
+                        let ddyy = 6.0 * pos.y; // Second partial derivative with respect to y
+                        Mat2::from_cols(Vec2::new(ddxx, 0.0), Vec2::new(0.0, ddyy))
+                    }
 
-        // Create a ValueDtDt2 instance
-        let value_dt_dt2 = ValueDtDt2::new(value, derivative, hessian);
+                    let x = pos.x;
+                    let y = pos.y;
 
-        // Compute the dt_length
-        let length_result = value_dt_dt2.dt_length();
+                    // Evaluate the function at the given position
+                    let value = f1(x, y); // Function value
 
-        // Expected values
-        // Compute expected derivative length
-        let dv = derivative.length();
-        let ddx = (derivative.x * hessian.x_axis.x + derivative.y * hessian.y_axis.x) / dv;
-        let ddy = (derivative.x * hessian.x_axis.y + derivative.y * hessian.y_axis.y) / dv;
+                    // Compute first derivatives (gradient)
+                    let derivative = df1(pos); // Gradient: Vec2
 
-        let expected_value = dv; // This should be equal to the length of the gradient
-        let expected_derivative = Vec2::new(ddx, ddy); // Normalized directional derivative
+                    // Compute second derivatives (Hessian)
+                    let hessian = ddf1(pos); // Hessian: Mat2
 
-        // Assert the results
-        assert_eq!(length_result.value, expected_value);
-        assert_eq!(length_result.derivative.0, expected_derivative);
+                    // Create a ValueDtDt2 instance
+                    let value_dt_dt2 = ValueDtDt2::new(value, derivative, hessian);
+
+                    // Compute the dt_length
+                    value_dt_dt2.dt_length()
+                }
+
+                let result = function(pos);
+
+                // Compute expected derivative length
+                let expected_derivative_x =
+                    estimate_derivative(pos.x, |x| function(vec2(x, y)).value);
+                let expected_derivative_y =
+                    estimate_derivative(pos.y, |y| function(vec2(x, y)).value);
+
+                // Assert the results
+                assert!(
+                    result.derivative.0.x - expected_derivative_x < 0.01,
+                    "{}!={}",
+                    result.derivative.0.x,
+                    expected_derivative_x
+                );
+                assert!(
+                    result.derivative.0.y - expected_derivative_y < 0.01,
+                    "{}!={}",
+                    result.derivative.0.y,
+                    expected_derivative_y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_dt_sum() {
+        for x in -10..10 {
+            for y in -10..10 {
+                let pos = Vec2::new(x as f32 / 3.0, y as f32 / 3.0);
+                let x = pos.x;
+                let y = pos.y;
+
+                fn function(pos: Vec2) -> ValueDt2 {
+                    fn f1(x: f32, y: f32) -> f32 {
+                        x.powi(3) + 3.0 * x + 2.0 + y.powi(3) + 3.0 * y + 2.0
+                    }
+
+                    // First derivative function (gradient)
+                    fn df1(pos: Vec2) -> Vec2 {
+                        let dfx = 3.0 * pos.x.powi(2) + 3.0; // Partial derivative with respect to x
+                        let dfy = 3.0 * pos.y.powi(2) + 3.0; // Partial derivative with respect to y
+                        Vec2::new(dfx, dfy)
+                    }
+
+                    // Second derivative function (Hessian matrix)
+                    fn ddf1(pos: Vec2) -> Mat2 {
+                        let ddxx = 6.0 * pos.x; // Second partial derivative with respect to x
+                        let ddyy = 6.0 * pos.y; // Second partial derivative with respect to y
+                        Mat2::from_cols(Vec2::new(ddxx, 0.0), Vec2::new(0.0, ddyy))
+                    }
+
+                    let x = pos.x;
+                    let y = pos.y;
+
+                    // Evaluate the function at the given position
+                    let value = f1(x, y); // Function value
+
+                    // Compute first derivatives (gradient)
+                    let derivative = df1(pos); // Gradient: Vec2
+
+                    // Compute second derivatives (Hessian)
+                    let hessian = ddf1(pos); // Hessian: Mat2
+
+                    // Create a ValueDtDt2 instance
+                    let value_dt_dt2 = ValueDtDt2::new(value, derivative, hessian);
+
+                    // Compute the dt_length
+                    value_dt_dt2.dt_sum()
+                }
+
+                let result = function(pos);
+
+                // Compute expected derivative length
+                let expected_derivative_x =
+                    estimate_derivative(pos.x, |x| function(vec2(x, y)).value);
+                let expected_derivative_y =
+                    estimate_derivative(pos.y, |y| function(vec2(x, y)).value);
+
+                // Assert the results
+                assert!(
+                    result.derivative.0.x - expected_derivative_x < 0.01,
+                    "{}!={}",
+                    result.derivative.0.x,
+                    expected_derivative_x
+                );
+                assert!(
+                    result.derivative.0.y - expected_derivative_y < 0.01,
+                    "{}!={}",
+                    result.derivative.0.y,
+                    expected_derivative_y
+                );
+            }
+        }
     }
 }

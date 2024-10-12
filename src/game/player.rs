@@ -1,6 +1,6 @@
 use super::camera::*;
-use super::map::map_generator;
 use super::map::ChunkOrigin;
+use super::map::Terrain;
 use super::movement::*;
 use super::prelude::*;
 use crate::prelude::*;
@@ -9,7 +9,11 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Playing), spawn_player);
 }
 
-pub fn spawn_player(mut commands: Commands, asset_server: ResMut<AssetServer>) {
+pub fn spawn_player(
+    mut commands: Commands,
+    asset_server: ResMut<AssetServer>,
+    terrain: Res<Terrain>,
+) {
     commands.spawn((
         Name::new("Player"),
         StateScoped(Screen::Playing),
@@ -24,7 +28,7 @@ pub fn spawn_player(mut commands: Commands, asset_server: ResMut<AssetServer>) {
             material: asset_server.add(Color::srgb(0.5, 0.5, 0.5).into()),
             transform: Transform::from_translation(vec3(
                 0.0,
-                map_generator(vec2(0.0, 0.0), 0)(0.0, 0.0).0,
+                terrain.sample(Vec2::default()).value,
                 0.0,
             )),
             ..Default::default()

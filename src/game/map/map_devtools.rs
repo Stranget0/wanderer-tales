@@ -3,6 +3,9 @@ use super::*;
 // #[derive(Component)]
 // struct ShaderMap;
 
+#[derive(Component)]
+pub struct DebugChunk;
+
 pub fn map_devtools_plugin(app: &mut App) {
     app.add_systems(
         Update,
@@ -17,17 +20,17 @@ pub fn map_devtools_plugin(app: &mut App) {
             debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
             render_chunks
                 .in_set(MapSystemSets::ChunkRender)
-                .run_if(seed_changed),
+                .run_if(terrain_config_changed),
         ),
     );
 }
 
-pub fn change_map_seed(mut map_seed: ResMut<MapSeed>) {
-    map_seed.0 = map_seed.0.wrapping_add(1);
-    info!("Map seed: {}", map_seed.0);
+pub fn change_map_seed(mut terrain: ResMut<Terrain>) {
+    terrain.noise_seed = terrain.noise_seed.wrapping_add(1);
+    info!("Map seed: {}", terrain.noise_seed);
 }
 
-pub(super) fn seed_changed(map_seed: Res<MapSeed>) -> bool {
+pub(super) fn terrain_config_changed(map_seed: Res<Terrain>) -> bool {
     map_seed.is_changed() && !map_seed.is_added()
 }
 
@@ -49,17 +52,13 @@ fn debug_invisible_chunks(
     }
 }
 
-#[derive(Component)]
-pub struct DebugChunk;
-
 pub fn toggle_debug_chunks(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     center: Res<MapRenderCenter>,
     chunks: Query<&ChunkPosition3, With<Chunk>>,
     render_chunks: Query<Entity, With<DebugChunk>>,
-
-    seed: Res<MapSeed>,
+    terrain: Res<Terrain>,
 ) {
     if !render_chunks.is_empty() {
         for entity in render_chunks.iter() {
@@ -69,7 +68,8 @@ pub fn toggle_debug_chunks(
     }
 
     let center = center.center.to_ivec().xz();
-    let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
+    let render_radius_squared =
+        terrain.chunk_visibility_radius as i32 * terrain.chunk_visibility_radius as i32;
 
     for chunk_position in chunks.iter() {
         if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
@@ -77,9 +77,9 @@ pub fn toggle_debug_chunks(
         }
         let chunk_translation = chunk_position.to_2d().to_world_pos();
         let mesh = utils::primitives::create_subdivided_plane_smooth(
-            CHUNK_SUBDIVISIONS,
+            terrain.chunk_subdivisions,
             CHUNK_SIZE,
-            map_generator(chunk_translation, seed.0),
+            terrain.chunk_sampler(chunk_translation),
         );
 
         let transform =

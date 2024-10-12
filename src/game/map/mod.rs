@@ -1,29 +1,13 @@
 use crate::prelude::*;
 
 use bevy::utils::hashbrown::HashMap;
-use utils::noise::{self, Dt2, NoiseHasher, PcgHasher};
+use utils::noise::{self, NoiseHasher, PcgHasher};
 
 #[cfg(feature = "dev")]
 pub mod map_devtools;
 
-const CHUNK_SUBDIVISIONS: u32 = 32;
-
 // World to chunk coordinates
 const CHUNK_SIZE: f32 = 64.0;
-
-// These are in chunks
-const CHUNK_SPAWN_RADIUS: u8 = 100;
-const CHUNK_VISIBILITY_RADIUS: u8 = CHUNK_SPAWN_RADIUS;
-
-// size amplitude erosion
-const MAP_GENERATOR_WEIGHTS: [(f32, f32, f32); 6] = [
-    (10000.0, 1000.0, 100.0),
-    (5000.0, 700.0, 40.0),
-    (2500.0, 200.0, 10.0),
-    (500.0, 150.0, 10.0),
-    (100.0, 100.0, 10.0),
-    (50.0, 10.0, 1.0),
-];
 
 #[derive(Component)]
 pub struct ChunkOrigin;
@@ -132,8 +116,17 @@ struct ChunkManager {
     pub chunks: HashMap<ChunkPosition2, Entity>,
 }
 
-#[derive(Resource, Default)]
-pub struct MapSeed(pub u32);
+#[derive(Resource, Default, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct Terrain {
+    // (size, amplitude, erosion)
+    pub noise_weights: Vec<(f32, f32, f32)>,
+    pub noise_seed: u32,
+    pub chunk_subdivisions: u32,
+    // These are in chunks
+    pub chunk_spawn_radius: u8,
+    pub chunk_visibility_radius: u8,
+}
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 enum MapSystemSets {
@@ -148,7 +141,14 @@ enum MapSystemSets {
 pub fn plugin(app: &mut App) {
     app.init_resource::<MapRenderCenter>()
         .init_resource::<ChunkManager>()
-        .init_resource::<MapSeed>()
+        .register_type::<Terrain>()
+        .insert_resource(Terrain {
+            noise_seed: 0,
+            noise_weights: vec![(1000.0, 1000.0, 1.0), (500.0, 100.0, 10.0)],
+            chunk_subdivisions: 32,
+            chunk_spawn_radius: 32,
+            chunk_visibility_radius: 32,
+        })
         .configure_sets(
             Startup,
             (
@@ -162,7 +162,7 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 #[cfg(feature = "dev")]
-                MapSystemSets::ChunkReload.run_if(map_devtools::seed_changed),
+                MapSystemSets::ChunkReload.run_if(map_devtools::terrain_config_changed),
                 MapSystemSets::ChunkMutate.run_if(render_center_changed),
                 MapSystemSets::ChunkRegister,
                 MapSystemSets::ChunkRender,
@@ -193,33 +193,43 @@ pub fn plugin(app: &mut App) {
         );
 }
 
-pub fn map_generator(chunk_translation: Vec2, seed: u32) -> impl Fn(f32, f32) -> (f32, [f32; 3]) {
-    move |x, y| {
-        let pos = chunk_translation + vec2(x, y);
+impl Terrain {
+    pub fn chunk_sampler(
+        &self,
+        chunk_translation: Vec2,
+    ) -> impl Fn(f32, f32) -> (f32, [f32; 3]) + '_ {
+        move |x, y| {
+            let pos = chunk_translation + vec2(x, y);
 
-        sample_terrain(pos, seed).to_mesh_input()
+            self.terrain(pos).to_mesh_input()
+        }
     }
-}
 
-fn sample_terrain(pos: Vec2, seed: u32) -> noise::ValueDt2 {
-    let (size, amplitude, erosion) = MAP_GENERATOR_WEIGHTS[0];
-    let mut hasher = PcgHasher::from_seed(seed);
-    let layer_1 = (utils::noise::perlin_noise_2d(pos, 1.0 / size, &hasher) / 2.0 + 0.5) * amplitude;
+    pub fn sample(&self, pos: Vec2) -> noise::ValueDt2 {
+        self.terrain(pos)
+    }
 
-    let mut erosion_factor = layer_1.dt_length();
-    let mut terrain = layer_1.to_dt2() / (1.0 + erosion * erosion_factor);
-
-    for (size, amplitude, erosion) in MAP_GENERATOR_WEIGHTS.into_iter().skip(1) {
-        hasher = hasher.with_next_seed();
-        let layer =
+    fn terrain(&self, pos: Vec2) -> noise::ValueDt2 {
+        let (size, amplitude, erosion) = self.noise_weights[0];
+        let mut hasher = PcgHasher::from_seed(self.noise_seed);
+        let layer_1 =
             (utils::noise::perlin_noise_2d(pos, 1.0 / size, &hasher) / 2.0 + 0.5) * amplitude;
 
-        erosion_factor = erosion_factor + layer.dt_length();
+        let mut erosion_factor = layer_1.dt_length();
+        let mut terrain = layer_1.to_dt2() / (1.0 + erosion * erosion_factor);
 
-        terrain = terrain + (layer.to_dt2() / (1.0 + erosion * erosion_factor));
+        for (size, amplitude, erosion) in self.noise_weights.iter().skip(1).copied() {
+            hasher = hasher.with_next_seed();
+            let layer =
+                (utils::noise::perlin_noise_2d(pos, 1.0 / size, &hasher) / 2.0 + 0.5) * amplitude;
+
+            erosion_factor = erosion_factor + layer.dt_length_squared();
+            let layer = layer.to_dt2() / (1.0 + erosion * erosion_factor);
+            terrain = terrain + layer;
+        }
+
+        terrain
     }
-
-    terrain
 }
 
 fn update_map_render_center(
@@ -247,13 +257,14 @@ fn spawn_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     chunk_manager: Res<ChunkManager>,
+    terrain: Res<Terrain>,
 ) {
     let ChunkRect {
         from_x,
         to_x,
         from_y,
         to_y,
-    } = ChunkRect::from_circle_outside(center.center.to_2d(), CHUNK_SPAWN_RADIUS.into());
+    } = ChunkRect::from_circle_outside(center.center.to_2d(), terrain.chunk_spawn_radius.into());
 
     let mut bundles = Vec::new();
     for x in from_x.0..=to_x.0 {
@@ -284,9 +295,10 @@ fn despawn_unregister_out_of_range_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     mut chunk_manager: ResMut<ChunkManager>,
+    terrain: Res<Terrain>,
 ) {
     let chunk_rect =
-        ChunkRect::from_circle_outside(center.center.to_2d(), CHUNK_SPAWN_RADIUS.into());
+        ChunkRect::from_circle_outside(center.center.to_2d(), terrain.chunk_spawn_radius.into());
 
     let removed_chunks = chunk_manager
         .chunks
@@ -349,11 +361,11 @@ fn render_chunks(
     asset_server: Res<AssetServer>,
     center: Res<MapRenderCenter>,
     chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, Without<Handle<Mesh>>)>,
-
-    seed: Res<MapSeed>,
+    terrain: Res<Terrain>,
 ) {
     let center = center.center.to_ivec().xz();
-    let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
+    let render_radius_squared: i32 =
+        terrain.chunk_visibility_radius as i32 * terrain.chunk_visibility_radius as i32;
 
     let mut count = 0;
 
@@ -365,9 +377,9 @@ fn render_chunks(
         }
         let chunk_translation = chunk_position.to_2d().to_world_pos();
         let mesh = utils::primitives::create_subdivided_plane(
-            CHUNK_SUBDIVISIONS,
+            terrain.chunk_subdivisions,
             CHUNK_SIZE,
-            map_generator(chunk_translation, seed.0),
+            terrain.chunk_sampler(chunk_translation),
         );
 
         if let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(positions)) =
@@ -413,8 +425,11 @@ fn derender_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, With<Handle<Mesh>>)>,
+    terrain: Res<Terrain>,
 ) {
-    let render_radius_squared = CHUNK_VISIBILITY_RADIUS as i32 * CHUNK_VISIBILITY_RADIUS as i32;
+    let render_radius_squared =
+        terrain.chunk_visibility_radius as i32 * terrain.chunk_visibility_radius as i32;
+
     let center = center.center.to_ivec().xz();
     for (chunk_entity, chunk_position) in chunks.iter() {
         if is_chunk_in_range(center, chunk_position, render_radius_squared) {
@@ -427,13 +442,6 @@ fn derender_chunks(
             .remove::<Handle<StandardMaterial>>();
         commands.entity(chunk_entity).remove::<DebugNormals>();
     }
-}
-
-fn estimate_map_normal(pos: Vec2, seed: u32) -> Vec3 {
-    let dfdx = noise::estimate_derivative(pos.x, |x| sample_terrain(vec2(x, pos.y), seed).value);
-    let dfdy = noise::estimate_derivative(pos.y, |y| sample_terrain(vec2(pos.x, y), seed).value);
-
-    Dt2(vec2(dfdx, dfdy)).get_normal()
 }
 
 fn is_chunk_in_range(
@@ -452,6 +460,32 @@ mod tests {
 
     use super::*;
 
+    impl Terrain {
+        fn estimate_map_normal(&self, pos: Vec2) -> Vec3 {
+            let dfdx = noise::estimate_derivative(pos.x, |x| self.terrain(vec2(x, pos.y)).value);
+            let dfdy = noise::estimate_derivative(pos.y, |y| self.terrain(vec2(pos.x, y)).value);
+
+            noise::Dt2(vec2(dfdx, dfdy)).get_normal()
+        }
+    }
+
+    fn get_terrain_config() -> Terrain {
+        Terrain {
+            noise_seed: 0,
+            noise_weights: vec![
+                (10000.0, 1000.0, 100.0),
+                (5000.0, 700.0, 40.0),
+                (2500.0, 200.0, 10.0),
+                (500.0, 150.0, 10.0),
+                (100.0, 100.0, 10.0),
+                (50.0, 10.0, 1.0),
+            ],
+            chunk_subdivisions: 32,
+            chunk_spawn_radius: 100,
+            chunk_visibility_radius: 100,
+        }
+    }
+
     fn extract_values(data: Option<&VertexAttributeValues>) -> Vec<Vec3> {
         match data {
             Some(VertexAttributeValues::Float32x3(d)) => {
@@ -466,16 +500,25 @@ mod tests {
         let epsilon = 0.05;
         let max_error_epsilon = 0.1;
         let min_success_percent = 95.0;
+        let terrain = get_terrain_config();
 
-        let generator = map_generator(vec2(0.0, 0.0), 0);
+        let generator = terrain.chunk_sampler(vec2(0.0, 0.0));
 
         let auto_mesh = utils::primitives::create_subdivided_plane_smooth(
-            CHUNK_SUBDIVISIONS,
+            terrain.chunk_subdivisions,
             CHUNK_SIZE,
-            |x, y| (generator(x, y).0, estimate_map_normal(vec2(x, y), 0).into()),
+            |x, y| {
+                (
+                    generator(x, y).0,
+                    terrain.estimate_map_normal(vec2(x, y)).into(),
+                )
+            },
         );
-        let mesh =
-            utils::primitives::create_subdivided_plane(CHUNK_SUBDIVISIONS, CHUNK_SIZE, generator);
+        let mesh = utils::primitives::create_subdivided_plane(
+            terrain.chunk_subdivisions,
+            CHUNK_SIZE,
+            generator,
+        );
 
         let auto_mesh_positions = extract_values(auto_mesh.attribute(Mesh::ATTRIBUTE_POSITION));
         let auto_mesh_normals = extract_values(auto_mesh.attribute(Mesh::ATTRIBUTE_NORMAL));
