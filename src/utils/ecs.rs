@@ -12,6 +12,7 @@ pub fn toggle_visibility<T: Component>(mut query: Query<&mut Visibility, With<T>
 }
 
 pub fn despawn_entities<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
+    info!("Despawning {} entities", query.iter().count());
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive();
     }

@@ -162,8 +162,8 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 #[cfg(feature = "dev")]
-                MapSystemSets::ChunkReload.run_if(map_devtools::terrain_config_changed),
-                MapSystemSets::ChunkMutate.run_if(render_center_changed),
+                MapSystemSets::ChunkReload,
+                MapSystemSets::ChunkMutate,
                 MapSystemSets::ChunkRegister,
                 MapSystemSets::ChunkRender,
             )
@@ -259,6 +259,7 @@ fn spawn_chunks(
     chunk_manager: Res<ChunkManager>,
     terrain: Res<Terrain>,
 ) {
+    info!("Spawning chunks");
     let ChunkRect {
         from_x,
         to_x,
@@ -371,6 +372,7 @@ fn render_chunks(
 
     let mut highest_point = -1.0;
     let mut lowest_point = 1.0;
+    info!("Rendering chunks");
     for (chunk_entity, chunk_position) in chunks.iter() {
         if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
             continue;
@@ -414,10 +416,9 @@ fn render_chunks(
         count += 1;
     }
 
-    info!("Highest point: {highest_point}, lowest point: {lowest_point}");
-
     if count > 0 {
         info!("Rendered {} chunks", count);
+        info!("Highest point: {highest_point}, lowest point: {lowest_point}");
     }
 }
 

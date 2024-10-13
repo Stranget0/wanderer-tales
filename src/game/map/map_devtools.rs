@@ -10,19 +10,21 @@ pub fn map_devtools_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            (
-                despawn_entities::<Chunk>,
-                clear_chunk_registry,
-                spawn_chunks,
-            )
-                .in_set(MapSystemSets::ChunkReload)
-                .chain(),
-            debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
-            render_chunks
-                .in_set(MapSystemSets::ChunkRender)
-                .run_if(terrain_config_changed),
-        ),
+            log_terrain_changed.in_set(MapSystemSets::ChunkReload),
+            clear_chunk_registry.in_set(MapSystemSets::ChunkReload),
+            despawn_entities::<Chunk>.in_set(MapSystemSets::ChunkReload),
+            spawn_chunks.in_set(MapSystemSets::ChunkMutate),
+            // despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
+            render_chunks.in_set(MapSystemSets::ChunkRender),
+            // derender_chunks.in_set(MapSystemSets::ChunkRender),
+        )
+            .chain()
+            .run_if(terrain_config_changed),
     );
+}
+
+fn log_terrain_changed() {
+    info!("Terrain changed");
 }
 
 pub fn change_map_seed(mut terrain: ResMut<Terrain>) {
@@ -35,6 +37,7 @@ pub(super) fn terrain_config_changed(map_seed: Res<Terrain>) -> bool {
 }
 
 fn clear_chunk_registry(mut chunk_manager: ResMut<ChunkManager>) {
+    info!("Clearing chunk registry");
     chunk_manager.chunks.clear();
 }
 
