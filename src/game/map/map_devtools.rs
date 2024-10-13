@@ -10,16 +10,19 @@ pub fn map_devtools_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            log_terrain_changed.in_set(MapSystemSets::ChunkReload),
-            clear_chunk_registry.in_set(MapSystemSets::ChunkReload),
-            despawn_entities::<Chunk>.in_set(MapSystemSets::ChunkReload),
-            spawn_chunks.in_set(MapSystemSets::ChunkMutate),
-            // despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
-            render_chunks.in_set(MapSystemSets::ChunkRender),
-            // derender_chunks.in_set(MapSystemSets::ChunkRender),
-        )
-            .chain()
-            .run_if(terrain_config_changed),
+            (
+                log_terrain_changed.in_set(MapSystemSets::ChunkReload),
+                clear_chunk_registry.in_set(MapSystemSets::ChunkReload),
+                despawn_entities::<Chunk>.in_set(MapSystemSets::ChunkReload),
+                spawn_chunks.in_set(MapSystemSets::ChunkMutate),
+                // despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
+                render_chunks.in_set(MapSystemSets::ChunkRender),
+                // derender_chunks.in_set(MapSystemSets::ChunkRender),
+            )
+                .chain()
+                .run_if(terrain_config_changed),
+            debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
+        ),
     );
 }
 
