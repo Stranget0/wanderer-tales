@@ -1,3 +1,10 @@
+use bevy_editor_pls::{
+    editor_window::EditorWindow,
+    egui::{self, TextureHandle},
+    egui_dock::WindowState,
+};
+use bevy_inspector_egui::bevy_inspector;
+
 use super::*;
 
 // #[derive(Component)]
@@ -107,6 +114,68 @@ pub fn toggle_debug_chunks(
             },
             DebugChunk,
         ));
+    }
+}
+
+struct TerrainConfigWindow;
+
+struct TerrainConfigState {
+    seed: u32,
+    weigths: Vec<NoiseWeight>,
+    weights_preview: Vec<egui::TextureHandle>,
+}
+
+const DEBUG_IMAGE_SIZE: usize = 250;
+
+impl EditorWindow for TerrainConfigWindow {
+    type State = TerrainConfigState;
+
+    const NAME: &'static str = "Terrain Config";
+
+    fn ui(
+        world: &mut World,
+        mut cx: bevy_editor_pls::editor_window::EditorWindowContext,
+        ui: &mut bevy_editor_pls::egui::Ui,
+    ) {
+        let ctx = ui.ctx();
+        let Some(state) = cx.state_mut::<TerrainConfigWindow>() else {
+            return;
+        };
+
+        ui.label(Self::NAME);
+        ui.collapsing("Details", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Preview:");
+                for texture_handle in &state.weights_preview {
+                    ui.image(texture_handle);
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Seed:");
+                if bevy_inspector::ui_for_value(&mut state.seed, ui, world) {
+                    let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                    terrain.noise_seed = state.seed;
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Weights:");
+                if bevy_inspector::ui_for_value(&mut state.weigths, ui, world) {
+                    let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                    terrain.noise_weights = state.weigths.clone();
+                }
+            });
+        });
+    }
+}
+
+impl Default for TerrainConfigState {
+    fn default() -> Self {
+        let terrain = Terrain::default();
+        Self {
+            seed: terrain.noise_seed,
+            weigths: terrain.noise_weights,
+            weights_preview: vec![],
+        }
     }
 }
 

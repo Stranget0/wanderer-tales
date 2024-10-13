@@ -116,11 +116,12 @@ struct ChunkManager {
     pub chunks: HashMap<ChunkPosition2, Entity>,
 }
 
-#[derive(Resource, Default, Debug, Reflect)]
+type NoiseWeight = (f32, f32, f32);
+#[derive(Resource, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct Terrain {
     // (size, amplitude, erosion)
-    pub noise_weights: Vec<(f32, f32, f32)>,
+    pub noise_weights: Vec<NoiseWeight>,
     pub noise_seed: u32,
     pub chunk_subdivisions: u32,
     // These are in chunks
@@ -140,15 +141,9 @@ enum MapSystemSets {
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<MapRenderCenter>()
-        .init_resource::<ChunkManager>()
         .register_type::<Terrain>()
-        .insert_resource(Terrain {
-            noise_seed: 0,
-            noise_weights: vec![(1000.0, 1000.0, 1.0), (500.0, 100.0, 10.0)],
-            chunk_subdivisions: 32,
-            chunk_spawn_radius: 32,
-            chunk_visibility_radius: 32,
-        })
+        .init_resource::<ChunkManager>()
+        .init_resource::<Terrain>()
         .configure_sets(
             Startup,
             (
@@ -191,6 +186,22 @@ pub fn plugin(app: &mut App) {
                     .run_if(render_center_changed),
             ),
         );
+}
+
+impl Default for Terrain {
+    fn default() -> Self {
+        Self {
+            noise_seed: 0,
+            noise_weights: vec![
+                //
+                (1000.0, 1000.0, 1.0),
+                (500.0, 100.0, 10.0),
+            ],
+            chunk_subdivisions: 32,
+            chunk_spawn_radius: 32,
+            chunk_visibility_radius: 32,
+        }
+    }
 }
 
 impl Terrain {
