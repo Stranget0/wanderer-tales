@@ -3,7 +3,7 @@ use super::*;
 // https://www.shadertoy.com/view/MdsSRs
 // Point has to be unscaled
 // output  [0, 1]
-pub fn value_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -> ValueDtDt2 {
+pub fn value_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -> Value2Dt2 {
     let p = unscaled_p * scale;
     let i = p.floor().as_ivec2();
     let f = p.fract_gl();
@@ -33,12 +33,12 @@ pub fn value_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -
         du.y * k4 * du.x,
         ddu.y * (k2 + k4 * u.x),
     ]);
-    ValueDtDt2::new(v, de, he)
+    Value2Dt2::new(v, de, he)
 }
 
 // Point has to be unscaled
 // output  [-1, 1]
-pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -> ValueDtDt2 {
+pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -> Value2Dt2 {
     let p = unscaled_p * scale;
     let i = p.floor().as_ivec2();
     let f = p.fract_gl();
@@ -110,29 +110,28 @@ pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) 
     let value = k0 + uv.x * k1 + uv.y * k2 + uv.x * uv.y * k4;
 
     // d/dx n(x) = k1 + k4*u(x) + k2*v(x) + k4*u(x)*v(x)
-    let derivative =
-        (g0 + uv.x * g1 + uv.y * g2 + uv.x * uv.y * g4 + duv * (vec2(k1, k2) + uv.yx() * k4))
-            * scale;
+    let d1 = (g0 + uv.x * g1 + uv.y * g2 + uv.x * uv.y * g4 + duv * (vec2(k1, k2) + uv.yx() * k4))
+        * scale;
 
-    let hxx =
+    let dxx =
         (g1.x + uv.y * g4.x) * duv.x + dduv.x * (uv.y * k4 + k1) + duv.x * (uv.y * g4.x + g1.x);
     // d^2/dx^2 n(x,y) = (g1_x + v(y) g4_x) * d/dx u(x) + d/dx^2 u(x) * (v(y) k4(x,y) + k1(x,y)) + d/dx u(x) * (v(y) g4_x + g1_x)
 
-    let hxy = g2.x * duv.y + uv.x * g4.x * duv.y + duv.x * (duv.y * k4 + uv.y * g4.y + g1.y);
+    let dxy = g2.x * duv.y + uv.x * g4.x * duv.y + duv.x * (duv.y * k4 + uv.y * g4.y + g1.y);
     // d^2/dxdy n(x,y) = g2_x * d/dy v(y) + u(x) g4_x * d/dy v(y) + d/dx u(x) * (d/dy v(y) * k4(x,y) + v(y) * g4_y + g1_y)
 
-    let hyx = g1.y * duv.x + uv.y * g4.y * duv.x + duv.y * (duv.x * k4 + uv.x * g4.x + g2.x);
+    let dyx = g1.y * duv.x + uv.y * g4.y * duv.x + duv.y * (duv.x * k4 + uv.x * g4.x + g2.x);
     // d^2/dydx n(x,y) = g1_y * d/dx u(x) + v(y) * g4_y * d/dx u(x) + d/dy v(y) * (d/dx u(x) * k4(x,y) + u(x) g4_x + g2_x)
 
-    let hyy =
+    let dyy =
         (g2.y + uv.x * g4.y) * duv.y + dduv.y * (uv.x * k4 + k2) + duv.y * (uv.x * g4.y + g2.y);
     // d^2/dy^2 n(x,y) = (g2_y + u(x) g4_y) * d/dy v(y) + d/dy^2 v(y) * (u(x) k4(x,y) + k2(x,y)) + d/dy v(y) * (u(x) g4_y + g2_y)
 
     // TODO: verify if hyx = hxy
 
-    let hessian = Mat2::from_cols_array(&[hxx, hxy, hyx, hyy]) * (scale * scale);
+    let d2 = Mat2::from_cols_array(&[dxx, dxy, dyx, dyy]) * (scale * scale);
 
-    ValueDtDt2::new(value, derivative, hessian)
+    Value2Dt2::new(value, d1, d2)
 }
 
 pub fn fract_gl(v: f32) -> f32 {
@@ -245,8 +244,8 @@ mod tests {
         let numerical_derivative_y = estimate_derivative(unscaled_p.y, df_dy);
 
         // Check that the computed derivatives match the numerical derivatives
-        assert!((result.derivative.0.x - numerical_derivative_x).abs() < 0.01);
-        assert!((result.derivative.0.y - numerical_derivative_y).abs() < 0.01);
+        assert!((result.d1.0.x - numerical_derivative_x).abs() < 0.01);
+        assert!((result.d1.0.y - numerical_derivative_y).abs() < 0.01);
     }
 
     #[test]
@@ -288,8 +287,8 @@ mod tests {
         let numerical_derivative_y = estimate_derivative(unscaled_p.y, df_dy);
 
         // Check that the computed derivatives match the numerical derivatives
-        assert!((result.derivative.0.x - numerical_derivative_x).abs() < 0.01);
-        assert!((result.derivative.0.y - numerical_derivative_y).abs() < 0.01);
+        assert!((result.d1.0.x - numerical_derivative_x).abs() < 0.01);
+        assert!((result.d1.0.y - numerical_derivative_y).abs() < 0.01);
     }
 
     #[test]
@@ -300,7 +299,7 @@ mod tests {
 
         let expected = estimate_hessian(position, |pos| perlin_noise_2d(pos, scale, &hasher).value);
 
-        let received = perlin_noise_2d(position, scale, &hasher).hessian;
+        let received = perlin_noise_2d(position, scale, &hasher).d2;
 
         for (label, expected, received) in zip_hessians(received, expected) {
             assert!(

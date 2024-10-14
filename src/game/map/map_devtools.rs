@@ -121,7 +121,7 @@ struct TerrainConfigWindow;
 
 struct TerrainConfigState {
     seed: u32,
-    weigths: Vec<NoiseWeight>,
+    weigths: Vec<TerrainWeight>,
     weights_preview: Vec<egui::TextureHandle>,
 }
 

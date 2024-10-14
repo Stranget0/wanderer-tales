@@ -116,12 +116,74 @@ struct ChunkManager {
     pub chunks: HashMap<ChunkPosition2, Entity>,
 }
 
-type NoiseWeight = (f32, f32, f32);
+#[derive(Debug, Reflect, Clone, Copy)]
+pub struct TerrainWeight {
+    size: f32,
+    amplitude: f32,
+    erosion: f32,
+}
+
+impl TerrainWeight {
+    pub fn new(size: f32, amplitude: f32, erosion: f32) -> Self {
+        Self {
+            size,
+            amplitude,
+            erosion,
+        }
+    }
+
+    pub fn new_weights(weights: Vec<(f32, f32, f32)>) -> Vec<Self> {
+        weights
+            .into_iter()
+            .map(|(size, amplitude, erosion)| Self::new(size, amplitude, erosion))
+            .collect_vec()
+    }
+
+    pub fn as_tuple(&self) -> (f32, f32, f32) {
+        (self.size, self.amplitude, self.erosion)
+    }
+
+    pub fn sample(&self, hasher: &impl noise::NoiseHasher, pos: Vec2) -> noise::Value2Dt2 {
+        let (size, amplitude, _) = self.as_tuple();
+
+        (utils::noise::perlin_noise_2d(pos, 1.0 / size, hasher) / 2.0 + 0.5) * amplitude
+    }
+
+    fn sample_erosion_base(
+        &self,
+        hasher: &impl noise::NoiseHasher,
+        pos: Vec2,
+        erosion_factor: f32,
+    ) -> noise::Value2Dt1 {
+        let layer = self.sample(hasher, pos);
+        let pre_erosion_factor = erosion_factor + layer.dt_length().value;
+        layer.to_dt1() / (1.0 + self.erosion * pre_erosion_factor)
+    }
+
+    pub fn sample_many<'a>(
+        mut hasher: impl noise::NoiseHasher,
+        pos: Vec2,
+        weights: impl Iterator<Item = &'a Self>,
+    ) -> noise::Value2Dt1 {
+        let mut erosion_factor = 0.0;
+        let mut terrain = noise::Value2Dt1::default();
+
+        for w in weights {
+            let layer = w.sample_erosion_base(&hasher, pos, erosion_factor);
+            terrain = terrain + layer;
+            erosion_factor += layer.dt_length();
+            hasher = hasher.with_next_seed();
+        }
+
+        terrain
+    }
+}
+
 #[derive(Resource, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct Terrain {
     // (size, amplitude, erosion)
-    pub noise_weights: Vec<NoiseWeight>,
+    pub noise_weights: Vec<TerrainWeight>,
     pub noise_seed: u32,
     pub chunk_subdivisions: u32,
     // These are in chunks
@@ -192,11 +254,15 @@ impl Default for Terrain {
     fn default() -> Self {
         Self {
             noise_seed: 0,
-            noise_weights: vec![
+            noise_weights: TerrainWeight::new_weights(vec![
                 //
-                (1000.0, 1000.0, 1.0),
-                (500.0, 100.0, 10.0),
-            ],
+                (1000.0, 1000.0, 2.0),
+                (500.0, 500.0, 0.5),
+                (250.0, 250.0, 10.0),
+                (100.0, 100.0, 10.0),
+                (50.0, 50.0, 10.0),
+                (10.0, 10.0, 10.0),
+            ]),
             chunk_subdivisions: 32,
             chunk_spawn_radius: 32,
             chunk_visibility_radius: 32,
@@ -212,34 +278,27 @@ impl Terrain {
         move |x, y| {
             let pos = chunk_translation + vec2(x, y);
 
-            self.terrain(pos).to_mesh_input()
+            let value = self.sample(pos).value;
+            // TODO: Calculate 3rd derivatives and use them to calculate normal instead of estimating
+            let normal = self.sample_estimate_normal(pos);
+
+            (value, normal.into())
         }
     }
 
-    pub fn sample(&self, pos: Vec2) -> noise::ValueDt2 {
-        self.terrain(pos)
+    pub fn sample(&self, pos: Vec2) -> noise::Value2Dt1 {
+        TerrainWeight::sample_many(
+            PcgHasher::from_seed(self.noise_seed),
+            pos,
+            self.noise_weights.iter(),
+        )
     }
 
-    fn terrain(&self, pos: Vec2) -> noise::ValueDt2 {
-        let (size, amplitude, erosion) = self.noise_weights[0];
-        let mut hasher = PcgHasher::from_seed(self.noise_seed);
-        let layer_1 =
-            (utils::noise::perlin_noise_2d(pos, 1.0 / size, &hasher) / 2.0 + 0.5) * amplitude;
+    fn sample_estimate_normal(&self, pos: Vec2) -> Vec3 {
+        let dfdx = noise::estimate_derivative(pos.x, |x| self.sample(vec2(x, pos.y)).value);
+        let dfdy = noise::estimate_derivative(pos.y, |y| self.sample(vec2(pos.x, y)).value);
 
-        let mut erosion_factor = layer_1.dt_length();
-        let mut terrain = layer_1.to_dt2() / (1.0 + erosion * erosion_factor);
-
-        for (size, amplitude, erosion) in self.noise_weights.iter().skip(1).copied() {
-            hasher = hasher.with_next_seed();
-            let layer =
-                (utils::noise::perlin_noise_2d(pos, 1.0 / size, &hasher) / 2.0 + 0.5) * amplitude;
-
-            erosion_factor = erosion_factor + layer.dt_length_squared();
-            let layer = layer.to_dt2() / (1.0 + erosion * erosion_factor);
-            terrain = terrain + layer;
-        }
-
-        terrain
+        noise::Dt2(vec2(dfdx, dfdy)).get_normal()
     }
 }
 
@@ -472,30 +531,10 @@ mod tests {
 
     use super::*;
 
-    impl Terrain {
-        fn estimate_map_normal(&self, pos: Vec2) -> Vec3 {
-            let dfdx = noise::estimate_derivative(pos.x, |x| self.terrain(vec2(x, pos.y)).value);
-            let dfdy = noise::estimate_derivative(pos.y, |y| self.terrain(vec2(pos.x, y)).value);
-
-            noise::Dt2(vec2(dfdx, dfdy)).get_normal()
-        }
-    }
+    impl Terrain {}
 
     fn get_terrain_config() -> Terrain {
-        Terrain {
-            noise_seed: 0,
-            noise_weights: vec![
-                (10000.0, 1000.0, 100.0),
-                (5000.0, 700.0, 40.0),
-                (2500.0, 200.0, 10.0),
-                (500.0, 150.0, 10.0),
-                (100.0, 100.0, 10.0),
-                (50.0, 10.0, 1.0),
-            ],
-            chunk_subdivisions: 32,
-            chunk_spawn_radius: 100,
-            chunk_visibility_radius: 100,
-        }
+        Terrain::default()
     }
 
     fn extract_values(data: Option<&VertexAttributeValues>) -> Vec<Vec3> {
@@ -522,7 +561,7 @@ mod tests {
             |x, y| {
                 (
                     generator(x, y).0,
-                    terrain.estimate_map_normal(vec2(x, y)).into(),
+                    terrain.sample_estimate_normal(vec2(x, y)).into(),
                 )
             },
         );
