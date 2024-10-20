@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::*;
 
 // https://www.shadertoy.com/view/MdsSRs
@@ -27,12 +29,11 @@ pub fn value_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) -
 
     // derivative
     let de = du * (vec2(k1, k2) + k4 * u.yx()) * scale;
-    let he = Mat2::from_cols_array(&[
+    let he = Vec3::new(
         ddu.x * (k1 + k4 * u.y),
-        du.x * k4 * du.y,
-        du.y * k4 * du.x,
         ddu.y * (k2 + k4 * u.x),
-    ]);
+        du.x * k4 * du.y,
+    );
     Value2Dt2::new(v, de, he)
 }
 
@@ -54,6 +55,10 @@ pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) 
     // d/dx^2 u(x) = 120x^3 - 180x^2 + 60x
     // d/dy^2 v(y) = 120y^3 - 180y^2 + 60y
     let dduv = 60.0 * f * (2.0 * f - 1.0) * (f - 1.0);
+
+    // d/dx^3 u(x) = 360x^2 - 360x + 60
+    // d/dy^3 v(y) = 360y^2 - 360y + 60
+    let ddduv = 60.0 * (6.0 * f * f - 6.0 * f + 1.0);
 
     let ga = hasher.hash_22f_seeded(i + ivec2(0, 0));
     let gb = hasher.hash_22f_seeded(i + ivec2(1, 0));
@@ -106,61 +111,119 @@ pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) 
     //     d/dx k4(x,y) = ga_x - gb_x - gc_x + gd_x = g4_x
     //     d/dx k4(x,y) = ga_y - gb_y - gc_y + gd_y = g4_y
 
-    // n(x) = k0 + k1*u(x) + k2*v(x) + k4*u(x)*v(x)
+    // n(x) = k0 + u(x) * k1 +  v(x) * k2 + k4 * u(x) * v(y)
     let value = k0 + uv.x * k1 + uv.y * k2 + uv.x * uv.y * k4;
 
-    // d/dx n(x) = k1 + k4*u(x) + k2*v(x) + k4*u(x)*v(x)
+    // d/dx n(x,y) = g0_x + u(x) * g1_x + v(y) * g2_x + u(x) * v(y) * g4_x + d/dx(u(x)) * v(y) * k4(x,y) + d/dx(u(x)) * k1(x,y);
     let d1 = (g0 + uv.x * g1 + uv.y * g2 + uv.x * uv.y * g4 + duv * (vec2(k1, k2) + uv.yx() * k4))
         * scale;
 
-    let dxx =
-        (g1.x + uv.y * g4.x) * duv.x + dduv.x * (uv.y * k4 + k1) + duv.x * (uv.y * g4.x + g1.x);
+    let dxx = duv.x * g1.x
+        + duv.x * uv.y * g4.x
+        + dduv.x * uv.y * k4
+        + duv.x * uv.y * g4.x
+        + dduv.x * k1
+        + duv.x * g1.x;
+    // let dxx =
+    //     (g1.x + uv.y * g4.x) * duv.x + dduv.x * (uv.y * k4 + k1) + duv.x * (uv.y * g4.x + g1.x);
     // d^2/dx^2 n(x,y) = (g1_x + v(y) g4_x) * d/dx u(x) + d/dx^2 u(x) * (v(y) k4(x,y) + k1(x,y)) + d/dx u(x) * (v(y) g4_x + g1_x)
 
     let dxy = g2.x * duv.y + uv.x * g4.x * duv.y + duv.x * (duv.y * k4 + uv.y * g4.y + g1.y);
     // d^2/dxdy n(x,y) = g2_x * d/dy v(y) + u(x) g4_x * d/dy v(y) + d/dx u(x) * (d/dy v(y) * k4(x,y) + v(y) * g4_y + g1_y)
 
-    let dyx = g1.y * duv.x + uv.y * g4.y * duv.x + duv.y * (duv.x * k4 + uv.x * g4.x + g2.x);
+    // TODO: verify if hyx = hxy
+    // let dyx = dxy;
+    // let dyx = g1.y * duv.x + uv.y * g4.y * duv.x + duv.y * (duv.x * k4 + uv.x * g4.x + g2.x);
     // d^2/dydx n(x,y) = g1_y * d/dx u(x) + v(y) * g4_y * d/dx u(x) + d/dy v(y) * (d/dx u(x) * k4(x,y) + u(x) g4_x + g2_x)
 
-    let dyy =
-        (g2.y + uv.x * g4.y) * duv.y + dduv.y * (uv.x * k4 + k2) + duv.y * (uv.x * g4.y + g2.y);
+    let dyy = duv.y * g2.y
+        + uv.x * duv.y * g4.y
+        + dduv.y * uv.x * k4
+        + duv.y * uv.x * g4.y
+        + dduv.y * k2
+        + duv.y * g2.y;
     // d^2/dy^2 n(x,y) = (g2_y + u(x) g4_y) * d/dy v(y) + d/dy^2 v(y) * (u(x) k4(x,y) + k2(x,y)) + d/dy v(y) * (u(x) g4_y + g2_y)
 
-    // TODO: verify if hyx = hxy
-
-    let d2 = Mat2::from_cols_array(&[dxx, dxy, dyx, dyy]) * (scale * scale);
-
+    let d2 = Vec3::new(dxx, dyy, dxy) * (scale * scale);
     Value2Dt2::new(value, d1, d2)
+
+    // let dxxx = dduv.x * g1.x
+    //     + dduv.x * uv.y * g4.x
+    //     + ddduv.x * uv.y * k4
+    //     + dduv.x * uv.y * g4.x
+    //     + ddduv.x * k1
+    //     + dduv.x * g1.x;
+    // let dyyy = dduv.y * g2.y
+    //     + uv.x * dduv.y * g4.y
+    //     + ddduv.y * uv.x * k4
+    //     + dduv.y * uv.x * g4.y
+    //     + ddduv.y * k2
+    //     + dduv.y * g2.y;
+    // let dxxy = dduv.x * uv.y * g4.x
+    //     + dduv.x * duv.y * k4
+    //     + dduv.x * uv.y * g4.y
+    //     + dduv.x * g1.y
+    //     + duv.x * duv.y * g4.x;
+    //
+    // let d3 = vec3(dxxx, dyyy, dxxy);
+    //
+    //
+    // Value2Dt3::new(value, d1, d2, d3)
 }
 
 pub fn fract_gl(v: f32) -> f32 {
     v - v.floor()
 }
 
-pub fn estimate_derivative<F: Fn(f32) -> f32>(pos: f32, f: F) -> f32 {
+pub fn estimate_dt1<F: Fn(f32) -> f32>(pos: f32, f: F) -> f32 {
     let epsilon = 0.01;
     (f(pos + epsilon) - f(pos - epsilon)) / (2.0 * epsilon)
 }
 
-pub fn estimate_hessian<F: Fn(Vec2) -> f32>(unscaled_p: Vec2, f: F) -> Mat2 {
-    let e = 0.1;
+pub fn estimate_dt2<F: Fn(Vec2) -> f32>(p: Vec2, f: F) -> Vec3 {
+    let epsilon = 0.01;
 
-    let f_xy_plus = f(unscaled_p + vec2(e, e));
-    let f_xy_minus = f(unscaled_p + vec2(-e, -e));
-    let f_x_plus_y_minus = f(unscaled_p + vec2(e, -e));
-    let f_x_minus_y_plus = f(unscaled_p + vec2(-e, e));
+    // Second derivative with respect to x: f_xx
+    let dxx = (f(Vec2::new(p.x + epsilon, p.y)) - 2.0 * f(p) + f(Vec2::new(p.x - epsilon, p.y)))
+        / (epsilon * epsilon);
 
-    let f_x_plus = f(unscaled_p + vec2(e, 0.0));
-    let f_x_minus = f(unscaled_p + vec2(-e, 0.0));
-    let f_y_plus = f(unscaled_p + vec2(0.0, e));
-    let f_y_minus = f(unscaled_p + vec2(0.0, -e));
+    // Second derivative with respect to y: f_yy
+    let dyy = (f(Vec2::new(p.x, p.y + epsilon)) - 2.0 * f(p) + f(Vec2::new(p.x, p.y - epsilon)))
+        / (epsilon * epsilon);
 
-    let d2f_dx2 = (f_x_plus - 2.0 * f(unscaled_p) + f_x_minus) / (e * e);
-    let d2f_dy2 = (f_y_plus - 2.0 * f(unscaled_p) + f_y_minus) / (e * e);
-    let d2f_dxdy = (f_xy_plus - f_x_minus_y_plus - f_x_plus_y_minus + f_xy_minus) / (4.0 * e * e);
+    // Mixed derivative: f_xy
+    let dxy = (f(Vec2::new(p.x + epsilon, p.y + epsilon))
+        - f(Vec2::new(p.x + epsilon, p.y - epsilon))
+        - f(Vec2::new(p.x - epsilon, p.y + epsilon))
+        + f(Vec2::new(p.x - epsilon, p.y - epsilon)))
+        / (4.0 * epsilon * epsilon);
 
-    Mat2::from_cols_array(&[d2f_dx2, d2f_dxdy, d2f_dxdy, d2f_dy2])
+    Vec3::new(dxx, dyy, dxy)
+}
+
+pub fn estimate_dt3<F: Fn(Vec2) -> f32>(p: Vec2, f: F) -> Vec3 {
+    let epsilon = 0.01;
+
+    // Third derivative with respect to x: f_xxx
+    let f_xxx = (f(Vec2::new(p.x + 2.0 * epsilon, p.y)) - 3.0 * f(Vec2::new(p.x + epsilon, p.y))
+        + 3.0 * f(Vec2::new(p.x - epsilon, p.y))
+        - f(Vec2::new(p.x - 2.0 * epsilon, p.y)))
+        / (2.0 * epsilon * epsilon * epsilon);
+
+    // Third derivative with respect to y: f_yyy
+    let f_yyy = (f(Vec2::new(p.x, p.y + 2.0 * epsilon)) - 3.0 * f(Vec2::new(p.x, p.y + epsilon))
+        + 3.0 * f(Vec2::new(p.x, p.y - epsilon))
+        - f(Vec2::new(p.x, p.y - 2.0 * epsilon)))
+        / (2.0 * epsilon * epsilon * epsilon);
+
+    // Mixed third derivative: f_xxy
+    let f_xxy = (f(Vec2::new(p.x + epsilon, p.y + epsilon))
+        - f(Vec2::new(p.x + epsilon, p.y - epsilon))
+        - f(Vec2::new(p.x - epsilon, p.y + epsilon))
+        + f(Vec2::new(p.x - epsilon, p.y - epsilon)))
+        / (4.0 * epsilon * epsilon * epsilon);
+
+    Vec3::new(f_xxx, f_yyy, f_xxy)
 }
 
 #[cfg(test)]
@@ -170,21 +233,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn derivative_estimation() {
+    fn derivative_1_estimation() {
         // Function representing f(x) = x^2 + 3x + 2
         let f = |x: f32| x.powi(2) + 3.0 * x + 2.0;
         let df = |x: f32| 2.0 * x + 3.0;
 
         let pos = 1.0;
         // Use brute_derivative to approximate the derivative at pos
-        let result = estimate_derivative(pos, f);
+        let result = estimate_dt1(pos, f);
         let expected = df(pos);
 
         assert!((result - expected).abs() < 0.01, "{result}!={expected}");
     }
 
     #[test]
-    fn hessian_estimation() {
+    fn derivative_2_estimation() {
         // Define the function f(x, y) = sqrt(x^2 + y^2)
         let f = |p: Vec2| (p.x.powi(2) + p.y.powi(2)).sqrt();
 
@@ -193,21 +256,18 @@ mod tests {
             let r2 = p.x.powi(2) + p.y.powi(2); // r² = x² + y²
             let r3 = r2.powf(1.5); // r^3 = (x² + y²)^(3/2)
 
-            let d2f_dx2 = p.y.powi(2) / r3; // ∂²f/∂x²
-            let d2f_dy2 = p.x.powi(2) / r3; // ∂²f/∂y²
-            let d2f_dxdy = -p.x * p.y / r3; // ∂²f/∂x∂y = ∂²f/∂y∂x
+            let dxx = p.y.powi(2) / r3; // ∂²f/∂x²
+            let dyy = p.x.powi(2) / r3; // ∂²f/∂y²
+            let dxy = -p.x * p.y / r3; // ∂²f/∂x∂y = ∂²f/∂y∂x
 
-            Mat2::from_cols_array(&[
-                d2f_dx2, d2f_dxdy, // First column of Hessian matrix
-                d2f_dxdy, d2f_dy2, // Second column of Hessian matrix
-            ])
+            vec3(dxx, dyy, dxy)
         };
 
         // Test point
         let point = vec2(3.0, 4.0);
 
         // Use the estimate_hessian function to calculate the Hessian at this point
-        let estimated_hessian = estimate_hessian(point, f);
+        let estimated_hessian = estimate_dt2(point, f);
 
         // Calculate the expected Hessian analytically
         let expected_hessian = hessian_analytical(point);
@@ -229,6 +289,51 @@ mod tests {
     }
 
     #[test]
+    fn test_estimate_dt3() {
+        // Define the function f(x, y) = x^3 + y^3 + 3xy
+        // d/dx f(x,y) = 3 * x^2 + 3 * y
+        // d/dy f(x,y) = 3 * x + 3 * y^2
+
+        // d/dxx f(x,y) = 6x
+        // d/dyy f(x,y) = 6y
+        // d/dxy f(x,y) = 3
+
+        // d/dxxx f(x,y) = 6
+        // d/dyyy f(x,y) = 6
+        // d/dxxy f(x,y) = 0
+
+        let f = |p: Vec2| p.x.powi(3) + p.y.powi(3) + 3.0 * p.x * p.y;
+
+        // Choose a point to evaluate the derivatives at
+        let p = Vec2::new(1.0, 1.0);
+
+        // Estimate the third derivatives
+        let estimated_dt3 = estimate_dt3(p, f);
+
+        // Expected values
+        let expected_fxxx = 6.0;
+        let expected_fyyy = 6.0;
+        let expected_fxxy = 0.0;
+
+        // Tolerance for floating-point comparisons
+        let tolerance = 1e-2;
+
+        // Assert that the estimated values are close to the expected values
+        assert!(
+            (estimated_dt3.x - expected_fxxx).abs() < tolerance,
+            "f_xxx is not within the tolerance"
+        );
+        assert!(
+            (estimated_dt3.y - expected_fyyy).abs() < tolerance,
+            "f_yyy is not within the tolerance"
+        );
+        assert!(
+            (estimated_dt3.z - expected_fxxy).abs() < tolerance,
+            "f_xxy is not within the tolerance"
+        );
+    }
+
+    #[test]
     fn value_noise_2d_derivative() {
         let unscaled_p = vec2(1.5, 2.5);
         let scale = 1.0;
@@ -240,8 +345,8 @@ mod tests {
         let df_dx = |x: f32| value_noise_2d(vec2(x, unscaled_p.y), scale, &hasher).value;
         let df_dy = |y: f32| value_noise_2d(vec2(unscaled_p.x, y), scale, &hasher).value;
 
-        let numerical_derivative_x = estimate_derivative(unscaled_p.x, df_dx);
-        let numerical_derivative_y = estimate_derivative(unscaled_p.y, df_dy);
+        let numerical_derivative_x = estimate_dt1(unscaled_p.x, df_dx);
+        let numerical_derivative_y = estimate_dt1(unscaled_p.y, df_dy);
 
         // Check that the computed derivatives match the numerical derivatives
         assert!((result.d1.0.x - numerical_derivative_x).abs() < 0.01);
@@ -283,8 +388,8 @@ mod tests {
         let df_dx = |x: f32| perlin_noise_2d(vec2(x, unscaled_p.y), scale, &hasher).value;
         let df_dy = |y: f32| perlin_noise_2d(vec2(unscaled_p.x, y), scale, &hasher).value;
 
-        let numerical_derivative_x = estimate_derivative(unscaled_p.x, df_dx);
-        let numerical_derivative_y = estimate_derivative(unscaled_p.y, df_dy);
+        let numerical_derivative_x = estimate_dt1(unscaled_p.x, df_dx);
+        let numerical_derivative_y = estimate_dt1(unscaled_p.y, df_dy);
 
         // Check that the computed derivatives match the numerical derivatives
         assert!((result.d1.0.x - numerical_derivative_x).abs() < 0.01);
@@ -297,7 +402,7 @@ mod tests {
         let position = vec2(0.5, 0.5); // Test point
         let hasher = PcgHasher::new(0);
 
-        let expected = estimate_hessian(position, |pos| perlin_noise_2d(pos, scale, &hasher).value);
+        let expected = estimate_dt2(position, |pos| perlin_noise_2d(pos, scale, &hasher).value);
 
         let received = perlin_noise_2d(position, scale, &hasher).d2;
 
@@ -311,24 +416,30 @@ mod tests {
         }
     }
 
-    fn mat2_label(i: usize) -> String {
-        format!("({},{})", i % 2, i / 2)
+    fn derivative_label(i: usize) -> String {
+        let label = match i {
+            0 => "dtx",
+            1 => "dty",
+            2 => "dtmixed",
+            _ => panic!("Invalid index"),
+        };
+        label.to_string()
     }
 
     fn zip_hessians(
-        estimated_hessian: Mat2,
-        expected_hessian: Mat2,
+        estimated_hessian: Vec3,
+        expected_hessian: Vec3,
     ) -> std::iter::Map<
         std::iter::Enumerate<
-            itertools::ZipEq<std::array::IntoIter<f32, 4>, std::array::IntoIter<f32, 4>>,
+            itertools::ZipEq<std::array::IntoIter<f32, 3>, std::array::IntoIter<f32, 3>>,
         >,
         impl FnMut((usize, (f32, f32))) -> (String, f32, f32),
     > {
         estimated_hessian
-            .to_cols_array()
+            .to_array()
             .into_iter()
-            .zip_eq(expected_hessian.to_cols_array())
+            .zip_eq(expected_hessian.to_array())
             .enumerate()
-            .map(|(i, (a, b))| (mat2_label(i), a, b))
+            .map(|(i, (a, b))| (derivative_label(i), a, b))
     }
 }

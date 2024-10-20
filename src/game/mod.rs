@@ -6,7 +6,7 @@ pub mod assets;
 pub mod audio;
 mod camera;
 mod lights;
-mod map;
+pub mod map;
 mod movement;
 mod player;
 mod shaders;

@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use bevy::utils::hashbrown::HashMap;
-use utils::noise::{self, NoiseHasher, PcgHasher};
+use utils::noise::{self, NoiseHasher, PcgHasher, Value2Dt1, Value2Dt2};
 
 #[cfg(feature = "dev")]
 pub mod map_devtools;
@@ -153,11 +153,14 @@ impl TerrainWeight {
         &self,
         hasher: &impl noise::NoiseHasher,
         pos: Vec2,
-        erosion_factor: f32,
-    ) -> noise::Value2Dt1 {
+        erosion_factor: noise::Value2Dt1,
+    ) -> (noise::Value2Dt1, noise::Value2Dt1) {
         let layer = self.sample(hasher, pos);
-        let pre_erosion_factor = erosion_factor + layer.dt_length().value;
-        layer.to_dt1() / (1.0 + self.erosion * pre_erosion_factor)
+        let layer_steepiness = layer.dt_length();
+
+        let pre_erosion_factor = erosion_factor + layer_steepiness;
+        let v = 1.0 + self.erosion * pre_erosion_factor;
+        (layer.to_dt1() / v, layer_steepiness / v)
     }
 
     pub fn sample_many<'a>(
@@ -165,13 +168,13 @@ impl TerrainWeight {
         pos: Vec2,
         weights: impl Iterator<Item = &'a Self>,
     ) -> noise::Value2Dt1 {
-        let mut erosion_factor = 0.0;
+        let mut erosion_factor = noise::Value2Dt1::default();
         let mut terrain = noise::Value2Dt1::default();
 
         for w in weights {
-            let layer = w.sample_erosion_base(&hasher, pos, erosion_factor);
+            let (layer, layer_steepiness) = w.sample_erosion_base(&hasher, pos, erosion_factor);
             terrain = terrain + layer;
-            erosion_factor += layer.dt_length();
+            erosion_factor = erosion_factor + layer_steepiness;
             hasher = hasher.with_next_seed();
         }
 
@@ -278,11 +281,7 @@ impl Terrain {
         move |x, y| {
             let pos = chunk_translation + vec2(x, y);
 
-            let value = self.sample(pos).value;
-            // TODO: Calculate 3rd derivatives and use them to calculate normal instead of estimating
-            let normal = self.sample_estimate_normal(pos);
-
-            (value, normal.into())
+            self.sample(pos).to_mesh_input()
         }
     }
 
@@ -295,8 +294,8 @@ impl Terrain {
     }
 
     fn sample_estimate_normal(&self, pos: Vec2) -> Vec3 {
-        let dfdx = noise::estimate_derivative(pos.x, |x| self.sample(vec2(x, pos.y)).value);
-        let dfdy = noise::estimate_derivative(pos.y, |y| self.sample(vec2(pos.x, y)).value);
+        let dfdx = noise::estimate_dt1(pos.x, |x| self.sample(vec2(x, pos.y)).value);
+        let dfdy = noise::estimate_dt1(pos.y, |y| self.sample(vec2(pos.x, y)).value);
 
         noise::Dt2(vec2(dfdx, dfdy)).get_normal()
     }

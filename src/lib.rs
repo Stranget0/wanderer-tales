@@ -1,5 +1,5 @@
 mod dev_tools;
-mod game;
+pub mod game;
 mod screen;
 mod ui;
 pub mod utils;

@@ -9,6 +9,7 @@ bevy = { version = "0.14", features = ["wayland"] }
 bevy-inspector-egui = { version = "0.26.0", optional = true }
 bevy_editor_pls = { version = "0.9.0", optional = true }
 bytemuck = "1.16.3"
+criterion = "0.5.1"
 crossbeam-channel = "0.5.13"
 itertools = "0.13.0"
 libnoise = "1.1.2"
@@ -88,3 +89,7 @@ strip = "none"
 
 [[example]]
 name = "gpu_readback"
+
+[[bench]]
+name = "terrain_sample"
+harness = false
