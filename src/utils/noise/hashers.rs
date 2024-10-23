@@ -54,6 +54,7 @@ pub trait NoiseHasher {
     }
 }
 
+#[derive(Clone)]
 pub struct PcgHasher {
     seed: u32,
 }
