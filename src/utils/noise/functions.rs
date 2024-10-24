@@ -201,31 +201,6 @@ pub fn estimate_dt2<F: Fn(Vec2) -> f32>(p: Vec2, f: F) -> Vec3 {
     Vec3::new(dxx, dyy, dxy)
 }
 
-pub fn estimate_dt3<F: Fn(Vec2) -> f32>(p: Vec2, f: F) -> Vec3 {
-    let epsilon = 0.01;
-
-    // Third derivative with respect to x: f_xxx
-    let f_xxx = (f(Vec2::new(p.x + 2.0 * epsilon, p.y)) - 3.0 * f(Vec2::new(p.x + epsilon, p.y))
-        + 3.0 * f(Vec2::new(p.x - epsilon, p.y))
-        - f(Vec2::new(p.x - 2.0 * epsilon, p.y)))
-        / (2.0 * epsilon * epsilon * epsilon);
-
-    // Third derivative with respect to y: f_yyy
-    let f_yyy = (f(Vec2::new(p.x, p.y + 2.0 * epsilon)) - 3.0 * f(Vec2::new(p.x, p.y + epsilon))
-        + 3.0 * f(Vec2::new(p.x, p.y - epsilon))
-        - f(Vec2::new(p.x, p.y - 2.0 * epsilon)))
-        / (2.0 * epsilon * epsilon * epsilon);
-
-    // Mixed third derivative: f_xxy
-    let f_xxy = (f(Vec2::new(p.x + epsilon, p.y + epsilon))
-        - f(Vec2::new(p.x + epsilon, p.y - epsilon))
-        - f(Vec2::new(p.x - epsilon, p.y + epsilon))
-        + f(Vec2::new(p.x - epsilon, p.y - epsilon)))
-        / (4.0 * epsilon * epsilon * epsilon);
-
-    Vec3::new(f_xxx, f_yyy, f_xxy)
-}
-
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
@@ -286,51 +261,6 @@ mod tests {
                 expected,
             );
         }
-    }
-
-    #[test]
-    fn test_estimate_dt3() {
-        // Define the function f(x, y) = x^3 + y^3 + 3xy
-        // d/dx f(x,y) = 3 * x^2 + 3 * y
-        // d/dy f(x,y) = 3 * x + 3 * y^2
-
-        // d/dxx f(x,y) = 6x
-        // d/dyy f(x,y) = 6y
-        // d/dxy f(x,y) = 3
-
-        // d/dxxx f(x,y) = 6
-        // d/dyyy f(x,y) = 6
-        // d/dxxy f(x,y) = 0
-
-        let f = |p: Vec2| p.x.powi(3) + p.y.powi(3) + 3.0 * p.x * p.y;
-
-        // Choose a point to evaluate the derivatives at
-        let p = Vec2::new(1.0, 1.0);
-
-        // Estimate the third derivatives
-        let estimated_dt3 = estimate_dt3(p, f);
-
-        // Expected values
-        let expected_fxxx = 6.0;
-        let expected_fyyy = 6.0;
-        let expected_fxxy = 0.0;
-
-        // Tolerance for floating-point comparisons
-        let tolerance = 1e-2;
-
-        // Assert that the estimated values are close to the expected values
-        assert!(
-            (estimated_dt3.x - expected_fxxx).abs() < tolerance,
-            "f_xxx is not within the tolerance"
-        );
-        assert!(
-            (estimated_dt3.y - expected_fyyy).abs() < tolerance,
-            "f_yyy is not within the tolerance"
-        );
-        assert!(
-            (estimated_dt3.z - expected_fxxy).abs() < tolerance,
-            "f_xxy is not within the tolerance"
-        );
     }
 
     #[test]

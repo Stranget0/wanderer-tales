@@ -149,21 +149,38 @@ impl TerrainWeight {
         (utils::noise::perlin_noise_2d(pos, 1.0 / size, hasher) / 2.0 + 0.5) * amplitude
     }
 
+    // fn sample_erosion_base(
+    //     &self,
+    //     hasher: &impl noise::NoiseHasher,
+    //     pos: Vec2,
+    //     // t(x,y)
+    //     erosion_factor: noise::Value2Dt1,
+    // ) -> (noise::Value2Dt1, noise::Value2Dt1) {
+    //     // f(x,y)
+    //     let layer = self.sample(hasher, pos);
+    //     // s(x,y)
+    //     let layer_steepiness = layer.dt_length();
+    //
+    //     // d(x,y)
+    //     let pre_erosion_factor = erosion_factor + layer_steepiness;
+    //     // v(x,y)
+    //     let factor = 1.0 + self.erosion * pre_erosion_factor;
+    //     // p(x,y)
+    //     let eroded_layer = layer.to_dt1() / factor;
+    //
+    //     // if you dont have enough derivatives it might be possible to calculate them
+    //     let eroded_layer_steepiness = Value2Dt1::new(
+    //         eroded_layer.dt_length(),
+    //         layer.d1.0 / factor.value
+    //             - self.erosion
+    //                 * layer.value
+    //                 * (2.0 * layer.d1.0.y * layer.d2.zy() + 2.0 * layer.d1.0.x * layer.d2.xz())
+    //                 / (2.0 * layer_steepiness.value * factor.value.powi(2)),
+    //     );
+    //     (eroded_layer, eroded_layer_steepiness)
+    // }
+
     fn sample_erosion_base(
-        &self,
-        hasher: &impl noise::NoiseHasher,
-        pos: Vec2,
-        erosion_factor: noise::Value2Dt1,
-    ) -> (noise::Value2Dt1, noise::Value2Dt1) {
-        let layer = self.sample(hasher, pos);
-        let layer_steepiness = layer.dt_length();
-
-        let pre_erosion_factor = erosion_factor + layer_steepiness;
-        let v = 1.0 + self.erosion * pre_erosion_factor;
-        (layer.to_dt1() / v, pre_erosion_factor / v)
-    }
-
-    fn sample_erosion_base_reference(
         &self,
         hasher: &impl noise::NoiseHasher,
         pos: Vec2,
@@ -174,8 +191,8 @@ impl TerrainWeight {
 
         let pre_erosion_factor = erosion_factor + layer_steepiness;
         let v = 1.0 + self.erosion * pre_erosion_factor;
-        let layer = layer.to_dt1() / v;
-        (layer, layer.dt_length())
+        // let layer = layer.to_dt1() / v;
+        (layer.to_dt1() / v, (layer.to_dt1() / v.value).dt_length())
     }
 
     pub fn sample_many<'a>(
@@ -205,8 +222,7 @@ impl TerrainWeight {
         let mut terrain = noise::Value2Dt1::default();
 
         for w in weights {
-            let (layer, layer_steepiness) =
-                w.sample_erosion_base_reference(&hasher, pos, erosion_factor);
+            let (layer, layer_steepiness) = w.sample_erosion_base(&hasher, pos, erosion_factor);
             terrain = terrain + layer;
             erosion_factor = erosion_factor + layer_steepiness;
             hasher = hasher.with_next_seed();
@@ -320,18 +336,11 @@ impl Terrain {
     }
 
     pub fn sample(&self, pos: Vec2) -> noise::Value2Dt1 {
-        TerrainWeight::sample_many(
+        TerrainWeight::sample_many_reference(
             PcgHasher::from_seed(self.noise_seed),
             pos,
             self.noise_weights.iter(),
         )
-    }
-
-    fn sample_estimate_normal(&self, pos: Vec2) -> Vec3 {
-        let dfdx = noise::estimate_dt1(pos.x, |x| self.sample(vec2(x, pos.y)).value);
-        let dfdy = noise::estimate_dt1(pos.y, |y| self.sample(vec2(pos.x, y)).value);
-
-        noise::Dt2(vec2(dfdx, dfdy)).get_normal()
     }
 }
 
@@ -558,13 +567,34 @@ fn is_chunk_in_range(
     distance_squared <= render_radius_squared
 }
 
+#[cfg(any(test, feature = "dev"))]
+impl Terrain {
+    fn sample_estimate_normal(&self, pos: Vec2) -> Vec3 {
+        let dfdx = noise::estimate_dt1(pos.x, |x| self.sample(vec2(x, pos.y)).value);
+        let dfdy = noise::estimate_dt1(pos.y, |y| self.sample(vec2(pos.x, y)).value);
+
+        noise::Dt2(vec2(dfdx, dfdy)).get_normal()
+    }
+
+    pub fn chunk_sampler_estimate(
+        &self,
+        chunk_translation: Vec2,
+    ) -> impl Fn(f32, f32) -> (f32, [f32; 3]) + '_ {
+        move |x, y| {
+            let pos = chunk_translation + vec2(x, y);
+
+            let value = self.sample(pos).value;
+            let normal = self.sample_estimate_normal(pos);
+            (value, normal.into())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::render::mesh::VertexAttributeValues;
 
     use super::*;
-
-    impl Terrain {}
 
     fn get_terrain_config() -> Terrain {
         Terrain::default()
@@ -587,21 +617,17 @@ mod tests {
         let terrain = get_terrain_config();
 
         let generator = terrain.chunk_sampler(vec2(0.0, 0.0));
+        let generator_estimate = terrain.chunk_sampler_estimate(vec2(0.0, 0.0));
 
-        let auto_mesh = utils::primitives::create_subdivided_plane_smooth(
-            terrain.chunk_subdivisions,
-            CHUNK_SIZE,
-            |x, y| {
-                (
-                    generator(x, y).0,
-                    terrain.sample_estimate_normal(vec2(x, y)).into(),
-                )
-            },
-        );
         let mesh = utils::primitives::create_subdivided_plane(
             terrain.chunk_subdivisions,
             CHUNK_SIZE,
             generator,
+        );
+        let auto_mesh = utils::primitives::create_subdivided_plane(
+            terrain.chunk_subdivisions,
+            CHUNK_SIZE,
+            generator_estimate,
         );
 
         let auto_mesh_positions = extract_values(auto_mesh.attribute(Mesh::ATTRIBUTE_POSITION));

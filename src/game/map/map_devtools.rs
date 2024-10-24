@@ -83,10 +83,10 @@ pub fn toggle_debug_chunks(
             continue;
         }
         let chunk_translation = chunk_position.to_2d().to_world_pos();
-        let mesh = utils::primitives::create_subdivided_plane_smooth(
+        let mesh = utils::primitives::create_subdivided_plane(
             terrain.chunk_subdivisions,
             CHUNK_SIZE,
-            terrain.chunk_sampler(chunk_translation),
+            terrain.chunk_sampler_estimate(chunk_translation),
         );
 
         let transform =
