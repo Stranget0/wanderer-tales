@@ -184,15 +184,29 @@ impl TerrainWeight {
         &self,
         hasher: &impl noise::NoiseHasher,
         pos: Vec2,
-        erosion_factor: noise::Value2Dt1,
+        erosion_factor: f32,
     ) -> (noise::Value2Dt1, f32) {
         let layer = self.sample(hasher, pos);
         let layer_steepiness = layer.dt_length();
 
         let pre_erosion_factor = erosion_factor + layer_steepiness;
         let v = 1.0 + self.erosion * pre_erosion_factor;
-        // let layer = layer.to_dt1() / v;
         (layer.to_dt1() / v, (layer.to_dt1() / v.value).dt_length())
+    }
+
+    fn sample_erosion_base_reference(
+        &self,
+        hasher: &impl noise::NoiseHasher,
+        pos: Vec2,
+        erosion_factor: f32,
+    ) -> (noise::Value2Dt1, f32) {
+        let layer = self.sample(hasher, pos);
+        let layer_steepiness = layer.dt_length();
+
+        let pre_erosion_factor = erosion_factor + layer_steepiness;
+        let v = 1.0 + self.erosion * pre_erosion_factor;
+        let layer = layer.to_dt1() / v;
+        (layer, layer.dt_length())
     }
 
     pub fn sample_many<'a>(
@@ -200,13 +214,14 @@ impl TerrainWeight {
         pos: Vec2,
         weights: impl Iterator<Item = &'a Self>,
     ) -> noise::Value2Dt1 {
-        let mut erosion_factor = noise::Value2Dt1::default();
+        let mut erosion_factor = 0.0;
         let mut terrain = noise::Value2Dt1::default();
 
         for w in weights {
             let (layer, layer_steepiness) = w.sample_erosion_base(&hasher, pos, erosion_factor);
             terrain = terrain + layer;
-            erosion_factor = erosion_factor + layer_steepiness;
+            // TODO: should accumulate?
+            erosion_factor = layer_steepiness;
             hasher = hasher.with_next_seed();
         }
 
@@ -218,11 +233,12 @@ impl TerrainWeight {
         pos: Vec2,
         weights: impl Iterator<Item = &'a Self>,
     ) -> noise::Value2Dt1 {
-        let mut erosion_factor = noise::Value2Dt1::default();
+        let mut erosion_factor = 0.0;
         let mut terrain = noise::Value2Dt1::default();
 
         for w in weights {
-            let (layer, layer_steepiness) = w.sample_erosion_base(&hasher, pos, erosion_factor);
+            let (layer, layer_steepiness) =
+                w.sample_erosion_base_reference(&hasher, pos, erosion_factor);
             terrain = terrain + layer;
             erosion_factor = erosion_factor + layer_steepiness;
             hasher = hasher.with_next_seed();
@@ -336,7 +352,7 @@ impl Terrain {
     }
 
     pub fn sample(&self, pos: Vec2) -> noise::Value2Dt1 {
-        TerrainWeight::sample_many_reference(
+        TerrainWeight::sample_many(
             PcgHasher::from_seed(self.noise_seed),
             pos,
             self.noise_weights.iter(),

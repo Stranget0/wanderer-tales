@@ -200,11 +200,7 @@ impl EditorTerrainState {
             passed_weights.push(weight);
 
             let individual = self.create_preview_texture(ctx, |pos| {
-                weight
-                    .sample_erosion_base(&hasher, pos, Value2Dt1::default())
-                    .0
-                    .value
-                    / weight.amplitude
+                weight.sample_erosion_base(&hasher, pos, 0.0).0.value / weight.amplitude
             });
 
             let combined = self.create_preview_texture(ctx, |pos| {
