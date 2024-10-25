@@ -213,7 +213,7 @@ impl TerrainWeight {
         mut hasher: impl noise::NoiseHasher,
         pos: Vec2,
         weights: impl Iterator<Item = &'a Self>,
-    ) -> noise::Value2Dt1 {
+    ) -> (noise::Value2Dt1, f32) {
         let mut erosion_factor = 0.0;
         let mut terrain = noise::Value2Dt1::default();
 
@@ -225,14 +225,14 @@ impl TerrainWeight {
             hasher = hasher.with_next_seed();
         }
 
-        terrain
+        (terrain, erosion_factor)
     }
 
     pub fn sample_many_reference<'a>(
         mut hasher: impl noise::NoiseHasher,
         pos: Vec2,
         weights: impl Iterator<Item = &'a Self>,
-    ) -> noise::Value2Dt1 {
+    ) -> (noise::Value2Dt1, f32) {
         let mut erosion_factor = 0.0;
         let mut terrain = noise::Value2Dt1::default();
 
@@ -244,7 +244,7 @@ impl TerrainWeight {
             hasher = hasher.with_next_seed();
         }
 
-        terrain
+        (terrain, erosion_factor)
     }
 }
 
@@ -357,6 +357,7 @@ impl Terrain {
             pos,
             self.noise_weights.iter(),
         )
+        .0
     }
 }
 

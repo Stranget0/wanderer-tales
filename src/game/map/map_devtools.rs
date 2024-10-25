@@ -7,8 +7,30 @@ use super::*;
 // #[derive(Component)]
 // struct ShaderMap;
 
+const DEBUG_IMAGE_SIZE: usize = 75;
+
 #[derive(Component)]
 pub struct DebugChunk;
+
+#[derive(Resource)]
+pub struct EditorTerrainState {
+    weights: Vec<TerrainWeight>,
+    weights_preview: Vec<TerrainPreview>,
+    weights_visibility: Vec<bool>,
+    seed: u32,
+    preview_scale: f32,
+}
+
+#[derive(Clone)]
+struct TerrainPreview {
+    individual: egui::TextureHandle,
+    combined: egui::TextureHandle,
+    reference: egui::TextureHandle,
+
+    erosion_individual: egui::TextureHandle,
+    erosion_combined: egui::TextureHandle,
+    erosion_reference: egui::TextureHandle,
+}
 
 pub fn map_devtools_plugin(app: &mut App) {
     app.init_resource::<EditorTerrainState>().add_systems(
@@ -123,14 +145,6 @@ fn synchronize_terrain_ui(
     terrain_ui.synchronize_with_terrain(&terrain, egui_context.get_mut());
 }
 
-#[derive(Resource)]
-pub struct EditorTerrainState {
-    weights: Vec<TerrainWeight>,
-    weights_preview: Vec<TerrainPreview>,
-    seed: u32,
-    preview_scale: f32,
-}
-
 impl Default for EditorTerrainState {
     fn default() -> Self {
         Self {
@@ -143,15 +157,6 @@ impl Default for EditorTerrainState {
 }
 
 pub struct EditorTerrain {}
-
-#[derive(Clone)]
-struct TerrainPreview {
-    individual: egui::TextureHandle,
-    combined: egui::TextureHandle,
-    reference: egui::TextureHandle,
-}
-
-const DEBUG_IMAGE_SIZE: usize = 75;
 
 impl EditorTerrainState {
     fn create_preview_texture(
@@ -186,6 +191,7 @@ impl EditorTerrainState {
     fn synchronize_with_terrain(&mut self, terrain: &Terrain, ctx: &mut egui::Context) {
         self.weights_preview.clear();
         self.weights = terrain.noise_weights.clone();
+        self.weights_visibility = vec![true; self.weights.len()];
         let highest_amplitude = self
             .weights
             .iter()
@@ -200,7 +206,7 @@ impl EditorTerrainState {
             passed_weights.push(weight);
 
             let individual = self.create_preview_texture(ctx, |pos| {
-                weight.sample_erosion_base(&hasher, pos, 0.0).0.value / weight.amplitude
+                weight.sample_erosion_base(&hasher, pos, 0.0).0.value / highest_amplitude
             });
 
             let combined = self.create_preview_texture(ctx, |pos| {
@@ -209,6 +215,7 @@ impl EditorTerrainState {
                     pos,
                     passed_weights.iter().map(|w| w as &_),
                 )
+                .0
                 .value
                     / highest_amplitude
             });
@@ -219,14 +226,40 @@ impl EditorTerrainState {
                     pos,
                     passed_weights.iter().map(|w| w as &_),
                 )
+                .0
                 .value
                     / highest_amplitude
+            });
+
+            let erosion_individual = self
+                .create_preview_texture(ctx, |pos| weight.sample_erosion_base(&hasher, pos, 0.0).1);
+
+            let erosion_combined = self.create_preview_texture(ctx, |pos| {
+                TerrainWeight::sample_many(
+                    hasher.clone(),
+                    pos,
+                    passed_weights.iter().map(|w| w as &_),
+                )
+                .1
+            });
+
+            let erosion_reference = self.create_preview_texture(ctx, |pos| {
+                TerrainWeight::sample_many_reference(
+                    hasher.clone(),
+                    pos,
+                    passed_weights.iter().map(|w| w as &_),
+                )
+                .1
             });
 
             self.weights_preview.push(TerrainPreview {
                 individual,
                 combined,
                 reference,
+
+                erosion_individual,
+                erosion_combined,
+                erosion_reference,
             });
         }
     }
@@ -243,16 +276,21 @@ impl EditorDock for EditorTerrain {
                         ui.vertical(|ui| {
                             ui.label("Individual");
                             ui.image(&weight_preview.individual);
+                            ui.image(&weight_preview.erosion_individual);
                         });
                         ui.vertical(|ui| {
                             ui.label("Combined");
                             ui.image(&weight_preview.combined);
+                            ui.image(&weight_preview.erosion_combined);
                         });
                         ui.vertical(|ui| {
                             ui.label("Reference");
                             ui.image(&weight_preview.reference);
+                            ui.image(&weight_preview.erosion_reference);
                         });
                     });
+                    ui.separator();
+                    ui.spacing();
                 }
             });
 
