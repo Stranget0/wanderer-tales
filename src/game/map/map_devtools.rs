@@ -14,11 +14,23 @@ pub struct DebugChunk;
 
 #[derive(Resource)]
 pub struct EditorTerrainState {
-    weights: Vec<TerrainWeight>,
-    weights_preview: Vec<TerrainPreview>,
-    weights_visibility: Vec<bool>,
+    manual_has_changed: bool,
+    weights: Vec<(bool, TerrainWeight)>,
     seed: u32,
+}
+
+#[derive(Resource)]
+pub struct EditorTerrainImages {
+    weights_preview: Vec<TerrainPreview>,
     preview_scale: f32,
+}
+impl Default for EditorTerrainImages {
+    fn default() -> Self {
+        Self {
+            weights_preview: Vec::new(),
+            preview_scale: 25.0,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -33,24 +45,45 @@ struct TerrainPreview {
 }
 
 pub fn map_devtools_plugin(app: &mut App) {
-    app.init_resource::<EditorTerrainState>().add_systems(
-        Update,
-        (
+    app.init_resource::<EditorTerrainImages>()
+        .init_resource::<EditorTerrainState>()
+        .add_systems(Startup, update_terrain_previews)
+        .add_systems(
+            Update,
             (
-                synchronize_terrain_ui.in_set(MapSystemSets::ChunkReload),
-                log_terrain_changed.in_set(MapSystemSets::ChunkReload),
-                clear_chunk_registry.in_set(MapSystemSets::ChunkReload),
-                despawn_entities::<Chunk>.in_set(MapSystemSets::ChunkReload),
-                spawn_chunks.in_set(MapSystemSets::ChunkMutate),
-                // despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
-                render_chunks.in_set(MapSystemSets::ChunkRender),
-                // derender_chunks.in_set(MapSystemSets::ChunkRender),
-            )
-                .chain()
-                .run_if(resource_changed::<Terrain>),
-            debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
-        ),
-    );
+                sync_terrain_with_ui
+                    .in_set(MapSystemSets::ChunkReload)
+                    .run_if(editor_terrain_changed),
+                update_terrain_previews
+                    .in_set(MapSystemSets::ChunkReload)
+                    .run_if(editor_terrain_changed),
+                unflag_manual_terrain_change
+                    .in_set(MapSystemSets::ChunkRender)
+                    .run_if(editor_terrain_changed),
+                (
+                    log_terrain_changed.in_set(MapSystemSets::ChunkReload),
+                    clear_chunk_registry.in_set(MapSystemSets::ChunkReload),
+                    despawn_entities::<Chunk>.in_set(MapSystemSets::ChunkReload),
+                    spawn_chunks.in_set(MapSystemSets::ChunkMutate),
+                    // despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
+                    render_chunks.in_set(MapSystemSets::ChunkRender),
+                    // derender_chunks.in_set(MapSystemSets::ChunkRender),
+                )
+                    .chain()
+                    .run_if(resource_changed::<Terrain>),
+                debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
+            ),
+        );
+}
+
+fn sync_terrain_with_ui(mut terrain: ResMut<Terrain>, editor_state: Res<EditorTerrainState>) {
+    terrain.noise_seed = editor_state.seed;
+    terrain.noise_weights = editor_state
+        .weights
+        .iter()
+        .filter(|(is_visible, _)| *is_visible)
+        .map(|(_, w)| *w)
+        .collect_vec();
 }
 
 fn log_terrain_changed() {
@@ -79,6 +112,13 @@ fn debug_invisible_chunks(
             tailwind::RED_500,
         );
     }
+}
+
+fn editor_terrain_changed(editor_state: Res<EditorTerrainState>) -> bool {
+    editor_state.manual_has_changed
+}
+fn unflag_manual_terrain_change(mut editor_state: ResMut<EditorTerrainState>) {
+    editor_state.manual_has_changed = false;
 }
 
 pub fn toggle_debug_chunks(
@@ -133,185 +173,219 @@ pub fn toggle_debug_chunks(
     }
 }
 
-fn synchronize_terrain_ui(
+impl Default for EditorTerrainState {
+    fn default() -> Self {
+        let terrain = Terrain::default();
+
+        Self {
+            manual_has_changed: false,
+            weights: terrain.noise_weights.iter().map(|w| (true, *w)).collect(),
+            seed: terrain.noise_seed,
+        }
+    }
+}
+
+fn update_terrain_previews(
     ui_context: Query<&bevy_inspector_egui::bevy_egui::EguiContext, With<PrimaryWindow>>,
-    terrain: Res<Terrain>,
-    mut terrain_ui: ResMut<EditorTerrainState>,
+    mut terrain_images: ResMut<EditorTerrainImages>,
+    editor_terrain: Res<EditorTerrainState>,
 ) {
     let Ok(egui_context) = ui_context.get_single() else {
         return;
     };
     let mut egui_context = egui_context.clone();
-    terrain_ui.synchronize_with_terrain(&terrain, egui_context.get_mut());
-}
+    let ctx = egui_context.get_mut();
+    let preview_scale = terrain_images.preview_scale;
 
-impl Default for EditorTerrainState {
-    fn default() -> Self {
-        Self {
-            weights: Vec::new(),
-            weights_preview: Vec::new(),
-            seed: 0,
-            preview_scale: 25.0,
+    let highest_amplitude = editor_terrain
+        .weights
+        .iter()
+        .map(|(_, w)| w)
+        .max_by(|a, b| a.amplitude.partial_cmp(&b.amplitude).unwrap())
+        .map(|w| w.amplitude)
+        .unwrap_or(1.0);
+
+    let hasher = noise::PcgHasher::from_seed(editor_terrain.seed);
+    let mut passed_weights = Vec::with_capacity(editor_terrain.weights.len());
+
+    let mut weights_preview = Vec::with_capacity(editor_terrain.weights.len());
+    for (is_visible, weight) in &editor_terrain.weights {
+        if !*is_visible {
+            continue;
         }
+        passed_weights.push(weight);
+
+        let individual = create_preview_texture(
+            ctx,
+            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
+            preview_scale,
+            |pos| weight.sample_erosion_base(&hasher, pos, 0.0).0.value / highest_amplitude,
+        );
+
+        let combined = create_preview_texture(
+            ctx,
+            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
+            preview_scale,
+            |pos| {
+                TerrainWeight::sample_many(
+                    hasher.clone(),
+                    pos,
+                    passed_weights.iter().map(|w| w as &_),
+                )
+                .0
+                .value
+                    / highest_amplitude
+            },
+        );
+
+        let reference = create_preview_texture(
+            ctx,
+            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
+            preview_scale,
+            |pos| {
+                TerrainWeight::sample_many_reference(
+                    hasher.clone(),
+                    pos,
+                    passed_weights.iter().map(|w| w as &_),
+                )
+                .0
+                .value
+                    / highest_amplitude
+            },
+        );
+
+        let erosion_individual = create_preview_texture(
+            ctx,
+            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
+            preview_scale,
+            |pos| weight.sample_erosion_base(&hasher, pos, 0.0).1,
+        );
+
+        let erosion_combined = create_preview_texture(
+            ctx,
+            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
+            preview_scale,
+            |pos| {
+                TerrainWeight::sample_many(
+                    hasher.clone(),
+                    pos,
+                    passed_weights.iter().map(|w| w as &_),
+                )
+                .1
+            },
+        );
+
+        let erosion_reference = create_preview_texture(
+            ctx,
+            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
+            preview_scale,
+            |pos| {
+                TerrainWeight::sample_many_reference(
+                    hasher.clone(),
+                    pos,
+                    passed_weights.iter().map(|w| w as &_),
+                )
+                .1
+            },
+        );
+
+        weights_preview.push(TerrainPreview {
+            individual,
+            combined,
+            reference,
+
+            erosion_individual,
+            erosion_combined,
+            erosion_reference,
+        });
     }
+
+    terrain_images.weights_preview = weights_preview;
 }
 
 pub struct EditorTerrain {}
 
-impl EditorTerrainState {
-    fn create_preview_texture(
-        &self,
-        ctx: &egui::Context,
-        sample: impl Fn(Vec2) -> f32,
-    ) -> egui::TextureHandle {
-        let mut image = egui::ColorImage {
-            size: [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
-            pixels: vec![egui::Color32::BLACK; DEBUG_IMAGE_SIZE * DEBUG_IMAGE_SIZE],
-        };
-        for x in 0..DEBUG_IMAGE_SIZE {
-            for y in 0..DEBUG_IMAGE_SIZE {
-                let pos = vec2(x as f32 * self.preview_scale, y as f32 * self.preview_scale);
-                let value = sample(pos) * 255.0;
-
-                let color = egui::Color32::from_gray(value as u8);
-                image.pixels[x + y * DEBUG_IMAGE_SIZE] = color;
-            }
-        }
-
-        ctx.load_texture(
-            "debug",
-            image,
-            egui::TextureOptions {
-                wrap_mode: egui::TextureWrapMode::ClampToEdge,
-                ..default()
-            },
-        )
-    }
-
-    fn synchronize_with_terrain(&mut self, terrain: &Terrain, ctx: &mut egui::Context) {
-        self.weights_preview.clear();
-        self.weights = terrain.noise_weights.clone();
-        self.weights_visibility = vec![true; self.weights.len()];
-        let highest_amplitude = self
-            .weights
-            .iter()
-            .max_by(|a, b| a.amplitude.partial_cmp(&b.amplitude).unwrap())
-            .map(|w| w.amplitude)
-            .unwrap_or(1.0);
-
-        let hasher = noise::PcgHasher::from_seed(terrain.noise_seed);
-        let mut passed_weights = Vec::with_capacity(self.weights.len());
-
-        for weight in &self.weights {
-            passed_weights.push(weight);
-
-            let individual = self.create_preview_texture(ctx, |pos| {
-                weight.sample_erosion_base(&hasher, pos, 0.0).0.value / highest_amplitude
-            });
-
-            let combined = self.create_preview_texture(ctx, |pos| {
-                TerrainWeight::sample_many(
-                    hasher.clone(),
-                    pos,
-                    passed_weights.iter().map(|w| w as &_),
-                )
-                .0
-                .value
-                    / highest_amplitude
-            });
-
-            let reference = self.create_preview_texture(ctx, |pos| {
-                TerrainWeight::sample_many_reference(
-                    hasher.clone(),
-                    pos,
-                    passed_weights.iter().map(|w| w as &_),
-                )
-                .0
-                .value
-                    / highest_amplitude
-            });
-
-            let erosion_individual = self
-                .create_preview_texture(ctx, |pos| weight.sample_erosion_base(&hasher, pos, 0.0).1);
-
-            let erosion_combined = self.create_preview_texture(ctx, |pos| {
-                TerrainWeight::sample_many(
-                    hasher.clone(),
-                    pos,
-                    passed_weights.iter().map(|w| w as &_),
-                )
-                .1
-            });
-
-            let erosion_reference = self.create_preview_texture(ctx, |pos| {
-                TerrainWeight::sample_many_reference(
-                    hasher.clone(),
-                    pos,
-                    passed_weights.iter().map(|w| w as &_),
-                )
-                .1
-            });
-
-            self.weights_preview.push(TerrainPreview {
-                individual,
-                combined,
-                reference,
-
-                erosion_individual,
-                erosion_combined,
-                erosion_reference,
-            });
-        }
-    }
-}
-
 impl EditorDock for EditorTerrain {
     fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui) {
-        world.resource_scope::<EditorTerrainState, _>(|world, mut state| {
-            let is_focused = ui.memory(|m| m.clone()).focused().is_some();
+        world.resource_scope::<EditorTerrainImages, _>(|world, terrain_images| {
+            world.resource_scope::<EditorTerrainState, _>(|world, mut state| {
+                let is_focused = ui.memory(|m| m.clone()).focused().is_some();
 
-            ui.collapsing("Preview", |ui| {
-                for weight_preview in state.weights_preview.iter() {
-                    ui.horizontal(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label("Individual");
-                            ui.image(&weight_preview.individual);
-                            ui.image(&weight_preview.erosion_individual);
+                ui.collapsing("Preview", |ui| {
+                    for weight_preview in terrain_images.weights_preview.iter() {
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label("Individual");
+                                ui.image(&weight_preview.individual);
+                                ui.image(&weight_preview.erosion_individual);
+                            });
+                            ui.vertical(|ui| {
+                                ui.label("Combined");
+                                ui.image(&weight_preview.combined);
+                                ui.image(&weight_preview.erosion_combined);
+                            });
+                            ui.vertical(|ui| {
+                                ui.label("Reference");
+                                ui.image(&weight_preview.reference);
+                                ui.image(&weight_preview.erosion_reference);
+                            });
                         });
-                        ui.vertical(|ui| {
-                            ui.label("Combined");
-                            ui.image(&weight_preview.combined);
-                            ui.image(&weight_preview.erosion_combined);
-                        });
-                        ui.vertical(|ui| {
-                            ui.label("Reference");
-                            ui.image(&weight_preview.reference);
-                            ui.image(&weight_preview.erosion_reference);
-                        });
-                    });
-                    ui.separator();
-                    ui.spacing();
-                }
-            });
-
-            ui.collapsing("Settings", |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Seed:");
-                    if bevy_inspector::ui_for_value(&mut state.seed, ui, world) {
-                        let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
-                        terrain.noise_seed = state.seed;
+                        ui.separator();
+                        ui.spacing();
                     }
                 });
-                ui.horizontal(|ui| {
-                    ui.label("Weights:");
-                    if bevy_inspector::ui_for_value(&mut state.weights, ui, world) {
-                        let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
-                        terrain.noise_weights = state.weights.clone();
-                    }
+
+                ui.collapsing("Settings", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Seed:");
+                        if bevy_inspector::ui_for_value(&mut state.seed, ui, world) {
+                            let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                            terrain.noise_seed = state.seed;
+                            state.manual_has_changed = true;
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Weights:");
+                        if bevy_inspector::ui_for_value(&mut state.weights, ui, world) {
+                            let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                            terrain.noise_weights = state.weights.iter().map(|(_, w)| *w).collect();
+                            state.manual_has_changed = true;
+                        }
+                    });
                 });
             });
         });
     }
+}
+
+fn create_preview_texture(
+    ctx: &egui::Context,
+    size: [usize; 2],
+    scale: f32,
+    sample: impl Fn(Vec2) -> f32,
+) -> egui::TextureHandle {
+    let mut image = egui::ColorImage {
+        size,
+        pixels: vec![egui::Color32::BLACK; size[0] * size[1]],
+    };
+    for x in 0..size[0] {
+        for y in 0..size[1] {
+            let pos = vec2(x as f32 * scale, y as f32 * scale);
+            let value = sample(pos) * 255.0;
+
+            let color = egui::Color32::from_gray(value as u8);
+            image.pixels[x + y * size[1]] = color;
+        }
+    }
+
+    ctx.load_texture(
+        "debug",
+        image,
+        egui::TextureOptions {
+            wrap_mode: egui::TextureWrapMode::ClampToEdge,
+            ..default()
+        },
+    )
 }
 
 // #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
