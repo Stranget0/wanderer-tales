@@ -7,7 +7,7 @@ use super::*;
 // #[derive(Component)]
 // struct ShaderMap;
 
-const DEBUG_IMAGE_SIZE: usize = 75;
+const DEBUG_IMAGE_SIZE: usize = 100;
 
 #[derive(Component)]
 pub struct DebugChunk;
@@ -23,12 +23,14 @@ pub struct EditorTerrainState {
 pub struct EditorTerrainImages {
     weights_preview: Vec<TerrainPreview>,
     preview_scale: f32,
+    manual_has_changed: bool,
 }
 impl Default for EditorTerrainImages {
     fn default() -> Self {
         Self {
             weights_preview: Vec::new(),
             preview_scale: 25.0,
+            manual_has_changed: false,
         }
     }
 }
@@ -57,9 +59,15 @@ pub fn map_devtools_plugin(app: &mut App) {
                 update_terrain_previews
                     .in_set(MapSystemSets::ChunkReload)
                     .run_if(editor_terrain_changed),
+                update_terrain_previews
+                    .in_set(MapSystemSets::ChunkReload)
+                    .run_if(editor_terrain_previews_changed),
                 unflag_manual_terrain_change
                     .in_set(MapSystemSets::ChunkRender)
                     .run_if(editor_terrain_changed),
+                unflag_manual_terrain_previews_change
+                    .in_set(MapSystemSets::ChunkRender)
+                    .run_if(editor_terrain_previews_changed),
                 (
                     log_terrain_changed.in_set(MapSystemSets::ChunkReload),
                     clear_chunk_registry.in_set(MapSystemSets::ChunkReload),
@@ -119,6 +127,13 @@ fn editor_terrain_changed(editor_state: Res<EditorTerrainState>) -> bool {
 }
 fn unflag_manual_terrain_change(mut editor_state: ResMut<EditorTerrainState>) {
     editor_state.manual_has_changed = false;
+}
+
+fn editor_terrain_previews_changed(previews_state: Res<EditorTerrainImages>) -> bool {
+    previews_state.manual_has_changed
+}
+fn unflag_manual_terrain_previews_change(mut previews_state: ResMut<EditorTerrainImages>) {
+    previews_state.manual_has_changed = false;
 }
 
 pub fn toggle_debug_chunks(
@@ -307,11 +322,18 @@ pub struct EditorTerrain {}
 
 impl EditorDock for EditorTerrain {
     fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui) {
-        world.resource_scope::<EditorTerrainImages, _>(|world, terrain_images| {
+        world.resource_scope::<EditorTerrainImages, _>(|world, mut terrain_images| {
             world.resource_scope::<EditorTerrainState, _>(|world, mut state| {
                 let is_focused = ui.memory(|m| m.clone()).focused().is_some();
 
                 ui.collapsing("Preview", |ui| {
+                    terrain_images.manual_has_changed = ui
+                        .add(
+                            egui::Slider::new(&mut terrain_images.preview_scale, 0.01..=1000.0)
+                                .text("preview scale"),
+                        )
+                        .changed();
+
                     for weight_preview in terrain_images.weights_preview.iter() {
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
