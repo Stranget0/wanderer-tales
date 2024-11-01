@@ -17,6 +17,10 @@ pub struct EditorTerrainState {
     manual_has_changed: bool,
     weights: Vec<(bool, TerrainWeight)>,
     seed: u32,
+    chunk_subdivisions: u32,
+    // These are in chunks
+    chunk_spawn_radius: u8,
+    chunk_visibility_radius: u8,
 }
 
 #[derive(Resource)]
@@ -39,11 +43,9 @@ impl Default for EditorTerrainImages {
 struct TerrainPreview {
     individual: egui::TextureHandle,
     combined: egui::TextureHandle,
-    reference: egui::TextureHandle,
 
     erosion_individual: egui::TextureHandle,
     erosion_combined: egui::TextureHandle,
-    erosion_reference: egui::TextureHandle,
 }
 
 pub fn map_devtools_plugin(app: &mut App) {
@@ -58,10 +60,11 @@ pub fn map_devtools_plugin(app: &mut App) {
                     .run_if(editor_terrain_changed),
                 update_terrain_previews
                     .in_set(MapSystemSets::ChunkReload)
-                    .run_if(editor_terrain_changed),
-                update_terrain_previews
-                    .in_set(MapSystemSets::ChunkReload)
-                    .run_if(editor_terrain_previews_changed),
+                    .run_if(
+                        editor_terrain_changed
+                            .or_else(editor_terrain_previews_changed)
+                            .or_else(render_center_changed),
+                    ),
                 unflag_manual_terrain_change
                     .in_set(MapSystemSets::ChunkRender)
                     .run_if(editor_terrain_changed),
@@ -196,6 +199,9 @@ impl Default for EditorTerrainState {
             manual_has_changed: false,
             weights: terrain.noise_weights.iter().map(|w| (true, *w)).collect(),
             seed: terrain.noise_seed,
+            chunk_subdivisions: terrain.chunk_subdivisions,
+            chunk_spawn_radius: terrain.chunk_spawn_radius,
+            chunk_visibility_radius: terrain.chunk_visibility_radius,
         }
     }
 }
@@ -204,6 +210,7 @@ fn update_terrain_previews(
     ui_context: Query<&bevy_inspector_egui::bevy_egui::EguiContext, With<PrimaryWindow>>,
     mut terrain_images: ResMut<EditorTerrainImages>,
     editor_terrain: Res<EditorTerrainState>,
+    render_center: Res<MapRenderCenter>,
 ) {
     let Ok(egui_context) = ui_context.get_single() else {
         return;
@@ -211,6 +218,7 @@ fn update_terrain_previews(
     let mut egui_context = egui_context.clone();
     let ctx = egui_context.get_mut();
     let preview_scale = terrain_images.preview_scale;
+    let offset = render_center.to_world_pos().xz();
 
     let highest_amplitude = editor_terrain
         .weights
@@ -234,7 +242,13 @@ fn update_terrain_previews(
             ctx,
             [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
             preview_scale,
-            |pos| weight.sample_erosion_base(&hasher, pos, 0.0).0.value / highest_amplitude,
+            |pos| {
+                weight
+                    .sample_erosion_base(&hasher, pos + offset, 0.0)
+                    .0
+                    .value
+                    / highest_amplitude
+            },
         );
 
         let combined = create_preview_texture(
@@ -244,23 +258,7 @@ fn update_terrain_previews(
             |pos| {
                 TerrainWeight::sample_many(
                     hasher.clone(),
-                    pos,
-                    passed_weights.iter().map(|w| w as &_),
-                )
-                .0
-                .value
-                    / highest_amplitude
-            },
-        );
-
-        let reference = create_preview_texture(
-            ctx,
-            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
-            preview_scale,
-            |pos| {
-                TerrainWeight::sample_many_reference(
-                    hasher.clone(),
-                    pos,
+                    pos + offset,
                     passed_weights.iter().map(|w| w as &_),
                 )
                 .0
@@ -273,7 +271,7 @@ fn update_terrain_previews(
             ctx,
             [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
             preview_scale,
-            |pos| weight.sample_erosion_base(&hasher, pos, 0.0).1,
+            |pos| weight.sample_erosion_base(&hasher, pos + offset, 0.0).1,
         );
 
         let erosion_combined = create_preview_texture(
@@ -283,21 +281,7 @@ fn update_terrain_previews(
             |pos| {
                 TerrainWeight::sample_many(
                     hasher.clone(),
-                    pos,
-                    passed_weights.iter().map(|w| w as &_),
-                )
-                .1
-            },
-        );
-
-        let erosion_reference = create_preview_texture(
-            ctx,
-            [DEBUG_IMAGE_SIZE, DEBUG_IMAGE_SIZE],
-            preview_scale,
-            |pos| {
-                TerrainWeight::sample_many_reference(
-                    hasher.clone(),
-                    pos,
+                    pos + offset,
                     passed_weights.iter().map(|w| w as &_),
                 )
                 .1
@@ -307,11 +291,9 @@ fn update_terrain_previews(
         weights_preview.push(TerrainPreview {
             individual,
             combined,
-            reference,
 
             erosion_individual,
             erosion_combined,
-            erosion_reference,
         });
     }
 
@@ -339,17 +321,12 @@ impl EditorDock for EditorTerrain {
                             ui.vertical(|ui| {
                                 ui.label("Individual");
                                 ui.image(&weight_preview.individual);
-                                ui.image(&weight_preview.erosion_individual);
+                                // ui.image(&weight_preview.erosion_individual);
                             });
                             ui.vertical(|ui| {
                                 ui.label("Combined");
                                 ui.image(&weight_preview.combined);
-                                ui.image(&weight_preview.erosion_combined);
-                            });
-                            ui.vertical(|ui| {
-                                ui.label("Reference");
-                                ui.image(&weight_preview.reference);
-                                ui.image(&weight_preview.erosion_reference);
+                                // ui.image(&weight_preview.erosion_combined);
                             });
                         });
                         ui.separator();
@@ -359,12 +336,50 @@ impl EditorDock for EditorTerrain {
 
                 ui.collapsing("Settings", |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Seed:");
-                        if bevy_inspector::ui_for_value(&mut state.seed, ui, world) {
-                            let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
-                            terrain.noise_seed = state.seed;
-                            state.manual_has_changed = true;
-                        }
+                        ui.vertical(|ui| {
+                            ui.label("Seed:");
+                            if bevy_inspector::ui_for_value(&mut state.seed, ui, world) {
+                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                terrain.noise_seed = state.seed;
+                                state.manual_has_changed = true;
+                            }
+                        });
+                        ui.vertical(|ui| {
+                            ui.label("Mesh Subdivisions:");
+                            if bevy_inspector::ui_for_value(
+                                &mut state.chunk_subdivisions,
+                                ui,
+                                world,
+                            ) {
+                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                terrain.chunk_subdivisions = state.chunk_subdivisions;
+                                state.manual_has_changed = true;
+                            }
+                        });
+                        ui.vertical(|ui| {
+                            ui.label("Visibility radius:");
+                            if bevy_inspector::ui_for_value(
+                                &mut state.chunk_visibility_radius,
+                                ui,
+                                world,
+                            ) {
+                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                terrain.chunk_visibility_radius = state.chunk_visibility_radius;
+                                state.manual_has_changed = true;
+                            }
+                        });
+                        ui.vertical(|ui| {
+                            ui.label("Spawn radius:");
+                            if bevy_inspector::ui_for_value(
+                                &mut state.chunk_spawn_radius,
+                                ui,
+                                world,
+                            ) {
+                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                terrain.chunk_spawn_radius = state.chunk_spawn_radius;
+                                state.manual_has_changed = true;
+                            }
+                        });
                     });
                     ui.horizontal(|ui| {
                         ui.label("Weights:");
@@ -390,13 +405,17 @@ fn create_preview_texture(
         size,
         pixels: vec![egui::Color32::BLACK; size[0] * size[1]],
     };
-    for x in 0..size[0] {
-        for y in 0..size[1] {
+    let size_x_half = size[0] as i32 / 2;
+    let size_y_half = size[1] as i32 / 2;
+    for x in -size_x_half..size_x_half {
+        for y in -size_y_half..size_y_half {
             let pos = vec2(x as f32 * scale, y as f32 * scale);
             let value = sample(pos) * 255.0;
 
             let color = egui::Color32::from_gray(value as u8);
-            image.pixels[x + y * size[1]] = color;
+            let x_pos = (x + size_x_half) as usize;
+            let y_pos = (y + size_y_half) as usize;
+            image.pixels[x_pos + y_pos * size[1]] = color;
         }
     }
 

@@ -11,7 +11,7 @@ mod movement;
 mod player;
 mod shaders;
 
-pub use camera::CameraOrbit;
+pub use camera::{camera_not_locked, CameraLock, CameraLocks, CameraOrbit};
 
 pub mod devtools {
     pub use super::map::map_devtools::*;

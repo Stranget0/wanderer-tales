@@ -7,7 +7,7 @@ pub use data::*;
 pub(super) use plugin::plugin;
 
 #[cfg(feature = "dev")]
-pub(super) mod plugin {
+pub mod plugin {
     use std::any::TypeId;
 
     use super::*;
@@ -27,6 +27,13 @@ pub(super) mod plugin {
         render::render_resource::{AsBindGroup, ShaderImport, ShaderRef},
     };
 
+    #[derive(Resource, Default)]
+    pub struct DevUIEnabled(pub bool);
+
+    pub fn dev_ui_enabled(enabled: Res<DevUIEnabled>) -> bool {
+        enabled.0
+    }
+
     pub fn plugin(app: &mut App) {
         app
             .add_plugins(
@@ -39,6 +46,7 @@ pub(super) mod plugin {
                     bevy_inspector_egui::bevy_egui::EguiPlugin,
                 ),
             )
+            .init_resource::<DevUIEnabled>()
             .insert_resource(WireframeConfig {
                 default_color: Color::srgb(1.0, 1.0, 1.0),
                 ..Default::default()
@@ -51,27 +59,34 @@ pub(super) mod plugin {
                 (
                     // add_forward_gizmo,
                     // add_world_gizmo,
-                    add_camera_debug,
+                    toggle_dev_ui
+                        .run_if(input_just_pressed(KeyCode::F10))
+                        .in_set(AppSet::RecordInput),
+                    sync_camera_locks
+                        .run_if(resource_changed::<DevUIEnabled>)
+                        .in_set(AppSet::Update),
+                    // add_camera_debug,
                     log_shader_load,
                     // draw_debug_normals,
-                    game::devtools::change_map_seed.run_if(input_just_pressed(KeyCode::Numpad0)),
-                    toggle_debug_normals.run_if(input_just_pressed(KeyCode::Numpad1)),
-                    game::devtools::toggle_debug_chunks
-                        .run_if(input_just_pressed(KeyCode::Numpad2)),
+                    // game::devtools::change_map_seed.run_if(input_just_pressed(KeyCode::Numpad0)),
+                    // toggle_debug_normals.run_if(input_just_pressed(KeyCode::Numpad1)),
+                    // game::devtools::toggle_debug_chunks
+                    //     .run_if(input_just_pressed(KeyCode::Numpad2)),
                 ),
             )
             .add_systems(
                 PostUpdate,
                 show_ui_system
+                    .run_if(dev_ui_enabled)
                     .before(bevy_inspector_egui::bevy_egui::EguiSet::ProcessOutput)
                     .before(bevy_inspector_egui::bevy_egui::systems::end_pass_system)
                     .before(bevy::transform::TransformSystem::TransformPropagate),
             );
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
     pub enum EditorView {
-        // GameView,
+        GameView,
         Hierarchy,
         Resources,
         Assets,
@@ -80,25 +95,88 @@ pub(super) mod plugin {
     }
 
     impl EditorView {
-        fn to_ui<'a>(
+        fn clear_background(&self) -> bool {
+            match self {
+                EditorView::GameView => false,
+                _ => true,
+            }
+        }
+
+        fn closeable(&self) -> bool {
+            match self {
+                EditorView::GameView => false,
+                _ => true,
+            }
+        }
+        fn handle_split(&self, state: &mut egui_dock::DockState<EditorView>) {
+            if state.find_tab(self).is_some() {
+                return;
+            }
+
+            match self {
+                EditorView::GameView => {}
+                EditorView::Hierarchy => {
+                    let tree = state.main_surface_mut();
+                    tree.split_left(egui_dock::NodeIndex::root(), 0.2, vec![*self]);
+                }
+                EditorView::Resources => {
+                    let tree = state.main_surface_mut();
+                    tree.split_below(egui_dock::NodeIndex::root(), 0.7, vec![*self]);
+                }
+                EditorView::Assets => {
+                    let tree = state.main_surface_mut();
+                    tree.split_below(egui_dock::NodeIndex::root(), 0.7, vec![*self]);
+                }
+                EditorView::Inspector => {
+                    let tree = state.main_surface_mut();
+                    tree.split_right(egui_dock::NodeIndex::root(), 0.8, vec![*self]);
+                }
+                EditorView::TerrainGen => {
+                    let tree = state.main_surface_mut();
+                    tree.split_right(egui_dock::NodeIndex::root(), 0.8, vec![*self]);
+                }
+            }
+        }
+
+        fn as_ui<'a>(
             &self,
+            views_to_open: &'a mut hashbrown::HashSet<EditorView>,
             selection: &'a mut InspectorSelection,
             selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
         ) -> Box<dyn EditorDock + 'a> {
             match self {
-                // EditorView::GameView => todo!(),
                 EditorView::Hierarchy => Box::new(HierarchyUI {
                     selection,
                     selected_entities,
+                    views_to_open,
                 }),
-                EditorView::Resources => Box::new(ResourceUI { selection }),
-                EditorView::Assets => Box::new(AssetUI { selection }),
+                EditorView::Resources => Box::new(ResourceUI {
+                    selection,
+                    views_to_open,
+                }),
+                EditorView::Assets => Box::new(AssetUI {
+                    selection,
+                    views_to_open,
+                }),
                 EditorView::Inspector => Box::new(InspectorUI {
                     selection,
                     selected_entities,
                 }),
                 EditorView::TerrainGen => Box::new(game::devtools::EditorTerrain {}),
+                EditorView::GameView => Box::new(GameUI {}),
             }
+        }
+
+        pub fn label(&self) -> String {
+            match self {
+                EditorView::Hierarchy => "Hierarchy",
+                EditorView::Resources => "Resources",
+                EditorView::Assets => "Assets",
+                EditorView::Inspector => "Inspector",
+                EditorView::TerrainGen => "Terrain Gen",
+                EditorView::GameView => "Game View",
+            }
+            .to_string()
         }
     }
 
@@ -106,7 +184,7 @@ pub(super) mod plugin {
         pub world: &'a mut World,
         selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
         selection: &'a mut InspectorSelection,
-        // ui_state: &'a mut EditorState,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
     }
 
     #[derive(Eq, PartialEq)]
@@ -121,6 +199,7 @@ pub(super) mod plugin {
         state: egui_dock::DockState<EditorView>,
         selected_entities: bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
         selection: InspectorSelection,
+        views_to_open: hashbrown::HashSet<EditorView>,
     }
 
     pub trait EditorDock {
@@ -129,22 +208,14 @@ pub(super) mod plugin {
 
     impl EditorState {
         pub fn new() -> Self {
-            let mut state = egui_dock::DockState::new(vec![]);
-            let tree = state.main_surface_mut();
-            let [game, _inspector] = tree.split_right(
-                egui_dock::NodeIndex::root(),
-                0.75,
-                vec![EditorView::TerrainGen],
-            );
-            // let [game, _hierarchy] = tree.split_left(game, 0.2, vec![EditorView::Hierarchy]);
-            // let [_game, _bottom] =
-            //     tree.split_below(game, 0.8, vec![EditorView::Resources, EditorView::Assets]);
+            let state = egui_dock::DockState::new(vec![EditorView::GameView]);
 
             Self {
                 state,
                 selected_entities:
                     bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities::default(),
                 selection: InspectorSelection::Entities,
+                views_to_open: hashbrown::HashSet::default(),
             }
         }
 
@@ -153,11 +224,17 @@ pub(super) mod plugin {
                 world,
                 selected_entities: &mut self.selected_entities,
                 selection: &mut self.selection,
-                // ui_state: self,
+                views_to_open: &mut self.views_to_open,
             };
             egui_dock::DockArea::new(&mut self.state)
                 .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
+                .show_add_buttons(true)
+                .show_add_popup(true)
                 .show(ctx, &mut tab_viewer);
+
+            self.views_to_open.drain().for_each(|tab| {
+                tab.handle_split(&mut self.state);
+            });
         }
     }
 
@@ -181,25 +258,79 @@ pub(super) mod plugin {
         });
     }
 
+    fn toggle_dev_ui(mut dev_ui_enabled: ResMut<DevUIEnabled>) {
+        dev_ui_enabled.0 = !dev_ui_enabled.0;
+    }
+
+    fn sync_camera_locks(
+        mut camera_locks: ResMut<game::CameraLocks>,
+        dev_ui_enabled: Res<DevUIEnabled>,
+    ) {
+        if dev_ui_enabled.0 {
+            camera_locks.0.insert(game::CameraLock::EditorUI);
+        } else {
+            camera_locks.0.remove(&game::CameraLock::EditorUI);
+        }
+    }
+
     impl egui_dock::TabViewer for EditorTabs<'_> {
         type Tab = EditorView;
 
-        fn ui(&mut self, ui: &mut egui_dock::egui::Ui, window: &mut Self::Tab) {
-            window
-                .to_ui(self.selection, self.selected_entities)
+        fn ui(&mut self, ui: &mut egui_dock::egui::Ui, view: &mut Self::Tab) {
+            view.as_ui(self.views_to_open, self.selection, self.selected_entities)
                 .ui(self.world, ui);
+        }
+
+        fn add_popup(
+            &mut self,
+            ui: &mut egui::Ui,
+            _surface: egui_dock::SurfaceIndex,
+            _node: egui_dock::NodeIndex,
+        ) {
+            ui.set_min_width(120.0);
+            ui.style_mut().visuals.button_frame = false;
+
+            let top_openable = vec![EditorView::TerrainGen];
+            let other_openable = vec![
+                EditorView::Hierarchy,
+                EditorView::Resources,
+                EditorView::Assets,
+                EditorView::Inspector,
+            ];
+
+            for view in top_openable {
+                if ui.button(view.label()).clicked() {
+                    self.views_to_open.insert(view);
+                }
+            }
+
+            ui.separator();
+            ui.spacing();
+
+            ui.group(|ui| {
+                for view in other_openable {
+                    if ui.button(view.label()).clicked() {
+                        self.views_to_open.insert(view);
+                    }
+                }
+            });
+        }
+
+        fn clear_background(&self, tab: &Self::Tab) -> bool {
+            tab.clear_background()
+        }
+
+        fn closeable(&mut self, tab: &mut Self::Tab) -> bool {
+            tab.closeable()
         }
 
         fn title(&mut self, window: &mut Self::Tab) -> egui_dock::egui::WidgetText {
             format!("{window:?}").into()
         }
-
-        // fn clear_background(&self, window: &Self::Tab) -> bool {
-        //     !matches!(window, EditorView::GameView)
-        // }
     }
     struct ResourceUI<'a> {
         selection: &'a mut InspectorSelection,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
     }
 
     impl EditorDock for ResourceUI<'_> {
@@ -226,6 +357,7 @@ pub(super) mod plugin {
                 };
 
                 if ui.selectable_label(selected, resource_name).clicked() {
+                    self.views_to_open.insert(EditorView::Inspector);
                     *self.selection =
                         InspectorSelection::Resource(type_id, resource_name.to_string());
                 }
@@ -235,7 +367,9 @@ pub(super) mod plugin {
 
     struct AssetUI<'a> {
         selection: &'a mut InspectorSelection,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
     }
+
     impl EditorDock for AssetUI<'_> {
         fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui) {
             let type_registry = world.resource::<AppTypeRegistry>().0.clone();
@@ -268,6 +402,7 @@ pub(super) mod plugin {
                             .selectable_label(selected, format!("{:?}", handle))
                             .clicked()
                         {
+                            self.views_to_open.insert(EditorView::Inspector);
                             *self.selection = InspectorSelection::Asset(
                                 asset_type_id,
                                 asset_name.to_string(),
@@ -283,6 +418,7 @@ pub(super) mod plugin {
     struct HierarchyUI<'a> {
         selection: &'a mut InspectorSelection,
         selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
     }
 
     impl EditorDock for HierarchyUI<'_> {
@@ -293,6 +429,7 @@ pub(super) mod plugin {
                 self.selected_entities,
             );
             if selected {
+                self.views_to_open.insert(EditorView::Inspector);
                 *self.selection = InspectorSelection::Entities;
             }
         }
@@ -344,6 +481,13 @@ pub(super) mod plugin {
             }
         }
     }
+
+    struct GameUI;
+
+    impl EditorDock for GameUI {
+        fn ui(&mut self, _world: &mut World, _ui: &mut bevy_inspector_egui::egui::Ui) {}
+    }
+
     #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
     struct DebugNormalsMaterialExtension {}
 

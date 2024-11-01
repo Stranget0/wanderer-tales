@@ -13,10 +13,13 @@ pub mod prelude {
     pub use super::utils::ecs::*;
     pub use super::wgsl_keys::*;
     pub use crate::dev_tools::*;
+    pub use crate::game::{camera_not_locked, CameraLock, CameraLocks};
+    pub use crate::AppSet;
     pub use bevy::color::palettes::tailwind;
     pub use bevy::input::common_conditions::*;
     pub use bevy::math::*;
     pub use bevy::prelude::*;
+    pub use bevy::utils::hashbrown;
     pub use itertools::Itertools;
 }
 
@@ -48,7 +51,7 @@ impl Plugin for AppPlugin {
 /// When adding a new variant, make sure to order it in the `configure_sets`
 /// call above.
 #[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash)]
-enum AppSet {
+pub enum AppSet {
     /// Tick timers.
     TickTimers,
     /// Record player input.

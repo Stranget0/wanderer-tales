@@ -325,16 +325,13 @@ impl Default for Terrain {
             noise_seed: 0,
             noise_weights: TerrainWeight::new_weights(vec![
                 //
-                (1000.0, 1000.0, 2.0),
-                (500.0, 500.0, 0.5),
-                (250.0, 250.0, 10.0),
-                (100.0, 100.0, 10.0),
-                (50.0, 50.0, 10.0),
-                (10.0, 10.0, 10.0),
+                (2000.0, 1000.0, 0.2),
+                (1000.0, 1000.0, 0.9),
+                (500.0, 500.0, 0.25),
             ]),
-            chunk_subdivisions: 32,
-            chunk_spawn_radius: 32,
-            chunk_visibility_radius: 32,
+            chunk_subdivisions: 4,
+            chunk_spawn_radius: 16,
+            chunk_visibility_radius: 16,
         }
     }
 }

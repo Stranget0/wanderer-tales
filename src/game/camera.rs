@@ -1,8 +1,5 @@
-use crate::{game::movement::*, screen::Screen};
-use bevy::{
-    input::mouse::{MouseScrollUnit, MouseWheel},
-    prelude::*,
-};
+use crate::{game::movement::*, prelude::*, screen::Screen};
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 
 use crate::AppSet;
 
@@ -15,13 +12,28 @@ pub struct CameraOrbitTarget {
 #[derive(Component)]
 pub struct CameraOrbit;
 
+#[derive(PartialEq, Eq, Hash)]
+pub enum CameraLock {
+    EditorUI,
+}
+
+#[derive(Resource, Default)]
+pub struct CameraLocks(pub hashbrown::HashSet<CameraLock>);
+
+pub fn camera_not_locked(camera_locks: Res<CameraLocks>) -> bool {
+    camera_locks.0.is_empty()
+}
+
 pub(super) fn plugin(app: &mut App) {
     app.register_type::<CameraOrbitTarget>()
+        .init_resource::<CameraLocks>()
         .add_systems(OnEnter(Screen::Playing), spawn_camera_gameplay)
         .add_systems(
             Update,
             (
-                handle_zoom.in_set(AppSet::RecordInput),
+                record_zoom
+                    .in_set(AppSet::RecordInput)
+                    .run_if(camera_not_locked),
                 observe_camera_target.in_set(AppSet::Update),
             )
                 .run_if(in_state(Screen::Playing)),
@@ -45,7 +57,7 @@ fn spawn_camera_gameplay(mut commands: Commands) {
     ));
 }
 
-fn handle_zoom(
+fn record_zoom(
     mut wheel: EventReader<MouseWheel>,
     mut observed_target: Query<&mut CameraOrbitTarget>,
 ) {

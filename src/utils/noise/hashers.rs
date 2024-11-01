@@ -163,9 +163,36 @@ impl NoiseHasher for PcgHasher {
         Self::new(self.seed.wrapping_add(1))
     }
 
-    fn hash_22f(v: IVec2) -> Vec2 {
-        let v = Self::pcg2d(v.as_uvec2());
-        vec2(u_to_f(v.x), u_to_f(v.y))
+    fn hash_22f(p: IVec2) -> Vec2 {
+        // 2D -> 1D
+        //let mut n = p.x * ivec2(3, 37) + p.y * ivec2(311, 113);
+        let mut n_x = p.x.wrapping_mul(3).wrapping_add(p.y.wrapping_mul(311));
+        let mut n_y = p.x.wrapping_mul(37).wrapping_add(p.y.wrapping_mul(113));
+
+        // 1D hash by Hugo Elias
+        n_x = (n_x << 13) ^ n_x;
+        n_y = (n_y << 13) ^ n_y;
+        // n = n * (n * n * 15731 + 789221) + 1376312589;
+        n_x = n_x
+            .wrapping_mul(
+                n_x.wrapping_mul(n_x)
+                    .wrapping_mul(15731)
+                    .wrapping_add(789221),
+            )
+            .wrapping_add(1376312589);
+        n_y = n_y
+            .wrapping_mul(
+                n_y.wrapping_mul(n_y)
+                    .wrapping_mul(15731)
+                    .wrapping_add(789221),
+            )
+            .wrapping_add(1376312589);
+
+        // return -1.0 + 2.0 * vec2(n & ivec2(0x0fffffff)) / float(0x0fffffff);
+        let n_x = -1.0 + 2.0 * (n_x & 0x0fffffff) as f32 / 0x0fffffff as f32;
+        let n_y = -1.0 + 2.0 * (n_y & 0x0fffffff) as f32 / 0x0fffffff as f32;
+
+        vec2(n_x, n_y)
     }
 
     fn hash_33f(v: IVec3) -> Vec3 {
@@ -251,8 +278,7 @@ mod tests {
         );
     }
 
-    // #[test]
-    // TODO: FIX THIS
+    #[test]
     fn pcg_seed_distribution_22() {
         let hasher_f = |seed: u32, pos: Vec2| PcgHasher::new(seed).hash_22f_seeded(pos.as_ivec2());
         let sample = generate_sample(hasher_f, 0)

@@ -3,16 +3,17 @@
 //! If you want to move the player in a smoother way,
 //! consider using a [fixed timestep](https://github.com/bevyengine/bevy/blob/main/examples/movement/physics_in_fixed_timestep.rs).
 
-use bevy::{input::mouse::MouseMotion, prelude::*};
-
-use crate::AppSet;
+use crate::prelude::*;
+use bevy::input::mouse::MouseMotion;
 
 pub(super) fn plugin(app: &mut App) {
     // Record directional input as movement controls.
     app.register_type::<MovementController>();
     app.add_systems(
         Update,
-        (record_movement_controller, record_rotation_controller).in_set(AppSet::RecordInput),
+        (record_movement_controller, record_rotation_controller)
+            .in_set(AppSet::RecordInput)
+            .run_if(camera_not_locked),
     );
 
     // Apply movement based on controls.
