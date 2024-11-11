@@ -1,7 +1,8 @@
 use crate::prelude::*;
 
-use bevy::utils::hashbrown::HashMap;
-use utils::noise::{self, NoiseHasher, PcgHasher, Value2Dt1, Value2Dt2};
+use avian3d::prelude::Collider;
+use bevy::{render::render_asset::RenderAssetUsages, utils::hashbrown::HashMap};
+use utils::noise::{self, NoiseHasher, PcgHasher};
 
 #[cfg(feature = "dev")]
 pub mod map_devtools;
@@ -69,6 +70,17 @@ impl ChunkPosition3 {
         ChunkPosition2::new(self.x.0, self.z.0)
     }
 }
+
+const DIRECTIONS_2D: [IVec2; 8] = [
+    ivec2(1, 0),
+    ivec2(-1, 0),
+    ivec2(0, 1),
+    ivec2(0, -1),
+    ivec2(-1, -1),
+    ivec2(1, -1),
+    ivec2(-1, 1),
+    ivec2(1, 1),
+];
 
 #[derive(Component, Debug, Hash, PartialEq, Eq, Clone, Copy, Default)]
 pub struct ChunkPosition2 {
@@ -261,13 +273,13 @@ pub struct Terrain {
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-enum MapSystemSets {
-    ChunkMutate,
-    ChunkRegister,
-    ChunkRender,
+enum ChunkSystemSet {
+    Mutate,
+    Register,
+    Render,
+    Colliders,
 
     ChunkReload,
-    Input,
 }
 
 pub fn plugin(app: &mut App) {
@@ -276,11 +288,12 @@ pub fn plugin(app: &mut App) {
         .init_resource::<ChunkManager>()
         .init_resource::<Terrain>()
         .configure_sets(
-            Startup,
+            OnEnter(GameState::Playing),
             (
-                MapSystemSets::ChunkMutate,
-                MapSystemSets::ChunkRegister,
-                MapSystemSets::ChunkRender,
+                ChunkSystemSet::Mutate,
+                ChunkSystemSet::Register,
+                ChunkSystemSet::Render,
+                ChunkSystemSet::Colliders.in_set(GameSet::UpdateColliders),
             )
                 .chain(),
         )
@@ -288,31 +301,35 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 #[cfg(feature = "dev")]
-                MapSystemSets::ChunkReload,
-                MapSystemSets::ChunkMutate,
-                MapSystemSets::ChunkRegister,
-                MapSystemSets::ChunkRender,
+                ChunkSystemSet::ChunkReload,
+                ChunkSystemSet::Mutate,
+                ChunkSystemSet::Register,
+                ChunkSystemSet::Render,
+                ChunkSystemSet::Colliders.in_set(GameSet::UpdateColliders),
             )
                 .chain(),
         )
         .add_systems(
-            Startup,
+            OnEnter(GameState::Playing),
             (
-                spawn_chunks.in_set(MapSystemSets::ChunkMutate),
-                render_chunks.in_set(MapSystemSets::ChunkRender),
-                register_chunks.in_set(MapSystemSets::ChunkRegister),
+                spawn_chunks.in_set(ChunkSystemSet::Mutate),
+                render_chunks.in_set(ChunkSystemSet::Render),
+                register_chunks.in_set(ChunkSystemSet::Register),
+                add_colliders_to_chunks.in_set(ChunkSystemSet::Colliders),
             ),
         )
         .add_systems(
             Update,
             (
-                update_map_render_center.before(MapSystemSets::ChunkMutate),
-                register_chunks.in_set(MapSystemSets::ChunkRegister),
+                update_map_render_center.before(ChunkSystemSet::Mutate),
+                register_chunks.in_set(ChunkSystemSet::Register),
                 (
-                    spawn_chunks.in_set(MapSystemSets::ChunkMutate),
-                    despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
-                    render_chunks.in_set(MapSystemSets::ChunkRender),
-                    derender_chunks.in_set(MapSystemSets::ChunkRender),
+                    spawn_chunks.in_set(ChunkSystemSet::Mutate),
+                    despawn_unregister_out_of_range_chunks.in_set(ChunkSystemSet::Mutate),
+                    render_chunks.in_set(ChunkSystemSet::Render),
+                    derender_chunks.in_set(ChunkSystemSet::Render),
+                    add_colliders_to_chunks.in_set(ChunkSystemSet::Colliders),
+                    remove_colliders_from_chunks.in_set(ChunkSystemSet::Colliders),
                 )
                     .run_if(render_center_changed),
             ),
@@ -405,6 +422,7 @@ fn spawn_chunks(
                 Chunk,
                 Name::new(format!("Chunk {}x{}", x, y)),
                 chunk_position,
+                StateScoped(GameState::Playing),
             ));
         }
     }
@@ -496,33 +514,17 @@ fn render_chunks(
 
     let mut count = 0;
 
-    let mut highest_point = -1.0;
-    let mut lowest_point = 1.0;
-    info!("Rendering chunks");
     for (chunk_entity, chunk_position) in chunks.iter() {
         if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
             continue;
         }
         let chunk_translation = chunk_position.to_2d().to_world_pos();
-        let mesh = utils::primitives::create_subdivided_plane(
+        let mut mesh = utils::primitives::create_subdivided_plane(
             terrain.chunk_subdivisions,
             CHUNK_SIZE,
             terrain.chunk_sampler(chunk_translation),
         );
-
-        if let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(positions)) =
-            mesh.attribute(Mesh::ATTRIBUTE_POSITION)
-        {
-            for v in positions {
-                let y = v[1];
-                if y > highest_point {
-                    highest_point = y;
-                }
-                if y < lowest_point {
-                    lowest_point = y;
-                }
-            }
-        }
+        mesh.asset_usage = RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD;
 
         let transform = Transform::from_translation(chunk_position.to_world_pos());
         let material = StandardMaterial {
@@ -532,19 +534,18 @@ fn render_chunks(
             ..default()
         };
 
-        commands.entity(chunk_entity).insert((MaterialMeshBundle {
+        commands.entity(chunk_entity).insert(MaterialMeshBundle {
             mesh: asset_server.add(mesh),
             material: asset_server.add(material),
             transform,
             ..default()
-        },));
+        });
 
         count += 1;
     }
 
     if count > 0 {
         info!("Rendered {} chunks", count);
-        info!("Highest point: {highest_point}, lowest point: {lowest_point}");
     }
 }
 
@@ -579,6 +580,49 @@ fn is_chunk_in_range(
     let distance_squared = center.distance_squared(chunk_position.to_ivec().xz());
 
     distance_squared <= render_radius_squared
+}
+
+fn add_colliders_to_chunks(
+    mut commands: Commands,
+    chunks_query: Query<&Handle<Mesh>, Without<Collider>>,
+    chunk_manager: Res<ChunkManager>,
+    render_center: Res<MapRenderCenter>,
+    meshes: Res<Assets<Mesh>>,
+) {
+    let center = render_center.center.to_ivec().xz();
+
+    for chunk_position in DIRECTIONS_2D
+        .into_iter()
+        .map(|d| ChunkPosition3::new(d.x + center.x, 0, d.y + center.y))
+        .chain([ChunkPosition3::new(center.x, 0, center.y)])
+    {
+        let chunk_entity_option = chunk_manager.chunks.get(&chunk_position.to_2d());
+
+        let Some(collider) = chunk_entity_option
+            .and_then(|e| chunks_query.get(*e).ok())
+            .and_then(|h| meshes.get(h))
+            .and_then(Collider::convex_hull_from_mesh)
+        else {
+            continue;
+        };
+
+        commands
+            .entity(*chunk_entity_option.unwrap())
+            .insert(collider);
+    }
+}
+
+fn remove_colliders_from_chunks(
+    mut commands: Commands,
+    chunks_query: Query<(Entity, &ChunkPosition3), With<Collider>>,
+    render_center: Res<MapRenderCenter>,
+) {
+    let center = render_center.center.to_ivec().xz();
+    for (entity, chunk_position) in chunks_query.iter().map(|(e, p)| (e, p.to_ivec().xz())) {
+        if chunk_position.distance_squared(center) > 2 {
+            commands.entity(entity).remove::<Collider>();
+        }
+    }
 }
 
 #[cfg(any(test, feature = "dev"))]

@@ -51,38 +51,38 @@ struct TerrainPreview {
 pub fn map_devtools_plugin(app: &mut App) {
     app.init_resource::<EditorTerrainImages>()
         .init_resource::<EditorTerrainState>()
-        .add_systems(Startup, update_terrain_previews)
+        .add_systems(OnEnter(GameState::Playing), update_terrain_previews)
         .add_systems(
             Update,
             (
                 sync_terrain_with_ui
-                    .in_set(MapSystemSets::ChunkReload)
+                    .in_set(ChunkSystemSet::ChunkReload)
                     .run_if(editor_terrain_changed),
                 update_terrain_previews
-                    .in_set(MapSystemSets::ChunkReload)
+                    .in_set(ChunkSystemSet::ChunkReload)
                     .run_if(
                         editor_terrain_changed
                             .or_else(editor_terrain_previews_changed)
                             .or_else(render_center_changed),
                     ),
                 unflag_manual_terrain_change
-                    .in_set(MapSystemSets::ChunkRender)
+                    .in_set(ChunkSystemSet::Render)
                     .run_if(editor_terrain_changed),
                 unflag_manual_terrain_previews_change
-                    .in_set(MapSystemSets::ChunkRender)
+                    .in_set(ChunkSystemSet::Render)
                     .run_if(editor_terrain_previews_changed),
                 (
-                    log_terrain_changed.in_set(MapSystemSets::ChunkReload),
-                    clear_chunk_registry.in_set(MapSystemSets::ChunkReload),
-                    despawn_entities::<Chunk>.in_set(MapSystemSets::ChunkReload),
-                    spawn_chunks.in_set(MapSystemSets::ChunkMutate),
+                    log_terrain_changed.in_set(ChunkSystemSet::ChunkReload),
+                    clear_chunk_registry.in_set(ChunkSystemSet::ChunkReload),
+                    despawn_entities::<Chunk>.in_set(ChunkSystemSet::ChunkReload),
+                    spawn_chunks.in_set(ChunkSystemSet::Mutate),
                     // despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
-                    render_chunks.in_set(MapSystemSets::ChunkRender),
+                    render_chunks.in_set(ChunkSystemSet::Render),
                     // derender_chunks.in_set(MapSystemSets::ChunkRender),
                 )
                     .chain()
                     .run_if(resource_changed::<Terrain>),
-                debug_invisible_chunks.in_set(MapSystemSets::ChunkRender),
+                debug_invisible_chunks.in_set(ChunkSystemSet::Render),
             ),
         );
 }

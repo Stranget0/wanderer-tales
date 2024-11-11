@@ -4,14 +4,16 @@ use bevy::prelude::*;
 
 pub mod assets;
 pub mod audio;
-mod camera;
+mod character_controller;
 mod lights;
 pub mod map;
-mod movement;
-mod player;
+mod player_controller;
 mod shaders;
 
-pub use camera::{camera_not_locked, CameraLock, CameraLocks, CameraOrbit};
+use character_controller::*;
+pub use player_controller::{
+    controls_locked, CameraOrbit, CameraOrbitTarget, ControlLock, ControlLocks,
+};
 
 pub mod devtools {
     pub use super::map::map_devtools::*;
@@ -23,13 +25,8 @@ pub(super) fn plugin(app: &mut App) {
         audio::plugin,
         assets::plugin,
         shaders::plugin,
-        movement::plugin,
-        player::plugin,
-        camera::plugin,
+        character_controller::plugin,
+        player_controller::plugin,
         map::plugin,
     ));
-}
-
-mod prelude {
-    pub use crate::screen::Screen;
 }

@@ -1,39 +1,34 @@
 //! A splash screen that plays briefly at startup.
 
-use bevy::{
-    prelude::*,
-    render::texture::{ImageLoaderSettings, ImageSampler},
-};
-
-use super::Screen;
-use crate::{ui::prelude::*, AppSet};
+use crate::{prelude::*, ui::prelude::*};
+use bevy::render::texture::{ImageLoaderSettings, ImageSampler};
 
 pub(super) fn plugin(app: &mut App) {
     // Spawn splash screen.
     app.insert_resource(ClearColor(SPLASH_BACKGROUND_COLOR));
-    app.add_systems(OnEnter(Screen::Splash), spawn_splash);
+    app.add_systems(OnEnter(GameState::Splash), spawn_splash);
 
     // Animate splash screen.
     app.add_systems(
         Update,
         (
-            tick_fade_in_out.in_set(AppSet::TickTimers),
-            apply_fade_in_out.in_set(AppSet::Update),
+            tick_fade_in_out.in_set(GameSet::TickTimers),
+            apply_fade_in_out.in_set(GameSet::Update),
         )
-            .run_if(in_state(Screen::Splash)),
+            .run_if(in_state(GameState::Splash)),
     );
 
     // Add splash timer.
     app.register_type::<SplashTimer>();
-    app.add_systems(OnEnter(Screen::Splash), insert_splash_timer);
-    app.add_systems(OnExit(Screen::Splash), remove_splash_timer);
+    app.add_systems(OnEnter(GameState::Splash), insert_splash_timer);
+    app.add_systems(OnExit(GameState::Splash), remove_splash_timer);
     app.add_systems(
         Update,
         (
-            tick_splash_timer.in_set(AppSet::TickTimers),
-            check_splash_timer.in_set(AppSet::Update),
+            tick_splash_timer.in_set(GameSet::TickTimers),
+            check_splash_timer.in_set(GameSet::Update),
         )
-            .run_if(in_state(Screen::Splash)),
+            .run_if(in_state(GameState::Splash)),
     );
 }
 
@@ -47,7 +42,7 @@ fn spawn_splash(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert((
             Name::new("Splash screen"),
             BackgroundColor(SPLASH_BACKGROUND_COLOR),
-            StateScoped(Screen::Splash),
+            StateScoped(GameState::Splash),
         ))
         .with_children(|children| {
             children.spawn((
@@ -135,8 +130,8 @@ fn tick_splash_timer(time: Res<Time>, mut timer: ResMut<SplashTimer>) {
     timer.0.tick(time.delta());
 }
 
-fn check_splash_timer(timer: ResMut<SplashTimer>, mut next_screen: ResMut<NextState<Screen>>) {
+fn check_splash_timer(timer: ResMut<SplashTimer>, mut next_screen: ResMut<NextState<GameState>>) {
     if timer.0.just_finished() {
-        next_screen.set(Screen::Loading);
+        next_screen.set(GameState::Loading);
     }
 }

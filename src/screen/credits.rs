@@ -1,20 +1,18 @@
 //! A credits screen that can be accessed from the title screen.
 
-use bevy::prelude::*;
-
-use super::Screen;
 use crate::{
     game::{assets::SoundtrackKey, audio::soundtrack::PlaySoundtrack},
+    prelude::*,
     ui::prelude::*,
 };
 
 pub(super) fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(Screen::Credits), enter_credits);
-    app.add_systems(OnExit(Screen::Credits), exit_credits);
+    app.add_systems(OnEnter(GameState::Credits), enter_credits);
+    app.add_systems(OnExit(GameState::Credits), exit_credits);
 
     app.add_systems(
         Update,
-        handle_credits_action.run_if(in_state(Screen::Credits)),
+        handle_credits_action.run_if(in_state(GameState::Credits)),
     );
     app.register_type::<CreditsAction>();
 }
@@ -28,7 +26,7 @@ enum CreditsAction {
 fn enter_credits(mut commands: Commands) {
     commands
         .ui_root()
-        .insert(StateScoped(Screen::Credits))
+        .insert(StateScoped(GameState::Credits))
         .with_children(|children| {
             children.header("Made by");
             children.label("Alice - Foo");
@@ -50,13 +48,13 @@ fn exit_credits(mut commands: Commands) {
 }
 
 fn handle_credits_action(
-    mut next_screen: ResMut<NextState<Screen>>,
+    mut next_screen: ResMut<NextState<GameState>>,
     mut button_query: InteractionQuery<&CreditsAction>,
 ) {
     for (interaction, action) in &mut button_query {
         if matches!(interaction, Interaction::Pressed) {
             match action {
-                CreditsAction::Back => next_screen.set(Screen::Title),
+                CreditsAction::Back => next_screen.set(GameState::Title),
             }
         }
     }

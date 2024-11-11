@@ -2,19 +2,22 @@ mod dev_tools;
 pub mod game;
 mod screen;
 mod ui;
+
+pub mod extenstions;
 pub mod utils;
 pub mod wgsl_keys;
 
 use bevy::prelude::*;
-use wgsl_keys::RenderStatePlugin;
 
 pub mod prelude {
+    pub use super::extenstions::*;
     pub use super::utils;
     pub use super::utils::ecs::*;
     pub use super::wgsl_keys::*;
     pub use crate::dev_tools::*;
-    pub use crate::game::{camera_not_locked, CameraLock, CameraLocks};
-    pub use crate::AppSet;
+    // pub use crate::game::{camera_not_locked, CameraLock, CameraLocks};
+    pub use crate::screen::GameState;
+    pub use crate::GameSet;
     pub use bevy::color::palettes::tailwind;
     pub use bevy::input::common_conditions::*;
     pub use bevy::math::*;
@@ -30,13 +33,18 @@ impl Plugin for AppPlugin {
         // Order new `AppStep` variants by adding them here:
         app.configure_sets(
             Update,
-            (AppSet::TickTimers, AppSet::RecordInput, AppSet::Update).chain(),
+            (
+                GameSet::TickTimers,
+                GameSet::RecordInput,
+                GameSet::Update.after(GameSet::UpdateColliders),
+            )
+                .chain(),
         );
 
         // Spawn the main camera.
         app.add_systems(Startup, spawn_camera_ui);
 
-        app.add_plugins(RenderStatePlugin::new());
+        // app.add_plugins(RenderStatePlugin::new());
 
         // Add other plugins.
         app.add_plugins((game::plugin, screen::plugin, ui::plugin));
@@ -51,12 +59,13 @@ impl Plugin for AppPlugin {
 /// When adding a new variant, make sure to order it in the `configure_sets`
 /// call above.
 #[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum AppSet {
+pub enum GameSet {
     /// Tick timers.
     TickTimers,
     /// Record player input.
     RecordInput,
     /// Do everything else (consider splitting this into further variants).
+    UpdateColliders,
     Update,
 }
 

@@ -9,8 +9,8 @@ mod title;
 use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
-    app.insert_state(Screen::Splash);
-    app.enable_state_scoped_entities::<Screen>();
+    app.insert_state(GameState::Splash);
+    app.enable_state_scoped_entities::<GameState>();
 
     app.add_plugins((
         splash::plugin,
@@ -23,7 +23,7 @@ pub(super) fn plugin(app: &mut App) {
 
 /// The game's main screen states.
 #[derive(States, Debug, Hash, PartialEq, Eq, Clone, Default)]
-pub enum Screen {
+pub enum GameState {
     #[default]
     Splash,
     Loading,
@@ -33,6 +33,6 @@ pub enum Screen {
 }
 
 mod prelude {
-    pub use super::Screen;
+    pub use super::GameState;
     pub use crate::game::{assets::SoundtrackKey, audio::soundtrack::PlaySoundtrack};
 }

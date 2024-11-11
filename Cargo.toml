@@ -5,14 +5,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+avian3d = "0.1.2"
 bevy = { version = "0.14", features = ["wayland"] }
 bevy-inspector-egui = { version = "0.27.0", optional = true }
+bevy-tnua = "0.20.0"
+bevy-tnua-avian3d = "0.1.1"
 bytemuck = "1.16.3"
 criterion = "0.5.1"
 crossbeam-channel = "0.5.13"
-egui = "0.29"
-egui_dock = "0.14.0"
+egui = { version = "0.29", optional = true }
+egui_dock = { version = "0.14.0", optional = true }
 itertools = "0.13.0"
+leafwing-input-manager = "0.15.1"
 libnoise = "1.1.2"
 # Disable low-severity logs at compile time for performance.
 log = { version = "0.4", features = [
@@ -32,7 +36,9 @@ dev = [
   # Improve compile times for dev builds by linking Bevy as a dynamic library.
   "bevy/dynamic_linking",
   "bevy/bevy_dev_tools",
-  "bevy-inspector-egui",
+  "dep:bevy-inspector-egui",
+  "dep:egui_dock",
+  "dep:egui",
 
 ]
 dev_native = [
@@ -42,7 +48,6 @@ dev_native = [
   # Enable embedded asset hot reloading for native dev builds.
   "bevy/embedded_watcher",
 ]
-bevy-inspector-egui = ["dep:bevy-inspector-egui"]
 
 # Idiomatic Bevy code often triggers these lints, and the CI workflow treats them as errors.
 # In some cases they may still signal poor code quality however, so consider commenting out these lines.

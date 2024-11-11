@@ -17,3 +17,18 @@ pub fn despawn_entities<T: Component>(mut commands: Commands, query: Query<Entit
         commands.entity(entity).despawn_recursive();
     }
 }
+
+/// A condition that returns true when components of type T are added to any entity
+pub fn components_added<T: Component>(query: Query<(), Added<T>>) -> bool {
+    !query.is_empty()
+}
+
+/// A condition that returns true when components of type T are removed from any entity
+pub fn components_removed<T: Component>(query: RemovedComponents<T>) -> bool {
+    !query.is_empty()
+}
+
+/// A condition that returns true when components of type T are changed in any entity
+pub fn components_changed<T: Component>(query: Query<(), Changed<T>>) -> bool {
+    !query.is_empty()
+}

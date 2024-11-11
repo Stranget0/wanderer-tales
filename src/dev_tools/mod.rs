@@ -11,18 +11,16 @@ pub mod plugin {
     use std::any::TypeId;
 
     use super::*;
+    use crate::game::CameraOrbitTarget;
+    use crate::screen::GameState;
     use crate::{game, prelude::*};
-    use crate::{game::CameraOrbit, screen::Screen};
     use bevy::asset::{ReflectAsset, UntypedAssetId};
     use bevy::pbr::ExtendedMaterial;
     use bevy::window::PrimaryWindow;
     use bevy::{
         color::palettes::tailwind,
         dev_tools::states::log_transitions,
-        pbr::{
-            wireframe::{WireframeConfig, WireframePlugin},
-            MaterialExtension,
-        },
+        pbr::{wireframe::WireframeConfig, MaterialExtension},
         prelude::*,
         render::render_resource::{AsBindGroup, ShaderImport, ShaderRef},
     };
@@ -53,18 +51,19 @@ pub mod plugin {
             })
             .insert_resource(EditorState::new())
             // Print state transitions in dev builds
-            .add_systems(Update, log_transitions::<Screen>)
+            .add_systems(Update, log_transitions::<GameState>)
             .add_systems(
                 Update,
                 (
-                    // add_forward_gizmo,
-                    // add_world_gizmo,
+                    // add_transform_gizmos,
+                    add_world_gizmo,
+                    add_forward_gizmos,
                     toggle_dev_ui
                         .run_if(input_just_pressed(KeyCode::F10))
-                        .in_set(AppSet::RecordInput),
+                        .in_set(GameSet::RecordInput),
                     sync_camera_locks
                         .run_if(resource_changed::<DevUIEnabled>)
-                        .in_set(AppSet::Update),
+                        .in_set(GameSet::Update),
                     // add_camera_debug,
                     log_shader_load,
                     // draw_debug_normals,
@@ -263,13 +262,13 @@ pub mod plugin {
     }
 
     fn sync_camera_locks(
-        mut camera_locks: ResMut<game::CameraLocks>,
+        mut camera_locks: ResMut<game::ControlLocks>,
         dev_ui_enabled: Res<DevUIEnabled>,
     ) {
         if dev_ui_enabled.0 {
-            camera_locks.0.insert(game::CameraLock::EditorUI);
+            camera_locks.0.insert(game::ControlLock::EditorUI);
         } else {
-            camera_locks.0.remove(&game::CameraLock::EditorUI);
+            camera_locks.0.remove(&game::ControlLock::EditorUI);
         }
     }
 
@@ -530,8 +529,12 @@ pub mod plugin {
         }
     }
 
-    fn add_world_gizmo(mut gizmos: Gizmos) {
-        let start = Vec3::ZERO;
+    fn add_world_gizmo(mut gizmos: Gizmos, query: Query<&Transform, With<CameraOrbitTarget>>) {
+        let start = query
+            .get_single()
+            .map(|t| t.translation)
+            .unwrap_or_default();
+
         let g = vec![
             (Vec3::X, Srgba::RED),
             (Vec3::Y, Srgba::GREEN),
@@ -542,33 +545,28 @@ pub mod plugin {
         }
     }
 
-    fn add_forward_gizmo(mut gizmos: Gizmos, query: Query<(&Transform, &Visibility)>) {
+    fn add_forward_gizmos(mut gizmos: Gizmos, query: Query<(&Transform, &Visibility)>) {
         for (transform, visibility) in query.iter() {
             if visibility == Visibility::Visible {
                 continue;
             }
 
-            add_directions_gizmos(&mut gizmos, transform.translation, transform.rotation);
+            gizmos.arrow(
+                transform.translation,
+                transform.translation + (transform.rotation * Vec3::Z * 2.0),
+                tailwind::BLUE_400,
+            );
+
+            // add_directions_gizmos(&mut gizmos, transform.translation, transform.rotation);
         }
     }
 
     fn add_camera_debug(mut commands: Commands) {
         commands.spawn((
             Name::new("Camera debug"),
-            CameraOrbit,
+            game::CameraOrbit,
             SpatialBundle::default(),
         ));
-    }
-
-    fn add_directions_gizmos(gizmos: &mut Gizmos, start: Vec3, rotation: Quat) {
-        let g = vec![
-            (Vec3::X, Srgba::RED),
-            (Vec3::Y, Srgba::GREEN),
-            (Vec3::Z, Srgba::BLUE),
-        ];
-        for (dir, color) in g {
-            gizmos.arrow(start, start + (rotation * dir), color.with_alpha(0.3));
-        }
     }
 
     fn log_shader_load(
@@ -608,6 +606,17 @@ pub mod plugin {
         ExtendedMaterial {
             extension: DebugNormalsMaterialExtension {},
             base,
+        }
+    }
+
+    fn add_directions_gizmos(gizmos: &mut Gizmos, start: Vec3, rotation: Quat) {
+        let g = vec![
+            // (Vec3::X, Srgba::RED),
+            // (Vec3::Y, Srgba::GREEN),
+            (Vec3::Z, Srgba::BLUE),
+        ];
+        for (dir, color) in g {
+            gizmos.arrow(start, start + (rotation * dir), color.with_alpha(0.3));
         }
     }
 }
