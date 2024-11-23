@@ -45,7 +45,7 @@ impl CameraRotationController {
     }
 
     pub fn as_looking_at(&self) -> LookingAt {
-        LookingAt::new(self.offset_direction())
+        LookingAt::new(-self.offset_direction())
     }
 }
 

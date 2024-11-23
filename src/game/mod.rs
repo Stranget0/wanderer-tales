@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 pub mod assets;
 pub mod audio;
-mod character_controller;
+pub mod character_controller;
 mod lights;
 pub mod map;
 mod player_controller;
@@ -14,10 +14,6 @@ use character_controller::*;
 pub use player_controller::{
     controls_locked, CameraOrbit, CameraOrbitTarget, ControlLock, ControlLocks,
 };
-
-pub mod devtools {
-    pub use super::map::map_devtools::*;
-}
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((

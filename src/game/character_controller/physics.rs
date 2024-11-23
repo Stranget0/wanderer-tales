@@ -4,8 +4,8 @@ use avian3d::prelude::*;
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins(PhysicsPlugins::default());
 
-    #[cfg(feature = "dev")]
-    app.add_plugins(PhysicsDebugPlugin::default());
+    // #[cfg(feature = "dev")]
+    // app.add_plugins(PhysicsDebugPlugin::default());
 }
 
 #[derive(PhysicsLayer)]

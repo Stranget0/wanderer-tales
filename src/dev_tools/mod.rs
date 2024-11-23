@@ -25,8 +25,57 @@ pub mod plugin {
         render::render_resource::{AsBindGroup, ShaderImport, ShaderRef},
     };
 
+    pub trait EditorDock {
+        fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui);
+    }
+
     #[derive(Resource, Default)]
     pub struct DevUIEnabled(pub bool);
+
+    #[derive(Resource)]
+    struct EditorState {
+        state: egui_dock::DockState<EditorView>,
+        selected_entities: bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
+        selection: InspectorSelection,
+        views_to_open: hashbrown::HashSet<EditorView>,
+    }
+
+    struct EditorTabs<'a> {
+        pub world: &'a mut World,
+        selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
+        selection: &'a mut InspectorSelection,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
+    }
+
+    #[derive(Eq, PartialEq)]
+    enum InspectorSelection {
+        Entities,
+        Resource(TypeId, String),
+        Asset(TypeId, String, UntypedAssetId),
+    }
+
+    struct ResourceUI<'a> {
+        selection: &'a mut InspectorSelection,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
+    }
+
+    struct AssetUI<'a> {
+        selection: &'a mut InspectorSelection,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
+    }
+
+    struct HierarchyUI<'a> {
+        selection: &'a mut InspectorSelection,
+        selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
+        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
+    }
+
+    struct InspectorUI<'a> {
+        selection: &'a mut InspectorSelection,
+        selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
+    }
+
+    struct GameUI;
 
     pub fn dev_ui_enabled(enabled: Res<DevUIEnabled>) -> bool {
         enabled.0
@@ -39,7 +88,8 @@ pub mod plugin {
                     MaterialPlugin::<
                         ExtendedMaterial<StandardMaterial, DebugNormalsMaterialExtension>,
                     >::default(),
-                    game::devtools::map_devtools_plugin,
+                    game::map::devtools::plugin,
+                    game::character_controller::devtools::plugin,
                     bevy_inspector_egui::DefaultInspectorConfigPlugin,
                     bevy_inspector_egui::bevy_egui::EguiPlugin,
                 ),
@@ -56,8 +106,8 @@ pub mod plugin {
                 Update,
                 (
                     // add_transform_gizmos,
-                    add_world_gizmo,
-                    add_forward_gizmos,
+                    // add_world_gizmo,
+                    // add_forward_gizmos,
                     toggle_dev_ui
                         .run_if(input_just_pressed(KeyCode::F10))
                         .in_set(GameSet::RecordInput),
@@ -84,7 +134,7 @@ pub mod plugin {
     }
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-    pub enum EditorView {
+    enum EditorView {
         GameView,
         Hierarchy,
         Resources,
@@ -161,7 +211,7 @@ pub mod plugin {
                     selection,
                     selected_entities,
                 }),
-                EditorView::TerrainGen => Box::new(game::devtools::EditorTerrain {}),
+                EditorView::TerrainGen => Box::new(game::map::devtools::EditorTerrain {}),
                 EditorView::GameView => Box::new(GameUI {}),
             }
         }
@@ -177,32 +227,6 @@ pub mod plugin {
             }
             .to_string()
         }
-    }
-
-    pub struct EditorTabs<'a> {
-        pub world: &'a mut World,
-        selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
-        selection: &'a mut InspectorSelection,
-        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
-    }
-
-    #[derive(Eq, PartialEq)]
-    enum InspectorSelection {
-        Entities,
-        Resource(TypeId, String),
-        Asset(TypeId, String, UntypedAssetId),
-    }
-
-    #[derive(Resource)]
-    pub(crate) struct EditorState {
-        state: egui_dock::DockState<EditorView>,
-        selected_entities: bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
-        selection: InspectorSelection,
-        views_to_open: hashbrown::HashSet<EditorView>,
-    }
-
-    pub trait EditorDock {
-        fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui);
     }
 
     impl EditorState {
@@ -327,10 +351,6 @@ pub mod plugin {
             format!("{window:?}").into()
         }
     }
-    struct ResourceUI<'a> {
-        selection: &'a mut InspectorSelection,
-        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
-    }
 
     impl EditorDock for ResourceUI<'_> {
         fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui) {
@@ -362,11 +382,6 @@ pub mod plugin {
                 }
             }
         }
-    }
-
-    struct AssetUI<'a> {
-        selection: &'a mut InspectorSelection,
-        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
     }
 
     impl EditorDock for AssetUI<'_> {
@@ -414,12 +429,6 @@ pub mod plugin {
         }
     }
 
-    struct HierarchyUI<'a> {
-        selection: &'a mut InspectorSelection,
-        selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
-        views_to_open: &'a mut hashbrown::HashSet<EditorView>,
-    }
-
     impl EditorDock for HierarchyUI<'_> {
         fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui) {
             let selected = bevy_inspector_egui::bevy_inspector::hierarchy::hierarchy_ui(
@@ -432,11 +441,6 @@ pub mod plugin {
                 *self.selection = InspectorSelection::Entities;
             }
         }
-    }
-
-    struct InspectorUI<'a> {
-        selection: &'a mut InspectorSelection,
-        selected_entities: &'a mut bevy_inspector_egui::bevy_inspector::hierarchy::SelectedEntities,
     }
 
     impl EditorDock for InspectorUI<'_> {
@@ -480,8 +484,6 @@ pub mod plugin {
             }
         }
     }
-
-    struct GameUI;
 
     impl EditorDock for GameUI {
         fn ui(&mut self, _world: &mut World, _ui: &mut bevy_inspector_egui::egui::Ui) {}

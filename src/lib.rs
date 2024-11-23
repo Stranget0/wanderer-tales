@@ -36,7 +36,10 @@ impl Plugin for AppPlugin {
             (
                 GameSet::TickTimers,
                 GameSet::RecordInput,
-                GameSet::Update.after(GameSet::UpdateColliders),
+                GameSet::UpdateDataLayer,
+                GameSet::UpdateApply,
+                GameSet::Update,
+                GameSet::Cleanup,
             )
                 .chain(),
         );
@@ -60,13 +63,12 @@ impl Plugin for AppPlugin {
 /// call above.
 #[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum GameSet {
-    /// Tick timers.
     TickTimers,
-    /// Record player input.
     RecordInput,
-    /// Do everything else (consider splitting this into further variants).
-    UpdateColliders,
+    UpdateDataLayer,
+    UpdateApply,
     Update,
+    Cleanup,
 }
 
 fn spawn_camera_ui(mut commands: Commands) {

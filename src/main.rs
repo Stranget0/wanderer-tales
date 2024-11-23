@@ -13,6 +13,8 @@ use bevy::{
 };
 use wanderer_tales::AppPlugin;
 
+const LOG_FILTER: &str = "wgpu=error,naga=warn,bevy_ecs=debug";
+
 fn main() {
     App::new()
         .add_plugins((
@@ -47,8 +49,9 @@ fn main() {
                     ..default()
                 })
                 .set(LogPlugin {
-                    filter: "wgpu=error,naga=warn,bevy_ecs=debug".to_string(),
+                    filter: LOG_FILTER.to_string(),
                     level: bevy::log::Level::INFO,
+
                     ..default()
                 }),
             AppPlugin,

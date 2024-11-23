@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    game::{map::Terrain, CharacterControllerBundle, Jump, LookingAt, Sprinting, Walk},
+    game::{map::Terrain, spawn_character, CharacterModel, Jump, LookingAt, Sprinting, Walk},
     prelude::*,
 };
 use actions::*;
@@ -17,34 +17,27 @@ pub(super) fn plugin(app: &mut App) {
         );
 }
 
-fn spawn_player(mut commands: Commands, asset_server: ResMut<AssetServer>, terrain: Res<Terrain>) {
-    let mesh_entity = commands
-        .spawn(PbrBundle {
-            mesh: asset_server.add(Cuboid::new(1.0, 1.0, 1.0).into()),
-            material: asset_server.add(Color::srgb(0.5, 0.5, 0.5).into()),
-            ..Default::default()
-        })
-        .id();
-
+fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>, terrain: Res<Terrain>) {
     let y = terrain.sample(Vec2::ZERO).value;
 
-    commands
-        .spawn((
+    spawn_character(
+        &mut commands,
+        &asset_server,
+        &CharacterModel::KnightPlaceholder,
+        (
             Name::new("Player"),
-            StateScoped(GameState::Playing),
             CameraRotationSpeed(45.0_f32.to_radians()),
             CameraRotationController::default(),
             CameraOrbitTarget { zoom: 5.0 },
             crate::game::map::ChunkOrigin,
             PlayerAction::input_bundle(),
             CameraAction::input_bundle(),
-            CharacterControllerBundle::capsule(1.0, 1.0),
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, y, 0.0),
                 ..default()
             },
-        ))
-        .add_child(mesh_entity);
+        ),
+    );
 }
 
 fn handle_look_follow_camera(

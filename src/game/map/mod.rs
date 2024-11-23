@@ -1,11 +1,10 @@
 use crate::prelude::*;
-
 use avian3d::prelude::Collider;
 use bevy::{render::render_asset::RenderAssetUsages, utils::hashbrown::HashMap};
 use utils::noise::{self, NoiseHasher, PcgHasher};
 
 #[cfg(feature = "dev")]
-pub mod map_devtools;
+pub(crate) mod devtools;
 
 // World to chunk coordinates
 const CHUNK_SIZE: f32 = 64.0;
@@ -293,7 +292,7 @@ pub fn plugin(app: &mut App) {
                 ChunkSystemSet::Mutate,
                 ChunkSystemSet::Register,
                 ChunkSystemSet::Render,
-                ChunkSystemSet::Colliders.in_set(GameSet::UpdateColliders),
+                ChunkSystemSet::Colliders.in_set(GameSet::UpdateDataLayer),
             )
                 .chain(),
         )
@@ -305,7 +304,7 @@ pub fn plugin(app: &mut App) {
                 ChunkSystemSet::Mutate,
                 ChunkSystemSet::Register,
                 ChunkSystemSet::Render,
-                ChunkSystemSet::Colliders.in_set(GameSet::UpdateColliders),
+                ChunkSystemSet::Colliders.in_set(GameSet::UpdateDataLayer),
             )
                 .chain(),
         )
