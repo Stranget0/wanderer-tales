@@ -18,7 +18,7 @@ pub(super) fn plugin(app: &mut App) {
 }
 
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>, terrain: Res<Terrain>) {
-    let y = terrain.sample(Vec2::ZERO).value;
+    let y = terrain.sample(Vec2::ZERO).value + 1.;
 
     spawn_character(
         &mut commands,

@@ -105,8 +105,7 @@ impl CharacterControllerBundle {
                 ],
             ),
             tnua_sensor_shape: bevy_tnua_avian3d::TnuaAvian3dSensorShape(Collider::capsule(
-                height * 0.95,
-                radius * 0.95,
+                height, radius,
             )),
             float_height: FloatHeight(height / 2. + 0.1),
             walking: default(),
@@ -139,7 +138,7 @@ impl CharacterControllerExt for TnuaController {
             desired_forward: looking_at
                 .and_then(|l| l.horizontal().direction())
                 .or_else(|| direction.map(|d| -d)),
-            float_height: float_height.0,
+            float_height: float_height.0 / 2.,
             cling_distance: 0.1,
             turning_angvel: rotation_speed.radians_per_second(),
             ..Default::default()
@@ -171,7 +170,7 @@ impl CharacterControllerExt for TnuaController {
 
         self.basis(TnuaBuiltinWalk {
             desired_forward: direction,
-            float_height: float_height.0,
+            float_height: float_height.0 / 2.,
             cling_distance: 0.1,
             turning_angvel: rotation_speed.radians_per_second(),
             ..Default::default()
@@ -182,7 +181,7 @@ impl CharacterControllerExt for TnuaController {
 impl Default for Walk {
     fn default() -> Self {
         Self {
-            speed: 1.,
+            speed: 2.,
             direction: None,
         }
     }
