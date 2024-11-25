@@ -1,4 +1,5 @@
-mod dev_tools;
+#[cfg(feature = "dev")]
+pub mod dev_tools;
 pub mod game;
 mod screen;
 mod ui;
@@ -14,8 +15,6 @@ pub mod prelude {
     pub use super::utils;
     pub use super::utils::ecs::*;
     pub use super::wgsl_keys::*;
-    pub use crate::dev_tools::*;
-    // pub use crate::game::{camera_not_locked, CameraLock, CameraLocks};
     pub use crate::screen::GameState;
     pub use crate::GameSet;
     pub use bevy::color::palettes::tailwind;
@@ -24,6 +23,9 @@ pub mod prelude {
     pub use bevy::prelude::*;
     pub use bevy::utils::hashbrown;
     pub use itertools::Itertools;
+
+    #[cfg(feature = "dev")]
+    pub use crate::dev_tools::*;
 }
 
 pub struct AppPlugin;
@@ -39,7 +41,7 @@ impl Plugin for AppPlugin {
                 GameSet::UpdateDataLayer,
                 GameSet::UpdateApply,
                 GameSet::Update,
-                GameSet::Cleanup,
+                GameSet::PostUpdate,
             )
                 .chain(),
         );
@@ -68,7 +70,7 @@ pub enum GameSet {
     UpdateDataLayer,
     UpdateApply,
     Update,
-    Cleanup,
+    PostUpdate,
 }
 
 fn spawn_camera_ui(mut commands: Commands) {

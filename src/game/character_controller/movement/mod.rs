@@ -2,7 +2,6 @@ mod animation;
 mod data;
 mod models;
 
-use super::CollisionLayer;
 use crate::prelude::*;
 use animation::CharacterAnimation;
 use bevy_tnua::prelude::*;

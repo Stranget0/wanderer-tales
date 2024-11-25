@@ -1,9 +1,9 @@
 use bevy::math::vec2;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use wanderer_tales::game::map::Terrain;
+use wanderer_tales::game::map::TerrainSampler;
 
 pub fn terrain_chunk_sample(c: &mut Criterion) {
-    let terrain = Terrain::default();
+    let terrain = TerrainSampler::default();
     c.bench_function("terrain chunk sampler", |b| {
         b.iter(|| {
             let chunk_sampler = terrain.chunk_sampler(black_box(vec2(1.1, 2.2)));

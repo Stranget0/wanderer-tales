@@ -1,6 +1,8 @@
 use super::*;
 use crate::{
-    game::{map::Terrain, spawn_character, CharacterModel, Jump, LookingAt, Sprinting, Walk},
+    game::{
+        map::TerrainSampler, spawn_character, CharacterModel, Jump, LookingAt, Sprinting, Walk,
+    },
     prelude::*,
 };
 use actions::*;
@@ -17,7 +19,11 @@ pub(super) fn plugin(app: &mut App) {
         );
 }
 
-fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>, terrain: Res<Terrain>) {
+fn spawn_player(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    terrain: Res<TerrainSampler>,
+) {
     let y = terrain.sample(Vec2::ZERO).value + 1.;
 
     spawn_character(

@@ -1,5 +1,5 @@
-use super::{CharacterAnimation, CollisionLayer};
-use crate::prelude::*;
+use super::CharacterAnimation;
+use crate::{game::physics::CollisionLayer, prelude::*};
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_tnua::prelude::*;

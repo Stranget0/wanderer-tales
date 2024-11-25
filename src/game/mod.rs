@@ -7,6 +7,7 @@ pub mod audio;
 pub mod character_controller;
 mod lights;
 pub mod map;
+pub mod physics;
 mod player_controller;
 mod shaders;
 
@@ -21,6 +22,7 @@ pub(super) fn plugin(app: &mut App) {
         audio::plugin,
         assets::plugin,
         shaders::plugin,
+        physics::plugin,
         character_controller::plugin,
         player_controller::plugin,
         map::plugin,

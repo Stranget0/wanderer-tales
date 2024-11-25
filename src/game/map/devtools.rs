@@ -1,8 +1,24 @@
+use super::*;
+use crate::dev_tools::editor_ui::EditorDock;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::bevy_inspector;
-use plugin::*;
 
-use super::*;
+enum Flags {
+    DebugUnrenderedChunks,
+    DisplayWorldGrid,
+}
+
+impl DebugFlagsExt for Flags {
+    fn group(&self) -> &'static str {
+        "Terrain"
+    }
+    fn as_str(&self) -> &'static str {
+        match self {
+            Flags::DebugUnrenderedChunks => "Debug unrendered chunks",
+            Flags::DisplayWorldGrid => "Display world grid",
+        }
+    }
+}
 
 // #[derive(Component)]
 // struct ShaderMap;
@@ -49,12 +65,23 @@ struct TerrainPreview {
 }
 
 pub fn plugin(app: &mut App) {
+    register_debug_flags(
+        app,
+        vec![Flags::DisplayWorldGrid, Flags::DebugUnrenderedChunks],
+    );
+
     app.init_resource::<EditorTerrainImages>()
         .init_resource::<EditorTerrainState>()
         .add_systems(OnEnter(GameState::Playing), update_terrain_previews)
         .add_systems(
             Update,
             (
+                display_world_grid
+                    .in_set(ChunkSystemSet::Render)
+                    .run_if(debug_flag_enabled(&Flags::DisplayWorldGrid)),
+                debug_invisible_chunks
+                    .in_set(ChunkSystemSet::Render)
+                    .run_if(debug_flag_enabled(&Flags::DebugUnrenderedChunks)),
                 sync_terrain_with_ui
                     .in_set(ChunkSystemSet::ChunkReload)
                     .run_if(editor_terrain_changed),
@@ -76,18 +103,18 @@ pub fn plugin(app: &mut App) {
                     clear_chunk_registry.in_set(ChunkSystemSet::ChunkReload),
                     despawn_entities::<Chunk>.in_set(ChunkSystemSet::ChunkReload),
                     spawn_chunks.in_set(ChunkSystemSet::Mutate),
-                    // despawn_unregister_out_of_range_chunks.in_set(MapSystemSets::ChunkMutate),
                     render_chunks.in_set(ChunkSystemSet::Render),
-                    // derender_chunks.in_set(MapSystemSets::ChunkRender),
                 )
                     .chain()
-                    .run_if(resource_changed::<Terrain>),
-                debug_invisible_chunks.in_set(ChunkSystemSet::Render),
+                    .run_if(resource_changed::<TerrainSampler>),
             ),
         );
 }
 
-fn sync_terrain_with_ui(mut terrain: ResMut<Terrain>, editor_state: Res<EditorTerrainState>) {
+fn sync_terrain_with_ui(
+    mut terrain: ResMut<TerrainSampler>,
+    editor_state: Res<EditorTerrainState>,
+) {
     terrain.noise_seed = editor_state.seed;
     terrain.noise_weights = editor_state
         .weights
@@ -101,7 +128,7 @@ fn log_terrain_changed() {
     info!("Terrain changed");
 }
 
-pub fn change_map_seed(mut terrain: ResMut<Terrain>) {
+pub fn change_map_seed(mut terrain: ResMut<TerrainSampler>) {
     terrain.noise_seed = terrain.noise_seed.wrapping_add(1);
     info!("Map seed: {}", terrain.noise_seed);
 }
@@ -139,61 +166,9 @@ fn unflag_manual_terrain_previews_change(mut previews_state: ResMut<EditorTerrai
     previews_state.manual_has_changed = false;
 }
 
-pub fn toggle_debug_chunks(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    center: Res<MapRenderCenter>,
-    chunks: Query<&ChunkPosition3, With<Chunk>>,
-    render_chunks: Query<Entity, With<DebugChunk>>,
-    terrain: Res<Terrain>,
-) {
-    if !render_chunks.is_empty() {
-        for entity in render_chunks.iter() {
-            commands.entity(entity).despawn();
-        }
-        return;
-    }
-
-    let center = center.center.to_ivec().xz();
-    let render_radius_squared =
-        terrain.chunk_visibility_radius as i32 * terrain.chunk_visibility_radius as i32;
-
-    for chunk_position in chunks.iter() {
-        if !is_chunk_in_range(center, chunk_position, render_radius_squared) {
-            continue;
-        }
-        let chunk_translation = chunk_position.to_2d().to_world_pos();
-        let mesh = utils::primitives::create_subdivided_plane(
-            terrain.chunk_subdivisions,
-            CHUNK_SIZE,
-            terrain.chunk_sampler_estimate(chunk_translation),
-        );
-
-        let transform =
-            Transform::from_translation(chunk_position.to_world_pos() + (Vec3::Y * 10.0));
-        let mesh_handle = asset_server.add(mesh);
-        let material_handle = asset_server.add(StandardMaterial {
-            base_color: tailwind::GRAY_400.into(),
-            perceptual_roughness: 0.9,
-
-            ..default()
-        });
-
-        commands.spawn((
-            MaterialMeshBundle {
-                mesh: mesh_handle,
-                material: material_handle,
-                transform,
-                ..default()
-            },
-            DebugChunk,
-        ));
-    }
-}
-
 impl Default for EditorTerrainState {
     fn default() -> Self {
-        let terrain = Terrain::default();
+        let terrain = TerrainSampler::default();
 
         Self {
             manual_has_changed: false,
@@ -306,7 +281,7 @@ impl EditorDock for EditorTerrain {
     fn ui(&mut self, world: &mut World, ui: &mut bevy_inspector_egui::egui::Ui) {
         world.resource_scope::<EditorTerrainImages, _>(|world, mut terrain_images| {
             world.resource_scope::<EditorTerrainState, _>(|world, mut state| {
-                let is_focused = ui.memory(|m| m.clone()).focused().is_some();
+                // let is_focused = ui.memory(|m| m.clone()).focused().is_some();
 
                 ui.collapsing("Preview", |ui| {
                     terrain_images.manual_has_changed = ui
@@ -339,7 +314,8 @@ impl EditorDock for EditorTerrain {
                         ui.vertical(|ui| {
                             ui.label("Seed:");
                             if bevy_inspector::ui_for_value(&mut state.seed, ui, world) {
-                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                let mut terrain =
+                                    world.get_resource_mut::<TerrainSampler>().unwrap();
                                 terrain.noise_seed = state.seed;
                                 state.manual_has_changed = true;
                             }
@@ -351,7 +327,8 @@ impl EditorDock for EditorTerrain {
                                 ui,
                                 world,
                             ) {
-                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                let mut terrain =
+                                    world.get_resource_mut::<TerrainSampler>().unwrap();
                                 terrain.chunk_subdivisions = state.chunk_subdivisions;
                                 state.manual_has_changed = true;
                             }
@@ -363,7 +340,8 @@ impl EditorDock for EditorTerrain {
                                 ui,
                                 world,
                             ) {
-                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                let mut terrain =
+                                    world.get_resource_mut::<TerrainSampler>().unwrap();
                                 terrain.chunk_visibility_radius = state.chunk_visibility_radius;
                                 state.manual_has_changed = true;
                             }
@@ -375,7 +353,8 @@ impl EditorDock for EditorTerrain {
                                 ui,
                                 world,
                             ) {
-                                let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                                let mut terrain =
+                                    world.get_resource_mut::<TerrainSampler>().unwrap();
                                 terrain.chunk_spawn_radius = state.chunk_spawn_radius;
                                 state.manual_has_changed = true;
                             }
@@ -384,7 +363,7 @@ impl EditorDock for EditorTerrain {
                     ui.horizontal(|ui| {
                         ui.label("Weights:");
                         if bevy_inspector::ui_for_value(&mut state.weights, ui, world) {
-                            let mut terrain = world.get_resource_mut::<Terrain>().unwrap();
+                            let mut terrain = world.get_resource_mut::<TerrainSampler>().unwrap();
                             terrain.noise_weights = state.weights.iter().map(|(_, w)| *w).collect();
                             state.manual_has_changed = true;
                         }
@@ -427,6 +406,28 @@ fn create_preview_texture(
             ..default()
         },
     )
+}
+
+fn display_world_grid(mut gizmos: Gizmos, query: Query<&Transform, With<ChunkOrigin>>) {
+    for transform in query.iter() {
+        let origin = transform.translation.floor();
+        let range = 5;
+        let color = tailwind::GRAY_400;
+        for x in -range..range {
+            gizmos.line(
+                origin + vec3(x as f32, 0.0, -range as f32),
+                origin + vec3(x as f32, 0.0, range as f32),
+                color,
+            );
+        }
+        for z in -range..range {
+            gizmos.line(
+                origin + vec3(-range as f32, 0.0, z as f32),
+                origin + vec3(range as f32, 0.0, z as f32),
+                color,
+            );
+        }
+    }
 }
 
 // #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]

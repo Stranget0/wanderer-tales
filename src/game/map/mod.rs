@@ -1,10 +1,10 @@
+#[cfg(feature = "dev")]
+pub(crate) mod devtools;
+
 use crate::prelude::*;
 use avian3d::prelude::Collider;
 use bevy::{render::render_asset::RenderAssetUsages, utils::hashbrown::HashMap};
 use utils::noise::{self, NoiseHasher, PcgHasher};
-
-#[cfg(feature = "dev")]
-pub(crate) mod devtools;
 
 // World to chunk coordinates
 const CHUNK_SIZE: f32 = 64.0;
@@ -261,7 +261,7 @@ impl TerrainWeight {
 
 #[derive(Resource, Debug, Reflect)]
 #[reflect(Resource)]
-pub struct Terrain {
+pub struct TerrainSampler {
     // (size, amplitude, erosion)
     pub noise_weights: Vec<TerrainWeight>,
     pub noise_seed: u32,
@@ -283,9 +283,9 @@ enum ChunkSystemSet {
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<MapRenderCenter>()
-        .register_type::<Terrain>()
+        .register_type::<TerrainSampler>()
         .init_resource::<ChunkManager>()
-        .init_resource::<Terrain>()
+        .init_resource::<TerrainSampler>()
         .configure_sets(
             OnEnter(GameState::Playing),
             (
@@ -335,7 +335,7 @@ pub fn plugin(app: &mut App) {
         );
 }
 
-impl Default for Terrain {
+impl Default for TerrainSampler {
     fn default() -> Self {
         Self {
             noise_seed: 0,
@@ -352,7 +352,7 @@ impl Default for Terrain {
     }
 }
 
-impl Terrain {
+impl TerrainSampler {
     pub fn chunk_sampler(
         &self,
         chunk_translation: Vec2,
@@ -399,7 +399,7 @@ fn spawn_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     chunk_manager: Res<ChunkManager>,
-    terrain: Res<Terrain>,
+    terrain: Res<TerrainSampler>,
 ) {
     info!("Spawning chunks");
     let ChunkRect {
@@ -439,7 +439,7 @@ fn despawn_unregister_out_of_range_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     mut chunk_manager: ResMut<ChunkManager>,
-    terrain: Res<Terrain>,
+    terrain: Res<TerrainSampler>,
 ) {
     let chunk_rect =
         ChunkRect::from_circle_outside(center.center.to_2d(), terrain.chunk_spawn_radius.into());
@@ -505,7 +505,7 @@ fn render_chunks(
     asset_server: Res<AssetServer>,
     center: Res<MapRenderCenter>,
     chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, Without<Handle<Mesh>>)>,
-    terrain: Res<Terrain>,
+    terrain: Res<TerrainSampler>,
 ) {
     let center = center.center.to_ivec().xz();
     let render_radius_squared: i32 =
@@ -552,7 +552,7 @@ fn derender_chunks(
     mut commands: Commands,
     center: Res<MapRenderCenter>,
     chunks: Query<(Entity, &ChunkPosition3), (With<Chunk>, With<Handle<Mesh>>)>,
-    terrain: Res<Terrain>,
+    terrain: Res<TerrainSampler>,
 ) {
     let render_radius_squared =
         terrain.chunk_visibility_radius as i32 * terrain.chunk_visibility_radius as i32;
@@ -567,7 +567,6 @@ fn derender_chunks(
         commands
             .entity(chunk_entity)
             .remove::<Handle<StandardMaterial>>();
-        commands.entity(chunk_entity).remove::<DebugNormals>();
     }
 }
 
@@ -600,7 +599,7 @@ fn add_colliders_to_chunks(
         let Some(collider) = chunk_entity_option
             .and_then(|e| chunks_query.get(*e).ok())
             .and_then(|h| meshes.get(h))
-            .and_then(Collider::convex_hull_from_mesh)
+            .and_then(Collider::trimesh_from_mesh)
         else {
             continue;
         };
@@ -625,7 +624,7 @@ fn remove_colliders_from_chunks(
 }
 
 #[cfg(any(test, feature = "dev"))]
-impl Terrain {
+impl TerrainSampler {
     fn sample_estimate_normal(&self, pos: Vec2) -> Vec3 {
         let dfdx = noise::estimate_dt1(pos.x, |x| self.sample(vec2(x, pos.y)).value);
         let dfdy = noise::estimate_dt1(pos.y, |y| self.sample(vec2(pos.x, y)).value);
@@ -653,8 +652,8 @@ mod tests {
 
     use super::*;
 
-    fn get_terrain_config() -> Terrain {
-        Terrain::default()
+    fn get_terrain_config() -> TerrainSampler {
+        TerrainSampler::default()
     }
 
     fn extract_values(data: Option<&VertexAttributeValues>) -> Vec<Vec3> {

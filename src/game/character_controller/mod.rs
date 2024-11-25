@@ -1,14 +1,12 @@
 #[cfg(feature = "dev")]
 pub(crate) mod devtools;
 mod movement;
-mod physics;
 
 use crate::prelude::*;
 pub(crate) use movement::*;
-use physics::CollisionLayer;
 
 pub(super) fn plugin(app: &mut bevy::prelude::App) {
-    app.add_plugins((movement::plugin, physics::plugin));
+    app.add_plugins(movement::plugin);
 }
 
 pub(crate) fn spawn_character(

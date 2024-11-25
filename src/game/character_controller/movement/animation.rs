@@ -27,7 +27,7 @@ pub(super) fn plugin(app: &mut App) {
     )
     .add_systems(
         OnExit(GameState::Playing),
-        unload_animations.in_set(GameSet::Cleanup),
+        unload_animations.in_set(GameSet::PostUpdate),
     );
 }
 

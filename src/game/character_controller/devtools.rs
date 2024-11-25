@@ -4,8 +4,30 @@ use crate::prelude::*;
 
 use super::{LookingAt, Walk};
 
+enum Flags {
+    CharacterControllerGizmo,
+}
+
+impl DebugFlagsExt for Flags {
+    fn group(&self) -> &'static str {
+        "Character controller"
+    }
+    fn as_str(&self) -> &'static str {
+        match self {
+            Flags::CharacterControllerGizmo => "Character controller gizmo",
+        }
+    }
+}
+
 pub(crate) fn plugin(app: &mut App) {
-    app.add_systems(Update, gizmo_walk_direction.in_set(GameSet::Update));
+    register_debug_flags(app, vec![Flags::CharacterControllerGizmo]);
+
+    app.add_systems(
+        Update,
+        gizmo_walk_direction
+            .run_if(debug_flag_enabled(&Flags::CharacterControllerGizmo))
+            .in_set(GameSet::PostUpdate),
+    );
 }
 
 fn gizmo_walk_direction(
