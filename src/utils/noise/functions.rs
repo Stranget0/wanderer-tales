@@ -58,7 +58,7 @@ pub fn perlin_noise_2d(unscaled_p: Vec2, scale: f32, hasher: &impl NoiseHasher) 
 
     // d/dx^3 u(x) = 360x^2 - 360x + 60
     // d/dy^3 v(y) = 360y^2 - 360y + 60
-    let ddduv = 60.0 * (6.0 * f * f - 6.0 * f + 1.0);
+    // let ddduv = 60.0 * (6.0 * f * f - 6.0 * f + 1.0);
 
     let ga = hasher.hash_22f_seeded(i + ivec2(0, 0));
     let gb = hasher.hash_22f_seeded(i + ivec2(1, 0));
@@ -267,7 +267,7 @@ mod tests {
     fn value_noise_2d_derivative() {
         let unscaled_p = vec2(1.5, 2.5);
         let scale = 1.0;
-        let hasher = PcgHasher::new(0);
+        let hasher = SimpleHasher::new(0);
 
         let result = value_noise_2d(unscaled_p, scale, &hasher);
 
@@ -292,7 +292,7 @@ mod tests {
             for y in -100..100 {
                 for scale in scales.iter() {
                     for seed in seeds.iter() {
-                        let hasher = PcgHasher::new(*seed);
+                        let hasher = SimpleHasher::new(*seed);
 
                         let x = x as f32 / 3.0;
                         let y = y as f32 / 3.0;
@@ -310,7 +310,7 @@ mod tests {
     fn perlin_noise_2d_derivative() {
         let unscaled_p = vec2(1.5, 2.5);
         let scale = 1.0;
-        let hasher = PcgHasher::new(0);
+        let hasher = SimpleHasher::new(0);
 
         let result = perlin_noise_2d(unscaled_p, scale, &hasher);
 
@@ -330,7 +330,7 @@ mod tests {
     fn perlin_noise_2d_hessian() {
         let scale = 1.0;
         let position = vec2(0.5, 0.5); // Test point
-        let hasher = PcgHasher::new(0);
+        let hasher = SimpleHasher::new(0);
 
         let expected = estimate_dt2(position, |pos| perlin_noise_2d(pos, scale, &hasher).value);
 

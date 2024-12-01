@@ -1,5 +1,8 @@
 use super::CharacterAnimation;
-use crate::{game::physics::CollisionLayer, prelude::*};
+use crate::{
+    game::physics::{CollisionLayer, CollisionLayersExt},
+    prelude::*,
+};
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_tnua::prelude::*;
@@ -39,7 +42,6 @@ pub(crate) struct CharacterControllerBundle {
     pub(crate) collider: Collider,
     pub(crate) rigid_body: RigidBody,
     pub(crate) locked_axes: LockedAxes,
-    pub(crate) collision_layers: CollisionLayers,
     pub(crate) tnua_sensor_shape: bevy_tnua_avian3d::TnuaAvian3dSensorShape,
     pub(crate) tnua_controller: TnuaControllerBundle,
     pub(crate) float_height: FloatHeight,
@@ -95,15 +97,6 @@ impl CharacterControllerBundle {
             collider: Collider::capsule(height, radius),
             rigid_body: RigidBody::Dynamic,
             locked_axes: LockedAxes::new().lock_rotation_x().lock_rotation_z(),
-            collision_layers: CollisionLayers::new(
-                [CollisionLayer::Character],
-                [
-                    CollisionLayer::Player,
-                    CollisionLayer::Character,
-                    CollisionLayer::Terrain,
-                    CollisionLayer::Sensor,
-                ],
-            ),
             tnua_sensor_shape: bevy_tnua_avian3d::TnuaAvian3dSensorShape(Collider::capsule(
                 height, radius,
             )),
@@ -181,7 +174,7 @@ impl CharacterControllerExt for TnuaController {
 impl Default for Walk {
     fn default() -> Self {
         Self {
-            speed: 2.,
+            speed: 25.,
             direction: None,
         }
     }

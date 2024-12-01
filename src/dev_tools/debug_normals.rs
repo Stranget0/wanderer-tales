@@ -6,6 +6,7 @@ use bevy::{
         render_resource::{AsBindGroup, ShaderRef},
     },
 };
+use debug_flags::*;
 
 enum Flags {
     DebugNormalsArrows,

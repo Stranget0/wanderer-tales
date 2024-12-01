@@ -16,6 +16,24 @@ pub struct CameraOrbit;
 #[reflect(Component)]
 pub struct CameraRotationController(Vec2);
 
+#[derive(Component)]
+pub struct GameplayCamera;
+
+#[derive(Component)]
+pub struct CameraFocus;
+
+#[derive(PartialEq, Eq, Hash, Reflect, Debug, Clone, Copy)]
+pub enum ControlLock {
+    EditorUI,
+}
+
+#[derive(Resource, Default, Reflect, Debug)]
+#[reflect(Resource)]
+pub struct ControlLocks(pub hashbrown::HashSet<ControlLock>);
+
+pub fn controls_locked(control_locks: Res<ControlLocks>) -> bool {
+    !control_locks.0.is_empty()
+}
 impl CameraRotationController {
     pub fn yaw(&self) -> f32 {
         self.0.x
@@ -59,6 +77,8 @@ pub struct CameraLerpFactor(pub f32);
 
 pub(super) fn plugin(app: &mut App) {
     app.register_type::<CameraOrbitTarget>()
+        .register_type::<ControlLocks>()
+        .init_resource::<ControlLocks>()
         .add_systems(OnEnter(GameState::Playing), spawn_camera_gameplay)
         .add_systems(
             Update,
@@ -76,6 +96,7 @@ fn spawn_camera_gameplay(mut commands: Commands) {
         Name::new("Gameplay Camera"),
         CameraOrbit,
         StateScoped(GameState::Playing),
+        GameplayCamera,
         Camera3dBundle {
             camera: Camera {
                 order: 2,
@@ -83,6 +104,7 @@ fn spawn_camera_gameplay(mut commands: Commands) {
             },
             transform: Transform::from_translation(Vec3::new(1.0, 1.0, 1.0) * 5.0)
                 .looking_at(Vec3::ZERO, Vec3::Y),
+
             ..default()
         },
     ));

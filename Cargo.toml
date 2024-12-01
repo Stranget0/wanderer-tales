@@ -25,7 +25,6 @@ log = { version = "0.4", features = [
 ] }
 noise = "0.9.0"
 rand = "0.8"
-tree-ds = "0.1.5"
 
 [features]
 default = [
@@ -34,7 +33,7 @@ default = [
 ]
 dev = [
   # Improve compile times for dev builds by linking Bevy as a dynamic library.
-  "bevy/dynamic_linking",
+  # "bevy/dynamic_linking",
   "bevy/bevy_dev_tools",
   "dep:bevy-inspector-egui",
   "dep:egui_dock",
@@ -96,6 +95,9 @@ strip = "none"
 
 [[example]]
 name = "gpu_readback"
+
+[[example]]
+name = "primitives"
 
 [[bench]]
 name = "terrain_sample"

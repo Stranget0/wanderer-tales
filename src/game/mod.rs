@@ -13,7 +13,8 @@ mod shaders;
 
 use character_controller::*;
 pub use player_controller::{
-    controls_locked, CameraOrbit, CameraOrbitTarget, ControlLock, ControlLocks,
+    actions, actions::CameraAction, actions::PlayerAction, camera, controls_locked, CameraOrbit,
+    CameraOrbitTarget, ControlLock, ControlLocks,
 };
 
 pub(super) fn plugin(app: &mut App) {

@@ -55,11 +55,11 @@ pub trait NoiseHasher {
 }
 
 #[derive(Clone)]
-pub struct PcgHasher {
+pub struct SimpleHasher {
     seed: u32,
 }
 
-impl PcgHasher {
+impl SimpleHasher {
     pub fn new(seed: u32) -> Self {
         Self { seed }
     }
@@ -149,7 +149,7 @@ impl PcgHasher {
     }
 }
 
-impl NoiseHasher for PcgHasher {
+impl NoiseHasher for SimpleHasher {
     fn hash(v: i32) -> u32 {
         Self::pcg(v as u32)
     }
@@ -250,7 +250,8 @@ mod tests {
 
     #[test]
     fn pcg_seed_difference_22() {
-        let hasher_f = |seed: u32, pos: Vec2| PcgHasher::new(seed).hash_22f_seeded(pos.as_ivec2());
+        let hasher_f =
+            |seed: u32, pos: Vec2| SimpleHasher::new(seed).hash_22f_seeded(pos.as_ivec2());
         assert_seeds_difference(hasher_f, |a, b| {
             (a.x - b.x).abs() < 0.01 && (a.y - b.y).abs() < 0.01
         });
@@ -307,7 +308,7 @@ mod tests {
 
     #[test]
     fn pcg_range() {
-        let hasher = PcgHasher::new(0);
+        let hasher = SimpleHasher::new(0);
         let mut values = Vec::new();
         for i in -1000_i32..1000_i32 {
             let v = hasher.hash_22f_seeded(ivec2(i, i));

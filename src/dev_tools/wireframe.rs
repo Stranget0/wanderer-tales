@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
+use debug_flags::*;
 
 enum Flags {
     Wireframe,

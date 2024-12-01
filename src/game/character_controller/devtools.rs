@@ -1,8 +1,7 @@
-use bevy_tnua::prelude::{TnuaBuiltinWalk, TnuaController};
-
-use crate::prelude::*;
-
 use super::{LookingAt, Walk};
+use crate::prelude::*;
+use bevy_tnua::prelude::{TnuaBuiltinWalk, TnuaController};
+use debug_flags::*;
 
 enum Flags {
     CharacterControllerGizmo,

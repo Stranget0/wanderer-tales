@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use avian3d::prelude::*;
+use debug_flags::*;
 
 enum Flags {
     PhyiscsGizmos,

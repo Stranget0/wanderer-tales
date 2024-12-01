@@ -2,25 +2,10 @@ use crate::prelude::*;
 use leafwing_input_manager::plugin::InputManagerSystem;
 use leafwing_input_manager::prelude::*;
 
-#[derive(PartialEq, Eq, Hash, Reflect, Debug, Clone, Copy)]
-pub enum ControlLock {
-    EditorUI,
-}
-
-#[derive(Resource, Default, Reflect, Debug)]
-#[reflect(Resource)]
-pub struct ControlLocks(pub hashbrown::HashSet<ControlLock>);
-
-pub fn controls_locked(control_locks: Res<ControlLocks>) -> bool {
-    !control_locks.0.is_empty()
-}
-
 /// Configures [`Actionlike`]s, the components that hold all player input.
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.register_type::<PlayerAction>()
         .register_type::<CameraAction>()
-        .register_type::<ControlLocks>()
-        .init_resource::<ControlLocks>()
         .add_plugins((
             InputManagerPlugin::<PlayerAction>::default(),
             InputManagerPlugin::<CameraAction>::default(),
@@ -53,7 +38,7 @@ fn actions_dependencies_changed<A: Actionlike>() -> impl Condition<()> {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Actionlike, Reflect, Default)]
-pub(crate) enum PlayerAction {
+pub enum PlayerAction {
     #[default]
     #[actionlike(DualAxis)]
     Move,
@@ -63,7 +48,7 @@ pub(crate) enum PlayerAction {
 }
 
 #[derive(Actionlike, PartialEq, Eq, Hash, Clone, Copy, Debug, Reflect)]
-pub(crate) enum CameraAction {
+pub enum CameraAction {
     #[actionlike(DualAxis)]
     Orbit,
     #[actionlike(Axis)]

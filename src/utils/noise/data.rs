@@ -458,7 +458,7 @@ impl ValueDt3 {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::noise::{estimate_dt1, perlin_noise_2d, PcgHasher};
+    use crate::utils::noise::{estimate_dt1, perlin_noise_2d, SimpleHasher};
 
     use super::*;
 

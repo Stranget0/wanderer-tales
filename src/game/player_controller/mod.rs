@@ -1,12 +1,11 @@
 use crate::prelude::*;
 
-mod actions;
-mod camera;
+pub mod actions;
+pub mod camera;
 mod player;
 
-pub use actions::{controls_locked, ControlLock, ControlLocks};
 use bevy::window::PrimaryWindow;
-pub use camera::{CameraOrbit, CameraOrbitTarget};
+pub use camera::{controls_locked, CameraOrbit, CameraOrbitTarget, ControlLock, ControlLocks};
 
 pub(super) fn plugin(app: &mut bevy::prelude::App) {
     app.add_plugins((camera::plugin, actions::plugin, player::plugin))

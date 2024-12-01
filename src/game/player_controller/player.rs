@@ -1,12 +1,12 @@
-use super::*;
-use crate::{
-    game::{
-        map::TerrainSampler, spawn_character, CharacterModel, Jump, LookingAt, Sprinting, Walk,
-    },
-    prelude::*,
+use super::actions::*;
+use crate::game::{
+    map::{BaseSeed, TerrainSampler},
+    physics::CollisionLayersExt,
+    spawn_character, CharacterModel, Jump, LookingAt, Sprinting, Walk,
 };
-use actions::*;
-use camera::control::*;
+use crate::prelude::camera::*;
+use crate::prelude::*;
+use avian3d::prelude::CollisionLayers;
 use leafwing_input_manager::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
@@ -22,10 +22,10 @@ pub(super) fn plugin(app: &mut App) {
 fn spawn_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    terrain: Res<TerrainSampler>,
+    terrain_sampler: Res<TerrainSampler>,
+    base_seed: Res<BaseSeed>,
 ) {
-    let y = terrain.sample(Vec2::ZERO).value + 1.;
-
+    let y = terrain_sampler.sample(Vec2::ZERO, &base_seed).value + 100.0;
     spawn_character(
         &mut commands,
         &asset_server,
@@ -35,9 +35,10 @@ fn spawn_player(
             CameraRotationSpeed(45.0_f32.to_radians()),
             CameraRotationController::default(),
             CameraOrbitTarget { zoom: 5.0 },
-            crate::game::map::ChunkOrigin,
+            CameraFocus,
             PlayerAction::input_bundle(),
             CameraAction::input_bundle(),
+            CollisionLayers::get_player_colliders(),
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, y, 0.0),
                 ..default()

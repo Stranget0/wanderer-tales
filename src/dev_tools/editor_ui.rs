@@ -1,9 +1,10 @@
 use crate::{game, prelude::*};
 use bevy::asset::{ReflectAsset, UntypedAssetId};
 use bevy::window::PrimaryWindow;
+use debug_flags::*;
 use std::any::TypeId;
 
-pub(super) fn plugin(app: &mut App) {
+pub fn plugin(app: &mut App) {
     app.init_resource::<EditorState>()
         .init_resource::<DevUIEnabled>()
         .add_plugins((
@@ -101,7 +102,7 @@ enum EditorView {
     Resources,
     Assets,
     Inspector,
-    TerrainGen,
+    // TerrainGen,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -110,14 +111,17 @@ enum WindowView {
 }
 
 impl EditorView {
-    pub(crate) fn clear_background(&self) -> bool {
+    fn clear_background(&self) -> bool {
         !matches!(self, EditorView::GameView)
     }
 
-    pub(crate) fn closeable(&self) -> bool {
+    fn closeable(&self) -> bool {
         !matches!(self, EditorView::GameView)
     }
-    pub(crate) fn handle_split(&self, state: &mut egui_dock::DockState<EditorView>) {
+    fn is_available(&self, world: &World) -> bool {
+        true
+    }
+    fn handle_split(&self, state: &mut egui_dock::DockState<EditorView>) {
         if state.find_tab(self).is_some() {
             return;
         }
@@ -139,10 +143,10 @@ impl EditorView {
                 let tree = state.main_surface_mut();
                 tree.split_right(egui_dock::NodeIndex::root(), 0.8, vec![*self]);
             }
-            EditorView::TerrainGen => {
-                let tree = state.main_surface_mut();
-                tree.split_right(egui_dock::NodeIndex::root(), 0.8, vec![*self]);
-            }
+            // EditorView::TerrainGen => {
+            //     let tree = state.main_surface_mut();
+            //     tree.split_right(egui_dock::NodeIndex::root(), 0.8, vec![*self]);
+            // }
             _ => {}
         }
     }
@@ -171,7 +175,7 @@ impl EditorView {
                 selection,
                 selected_entities,
             }),
-            EditorView::TerrainGen => Box::new(game::map::devtools::EditorTerrain {}),
+            // EditorView::TerrainGen => Box::new(game::map::devtools::EditorTerrain {}),
             EditorView::GameView => Box::new(GameUI {}),
         }
     }
@@ -182,14 +186,20 @@ impl EditorView {
             EditorView::Resources => "Resources",
             EditorView::Assets => "Assets",
             EditorView::Inspector => "Inspector",
-            EditorView::TerrainGen => "Terrain Gen",
+            // EditorView::TerrainGen => "Terrain Gen",
             EditorView::GameView => "Game View",
         }
     }
 }
 
 impl WindowView {
-    pub(crate) fn label(&self) -> &'static str {
+    fn is_available(&self, world: &World) -> bool {
+        match self {
+            WindowView::Flags => world.get_resource::<DebugFlags>().is_some(),
+        }
+    }
+
+    fn label(&self) -> &'static str {
         match self {
             WindowView::Flags => "Flags",
         }
@@ -309,7 +319,9 @@ impl egui_dock::TabViewer for EditorTabs<'_> {
         ui.set_min_width(120.0);
         ui.style_mut().visuals.button_frame = false;
 
-        let top_openable = vec![EditorView::TerrainGen];
+        let top_openable: Vec<EditorView> = vec![
+            // EditorView::TerrainGen
+        ];
         let window_openable = vec![WindowView::Flags];
         let other_openable = vec![
             EditorView::Hierarchy,
@@ -319,18 +331,27 @@ impl egui_dock::TabViewer for EditorTabs<'_> {
         ];
 
         for view in top_openable {
+            if !view.is_available(self.world) {
+                continue;
+            }
             if ui.button(view.label()).clicked() {
                 self.views_to_open.insert(view);
             }
         }
 
         for view in window_openable {
+            if !view.is_available(self.world) {
+                continue;
+            }
             if ui.button(view.label()).clicked() {
                 self.windows_to_open.insert(view);
             }
         }
 
         for view in other_openable {
+            if !view.is_available(self.world) {
+                continue;
+            }
             if ui.button(view.label()).clicked() {
                 self.views_to_open.insert(view);
             }

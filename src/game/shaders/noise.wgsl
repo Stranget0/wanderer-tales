@@ -1,148 +1,238 @@
 #define_import_path wanderer_tales::noise
 
 
-struct ValueDt2 {
+struct Value2Dt1 {
     value: f32,
-    derivative: vec2<f32>,
+    d1: vec2<f32>,
 }
 
-struct ValueDt3 {
+struct Value2Dt2 {
     value: f32,
-    derivative: vec3<f32>,
+    d1: Dt2,
+    d2: Vec3,
 }
-// generated from GLSL with
-// https://eliotbo.github.io/glsl2wgsl/
 
-// https://www.shadertoy.com/view/XsXfRH
-fn hash_3d(p: vec3<i32>) -> f32 {
-    // TODO: remove in prod
-    var n: i32 = p.x * 3 + p.y * 113 + p.z * 311;
+fn hash(p: vec2<i32>) -> vec2<f32> {
+    var n: vec2<i32> = p.x * vec2<i32>(3, 37) + p.y * vec2<i32>(311, 113);
     n = n << 13 ^ n;
     n = n * (n * n * 15731 + 789221) + 1376312589;
-    return -1f + 2f * f32(n & 268435460f) / f32(268435460f);
+    return -1. + 2. * vec2<f32>(n & vec2<i32>(268435460.)) / f32(268435460.);
 }
 
-fn value_noise_3d(x: vec3<f32>) -> ValueDt3 {
-    let i: vec3<i32> = vec3<i32>(floor(x));
-    let w: vec3<f32> = fract(x);
-    let u: vec3<f32> = w * w * w * (w * (w * 6. - 15.) + 10.);
-    let du: vec3<f32> = 30. * w * w * (w * (w - 2.) + 1.);
-    let a: f32 = hash_3d(i + vec3<i32>(0, 0, 0));
-    let b: f32 = hash_3d(i + vec3<i32>(1, 0, 0));
-    let c: f32 = hash_3d(i + vec3<i32>(0, 1, 0));
-    let d: f32 = hash_3d(i + vec3<i32>(1, 1, 0));
-    let e: f32 = hash_3d(i + vec3<i32>(0, 0, 1));
-    let f: f32 = hash_3d(i + vec3<i32>(1, 0, 1));
-    let g: f32 = hash_3d(i + vec3<i32>(0, 1, 1));
-    let h: f32 = hash_3d(i + vec3<i32>(1, 1, 1));
-    let k0: f32 = a;
-    let k1: f32 = b - a;
-    let k2: f32 = c - a;
-    let k3: f32 = e - a;
-    let k4: f32 = a - b - c + d;
-    let k5: f32 = a - c - e + g;
-    let k6: f32 = a - b - e + f;
-    let k7: f32 = -a + b + c - d + e - f - g + h;
-
-    return ValueDt3(k0 + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y + k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z, du * vec3<f32>(k1 + k4 * u.y + k6 * u.z + k7 * u.y * u.z, k2 + k5 * u.z + k4 * u.x + k7 * u.z * u.x, k3 + k6 * u.x + k5 * u.y + k7 * u.x * u.y));
+fn hash_seeded(
+    p: vec2<i32>,
+    seed: u32,
+) {
+    return hash(vec2<i32>(vec2<u32>(p) ^ seed));
 }
 
-fn pcg(n: u32) -> u32 {
-    // TODO: replace with something better
-    var h = n * 747796405u + 2891336453u;
-    h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
-    return (h >> 22u) ^ h;
-}
 
-fn pcg2d(p: vec2u) -> vec2u {
-    var v = p * 1664525u + 1013904223u;
-    v.x += v.y * 1664525u; v.y += v.x * 1664525u;
-    v ^= v >> vec2u(16u);
-    v.x += v.y * 1664525u; v.y += v.x * 1664525u;
-    v ^= v >> vec2u(16u);
-    return v;
-}
-
-fn rand11(f: f32) -> f32 { return f32(pcg(bitcast<u32>(f))) / f32(0xffffffff); }
-fn rand22(f: vec2f) -> vec2f { return vec2f(pcg2d(bitcast<vec2u>(f))) / f32(0xffffffff); }
-fn rand21(p: vec2f) -> f32 {
-    let n = p.x * 3 + p.y * 113;
-    return rand11(n);
-}
-
-// https://www.shadertoy.com/view/MdsSRs
-fn value_noise_2d(p: vec2<f32>) -> ValueDt2 {
-    let i = floor(p);
-    let f = fract(p);
-
-    let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-    let du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
-    // let ddu = 60.0 * f * (1.0 + f * (-3.0 + 2.0 * f));
-
-    let va = rand21(i + vec2(0.0, 0.0));
-    let vb = rand21(i + vec2(1.0, 0.0));
-    let vc = rand21(i + vec2(0.0, 1.0));
-    let vd = rand21(i + vec2(1.0, 1.0));
-
-    // let k0 = va;
-    // let k1 = vb - va;
-    // let k2 = vc - va;
-    // let k4 = va - vb - vc + vd;
-
-    // value
-    let v = va + (vb - va) * u.x + (vc - va) * u.y + (va - vb - vc + vd) * u.x * u.y;
-    // derivative
-    let de = du * (vec2(vb - va, vc - va) + (va - vb - vc + vd) * u.yx);
-    // hessian derivative
-    // mat2  he = mat2( ddu.x*(k1 + k4*u.y),
-    //                     du.x*k4*du.y,
-    //                     du.y*k4*du.x,
-    //                     ddu.y*(k2 + k4*u.x) );
-    return ValueDt2(v, de);
-}
-
-fn gradient_noise_2d(p: vec2f) -> ValueDt2 {
-    let i = floor(p);
-    let f = fract(p);
+fn perlin_noise_2d(unscaled_p: vec2<f32>, scale: f32, seed: u32) -> Value2Dt2 {
+    let p = unscaled_p * scale;
+    let i = p.floor().as_ivec2();
+    let f = p.fract_gl();
 
     // quintic interpolation
-    let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-    let du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+    // u(x) = 6x^5 - 15x^4 + 10x^3
+    // v(y) = 6y^5 - 15y^4 + 10y^3
+    let uv = f * f * f * (6.0 * f * f - 15.0 * f + 10.0);
+    // d/dx u(x) = 30x^4 - 60x^3 + 30x^2
+    // d/dy v(y) = 30y^4 - 60y^3 + 30y^2
+    let duv = 30.0 * f * f * (f - 1.0) * (f - 1.0);
 
-    let ga = rand22(i + vec2(0, 0));
-    let gb = rand22(i + vec2(1, 0));
-    let gc = rand22(i + vec2(0, 1));
-    let gd = rand22(i + vec2(1, 1));
+    // d/dx^2 u(x) = 120x^3 - 180x^2 + 60x
+    // d/dy^2 v(y) = 120y^3 - 180y^2 + 60y
+    let dduv = 60.0 * f * (2.0 * f - 1.0) * (f - 1.0);
+
+    // d/dx^3 u(x) = 360x^2 - 360x + 60
+    // d/dy^3 v(y) = 360y^2 - 360y + 60
+    // let ddduv = 60.0 * (6.0 * f * f - 6.0 * f + 1.0);
+
+    let ga = hash_seeded(i + ivec2(0, 0), seed);
+    let gb = hash_seeded(i + ivec2(1, 0), seed);
+    let gc = hash_seeded(i + ivec2(0, 1), seed);
+    let gd = hash_seeded(i + ivec2(1, 1), seed);
 
     let va = dot(ga, f - vec2(0.0, 0.0));
     let vb = dot(gb, f - vec2(1.0, 0.0));
     let vc = dot(gc, f - vec2(0.0, 1.0));
     let vd = dot(gd, f - vec2(1.0, 1.0));
+    //     va(x,y) = ga_x * x + ga_y * y
+    //     vb(x,y) = gb_x * x + gb_y * y
+    //     vc(x,y) = gc_x * x + gc_y * y
+    //     vd(x,y) = gd_x * x + gd_y * y
 
-    return ValueDt2(va + u.x * (vb - va) + u.y * (vc - va) + u.x * u.y * (va - vb - vc + vd),   // value
-        ga + u.x * (gb - ga) + u.y * (gc - ga) + u.x * u.y * (ga - gb - gc + gd) + // derivatives
-                 du * (u.yx * (va - vb - vc + vd) + vec2(vb, vc) - va));
+    //     d/dx va(x,y) = ga_x
+    //     d/dy va(x,y) = ga_y
+    //
+    //     d/dx vb(x,y) = gb_x
+    //     d/dy vb(x,y) = gb_y
+    //
+    //     d/dx vc(x,y) = gc_x
+    //     d/dy vc(x,y) = gc_y
+    //
+    //     d/dx vd(x,y) = gd_x
+    //     d/dy vd(x,y) = gd_y
+
+    let k0 = va;
+    let k1 = vb - va;
+    let k2 = vc - va;
+    let k4 = va - vb - vc + vd;
+    //     k0(x,y) = va(x,y)
+    //     k1(x,y) = vb(x,y) - va(x,y)
+    //     k2(x,y) = vc(x,y) - va(x,y)
+    //     k4(x,y) = va(x,y) - vb(x,y) - vc(x,y) + vd(x,y)
+
+    let g0 = ga;
+    let g1 = gb - ga;
+    let g2 = gc - ga;
+    let g4 = ga - gb - gc + gd;
+    //     d/dx k0(x,y) = ga_x = g0_x
+    //     d/dy k0(x,y) = ga_y = g0_y
+    //
+    //     d/dx k1(x,y) = gb_x - ga_x = g1_x
+    //     d/dy k1(x,y) = gb_y - ga_y = g1_y
+    //
+    //     d/dx k2(x,y) = gc_x - ga_x = g2_x
+    //     d/dy k2(x,y) = gc_y - ga_y = g2_y
+    //
+    //     d/dx k4(x,y) = ga_x - gb_x - gc_x + gd_x = g4_x
+    //     d/dx k4(x,y) = ga_y - gb_y - gc_y + gd_y = g4_y
+
+    // n(x) = k0 + u(x) * k1 +  v(x) * k2 + k4 * u(x) * v(y)
+    let value = k0 + uv.x * k1 + uv.y * k2 + uv.x * uv.y * k4;
+
+    // d/dx n(x,y) = g0_x + u(x) * g1_x + v(y) * g2_x + u(x) * v(y) * g4_x + d/dx(u(x)) * v(y) * k4(x,y) + d/dx(u(x)) * k1(x,y);
+    let d1 = (g0 + uv.x * g1 + uv.y * g2 + uv.x * uv.y * g4 + duv * (vec2(k1, k2) + uv.yx() * k4)) * scale;
+
+    let dxx = duv.x * g1.x + duv.x * uv.y * g4.x + dduv.x * uv.y * k4 + duv.x * uv.y * g4.x + dduv.x * k1 + duv.x * g1.x;
+    // let dxx =
+    //     (g1.x + uv.y * g4.x) * duv.x + dduv.x * (uv.y * k4 + k1) + duv.x * (uv.y * g4.x + g1.x);
+    // d^2/dx^2 n(x,y) = (g1_x + v(y) g4_x) * d/dx u(x) + d/dx^2 u(x) * (v(y) k4(x,y) + k1(x,y)) + d/dx u(x) * (v(y) g4_x + g1_x)
+
+    let dxy = g2.x * duv.y + uv.x * g4.x * duv.y + duv.x * (duv.y * k4 + uv.y * g4.y + g1.y);
+    // d^2/dxdy n(x,y) = g2_x * d/dy v(y) + u(x) g4_x * d/dy v(y) + d/dx u(x) * (d/dy v(y) * k4(x,y) + v(y) * g4_y + g1_y)
+
+    // TODO: verify if hyx = hxy
+    // let dyx = dxy;
+    // let dyx = g1.y * duv.x + uv.y * g4.y * duv.x + duv.y * (duv.x * k4 + uv.x * g4.x + g2.x);
+    // d^2/dydx n(x,y) = g1_y * d/dx u(x) + v(y) * g4_y * d/dx u(x) + d/dy v(y) * (d/dx u(x) * k4(x,y) + u(x) g4_x + g2_x)
+
+    let dyy = duv.y * g2.y + uv.x * duv.y * g4.y + dduv.y * uv.x * k4 + duv.y * uv.x * g4.y + dduv.y * k2 + duv.y * g2.y;
+    // d^2/dy^2 n(x,y) = (g2_y + u(x) g4_y) * d/dy v(y) + d/dy^2 v(y) * (u(x) k4(x,y) + k2(x,y)) + d/dy v(y) * (u(x) g4_y + g2_y)
+
+    let d2 = vec3<f32>(dxx, dyy, dxy) * (scale * scale);
+    return Value2Dt2(value, d1, d2);
+
+    // let dxxx = dduv.x * g1.x
+    //     + dduv.x * uv.y * g4.x
+    //     + ddduv.x * uv.y * k4
+    //     + dduv.x * uv.y * g4.x
+    //     + ddduv.x * k1
+    //     + dduv.x * g1.x;
+    // let dyyy = dduv.y * g2.y
+    //     + uv.x * dduv.y * g4.y
+    //     + ddduv.y * uv.x * k4
+    //     + dduv.y * uv.x * g4.y
+    //     + ddduv.y * k2
+    //     + dduv.y * g2.y;
+    // let dxxy = dduv.x * uv.y * g4.x
+    //     + dduv.x * duv.y * k4
+    //     + dduv.x * uv.y * g4.y
+    //     + dduv.x * g1.y
+    //     + duv.x * duv.y * g4.x;
+    //
+    // let d3 = vec3(dxxx, dyyy, dxxy);
 }
 
-fn fbm(x: vec2f, scale: f32, height: f32) -> ValueDt2 {
-    var a = 0.0;
-    var b = 1.0;
-    var f = 1.0;
-    var d = vec2(0.0, 0.0);
-    for (var i: i32 = 0; i < 10; i++) {// 10 octaves
-    // 10 octaves
-        let n = value_noise_2d(f * x * scale);
-        a += b * n.value; // accumulate values
-        d += b * n.derivative * f; // accumulate derivatives (note that in this case b*f=1.0)
-        b *= 0.5; // amplitude decrease
-        f *= 2.0; // frequency increase
+
+fn value_dt2_to_dt1(dt2: Value2Dt2) -> Value2Dt1 {
+    return Value2Dt1(dt2.value, dt2.d1);
 }
 
-    a *= height;
-    d *= height * scale;
+fn add_dt2_dt2(dt_1: Value2Dt1, dt_2: Value2Dt2) -> Value2Dt2 {
+    return Value2Dt2(dt_1.value + dt_2.value, dt_1.d1 + dt_2.d1, dt_1.d2 + dt_2.d2);
+}
 
-    // compute normal based on derivatives
-    return ValueDt2(a, d);
+fn sub_dt2_dt2(dt_1: Value2Dt1, dt_2: Value2Dt2) -> Value2Dt2 {
+    return Value2Dt2(dt_1.value - dt_2.value, dt_1.d1 - dt_2.d1, dt_1.d2 - dt_2.d2);
+}
+
+fn mul_dt1_dt1(dt_1: Value2Dt1, dt_2: Value2Dt1) -> Value2Dt1 {
+    let value = dt_1.value * dt_2.value;
+    let d1 = dt_1.d1 * dt_2.value + dt_2.d1 * dt_1.value
+
+    return Value2Dt1(value, d1);
+}
+
+fn div_dt1_dt1(dt_1: Value2Dt1, dt_2: Value2Dt1) -> Value2Dt1 {
+    let value = dt_1.value / dt_2.value;
+    let d1 = (dt_1.d1 * dt_2.value - dt_2.d1 * dt_1.value) / (dt_2.value * dt_2.value);
+
+    return Value2Dt1(value, d1);
+}
+
+fn add_dt2_f(dt_1: Value2Dt2, f: f32) -> Value2Dt2 {
+    return Value2Dt2(dt_1.value + f, dt_1.d1, dt_1.d2);
+}
+
+fn sub_dt2_f(dt_1: Value2Dt2, f: f32) -> Value2Dt2 {
+    return Value2Dt2(dt_1.value - f, dt_1.d1, dt_1.d2);
+}
+
+fn mul_dt2_f(dt_1: Value2Dt2, f: f32) -> Value2Dt2 {
+    return Value2Dt2(dt_1.value * f, dt_1.d1 * f, dt_1.d2 * f);
+}
+
+fn div_dt2_f(dt_1: Value2Dt2, f: f32) -> Value2Dt2 {
+    return Value2Dt2(dt_1.value / f, dt_1.d1 / f, dt_1.d2 / f);
+}
+
+fn add_dt1_dt1(dt_1: Value2Dt1, dt_2: Value2Dt1) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value + dt_2.value, dt_1.d1 + dt_2.d1);
+}
+
+fn sub_dt1_dt1(dt_1: Value2Dt1, dt_2: Value2Dt1) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value - dt_2.value, dt_1.d1 - dt_2.d1);
+}
+
+fn mul_dt1_dt1(dt_1: Value2Dt1, dt_2: Value2Dt1) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value * dt_2.value, dt_1.d1 * dt_2.value + dt_2.d1 * dt_1.value);
+}
+
+fn div_dt1_dt1(dt_1: Value2Dt1, dt_2: Value2Dt1) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value / dt_2.value, dt_1.d1 * dt_2.value - dt_2.d1 * dt_1.value) / (dt_2.value * dt_2.value);
+}
+
+fn add_dt1_f(dt_1: Value2Dt1, f: f32) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value + f, dt_1.d1);
+}
+
+fn sub_dt1_f(dt_1: Value2Dt1, f: f32) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value - f, dt_1.d1);
+}
+
+fn mul_dt1_f(dt_1: Value2Dt1, f: f32) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value * f, dt_1.d1 * f);
+}
+
+fn div_dt1_f(dt_1: Value2Dt1, f: f32) -> Value2Dt1 {
+    return Value2Dt1(dt_1.value / f, dt_1.d1 / f);
+}
+
+fn dt2_length(dt: Value2Dt2) -> Value2Dt1 {
+    let d1 = dt.d1;
+    let d2 = dt.d2;
+    let grad_len = length(d1);
+
+    let grad_len_dx = (d1.x * d2.x + d1.y * d2.z) / grad_len;
+    let grad_len_dy = (d1.x * d2.z + d1.y * d2.y) / grad_len;
+
+    return Value2Dt1(grad_len, vec2(grad_len_dx, grad_len_dy));
+}
+
+fn dt1_length(dt: Value2Dt1) -> f32 {
+    return length(dt.d1);
 }
 
 fn compute_normal(derivative: vec2<f32>) -> vec3<f32> {
