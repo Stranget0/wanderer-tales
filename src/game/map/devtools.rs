@@ -203,7 +203,7 @@ fn update_terrain_previews(
         .map(|w| w.amplitude)
         .unwrap_or(1.0);
 
-    let hasher = noise::PcgHasher::from_seed(editor_terrain.seed);
+    let hasher = noise::SimpleHasher::from_seed(editor_terrain.seed);
     let mut passed_weights = Vec::with_capacity(editor_terrain.weights.len());
 
     let mut weights_preview = Vec::with_capacity(editor_terrain.weights.len());
