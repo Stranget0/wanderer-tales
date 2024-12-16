@@ -2,20 +2,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Run hot reloader",
+            "label": "enable sccache",
             "type": "shell",
-            "command": "dexterous_developer_cli",
-            "options": {
-                "env": {
-                    "RUST_BACKTRACE": "full"
-                }
-            },
-            "presentation": {
-                "clear": true
-            },
-            "problemMatcher": [
-                "$rustc"
-            ]
+            "command": "export RUSTC_WRAPPER=sccache",
         },
         {
             "label": "Run native dev",
